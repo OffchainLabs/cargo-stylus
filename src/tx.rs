@@ -1,5 +1,5 @@
 // Copyright 2023, Offchain Labs, Inc.
-// For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
+// For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 use crate::color::Color;
 
 use ethers::types::transaction::eip2718::TypedTransaction;
