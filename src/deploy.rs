@@ -58,7 +58,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
 
     if deploy {
         let wasm_file_path: PathBuf = match &cfg.wasm_file_path {
-            Some(path) => PathBuf::from_str(&path).unwrap(),
+            Some(path) => PathBuf::from_str(path).unwrap(),
             None => project::build_project_to_wasm()
                 .map_err(|e| format!("could not build project to WASM: {e}"))?,
         };

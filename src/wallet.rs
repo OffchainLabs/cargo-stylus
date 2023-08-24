@@ -20,7 +20,7 @@ pub fn load(
     }
 
     if let Some(priv_key_path) = &private_key_path {
-        let privkey = read_secret_from_file(&priv_key_path)?;
+        let privkey = read_secret_from_file(priv_key_path)?;
         return LocalWallet::from_str(&privkey)
             .map_err(|e| format!("could not parse private key: {e}"));
     }
@@ -28,7 +28,7 @@ pub fn load(
         .keystore_password_path
         .as_ref()
         .ok_or("no keystore password path provided")?;
-    let keystore_pass = read_secret_from_file(&keystore_password_path)?;
+    let keystore_pass = read_secret_from_file(keystore_password_path)?;
     let keystore_path = keystore_opts
         .keystore_path
         .as_ref()
