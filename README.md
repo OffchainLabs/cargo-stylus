@@ -48,7 +48,22 @@ If the command above fails, you'll see detailed information about why your WASM 
 
 If your program succeeds, you'll see the following message:
 
+```
+```
+
 Once you're ready to deploy your program onchain, you can use the `cargo stylus deploy` subcommand as follows:
+
+First, we can estimate the gas required to perform our deployment and activation with:
+
+```
+cargo stylus deploy --private-key-path=<PRIVKEY_FILE_PATH> --endpoint=<JSON_RPC_ENDPOINT> --estimate-gas
+```
+
+Next, attempt an actual deployment. Two transactions will be sent onchain.
+
+```
+cargo stylus deploy --private-key-path=<PRIVKEY_FILE_PATH> --endpoint=<JSON_RPC_ENDPOINT> --estimate-gas
+```
 
 ## Compiling and Checking Stylus Programs
 
