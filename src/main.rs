@@ -40,6 +40,9 @@ enum StylusSubcommands {
         /// Name of the Stylus project.
         #[arg(required = true)]
         name: String,
+        /// Initializes a minimal version of a Stylus program, with just a barebones entrypoint and the Stylus SDK.
+        #[arg(long)]
+        minimal: bool,
     },
     /// Export the Solidity ABI for a Stylus project directly using the cargo stylus tool.
     ExportAbi {
@@ -125,8 +128,8 @@ async fn main() -> eyre::Result<(), String> {
     let CargoCli::Stylus(args) = CargoCli::parse();
 
     match args.command {
-        StylusSubcommands::New { name } => {
-            if let Err(e) = new::new_stylus_project(&name) {
+        StylusSubcommands::New { name, minimal } => {
+            if let Err(e) = new::new_stylus_project(&name, minimal) {
                 println!(
                     "Could not create new stylus project with name {name}: {}",
                     e.red()
