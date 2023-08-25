@@ -33,6 +33,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(), String> {
         None => project::build_project_to_wasm(BuildConfig {
             opt_level: project::OptLevel::default(),
             nightly: cfg.nightly,
+            clean: true,
         })
         .map_err(|e| format!("failed to build project to WASM: {e}"))?,
     };

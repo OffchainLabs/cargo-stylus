@@ -63,6 +63,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
             None => project::build_project_to_wasm(BuildConfig {
                 opt_level: project::OptLevel::default(),
                 nightly: cfg.check_cfg.nightly,
+                clean: false,
             })
             .map_err(|e| format!("could not build project to WASM: {e}"))?,
         };

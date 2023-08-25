@@ -24,19 +24,22 @@ pub enum OptLevel {
 pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub nightly: bool,
+    pub clean: bool,
 }
 
 /// Build a Rust project to WASM and return the path to the compiled WASM file.
 pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf, String> {
     let cwd: PathBuf = current_dir().map_err(|e| format!("could not get current dir: {e}"))?;
 
-    // Clean the cargo project for fresh checks each time.
-    Command::new("cargo")
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .arg("clean")
-        .output()
-        .map_err(|e| format!("failed to execute cargo clean: {e}"))?;
+    if cfg.clean {
+        // Clean the cargo project for fresh checks each time.
+        Command::new("cargo")
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .arg("clean")
+            .output()
+            .map_err(|e| format!("failed to execute cargo clean: {e}"))?;
+    }
 
     let mut cmd = Command::new("cargo");
     cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
@@ -44,7 +47,9 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf, String> 
     if cfg.nightly {
         cmd.arg("+nightly");
         let msg = "Warning:".to_string().yellow();
-        println!("{} building with the Rust nightly toolchain, make sure you are aware of the security risks of doing so", msg);
+        if cfg.clean {
+            println!("{} building with the Rust nightly toolchain, make sure you are aware of the security risks of doing so", msg);
+        }
     }
 
     cmd.arg("build");
@@ -99,6 +104,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf, String> 
                 return build_project_to_wasm(BuildConfig {
                     opt_level: OptLevel::Z,
                     nightly: cfg.nightly,
+                    clean: false,
                 });
             }
             OptLevel::Z => {

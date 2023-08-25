@@ -71,7 +71,7 @@ where
             let gas_used = receipt.gas_used.unwrap();
             println!(
                 "Confirmed {tx_kind} tx {}, gas used {}",
-                tx_hash.pink(),
+                hex::encode(tx_hash.as_bytes()).pink(),
                 gas_used.mint()
             );
             Ok(())
