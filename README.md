@@ -78,7 +78,13 @@ cargo stylus deploy \
   --estimate-gas-only
 ```
 
-![Image](gas_estimate.png)
+and see:
+
+```
+Compressed WASM size: 3 KB
+Deploying program to address 0x457b1ba688e9854bdbed2f473f7510c476a3da09
+Estimated gas: 12756792
+```
 
 Next, attempt an actual deployment. Two transactions will be sent onchain.
 
@@ -88,7 +94,19 @@ cargo stylus deploy \
   --endpoint=<JSON_RPC_ENDPOINT>
 ```
 
-![Image](deploy.png)
+and see:
+
+```
+Compressed WASM size: 3 KB
+Deploying program to address 0x457b1ba688e9854bdbed2f473f7510c476a3da09
+Estimated gas: 12756792
+Submitting tx...
+Confirmed tx 0x42db…7311, gas used 11657164
+Activating program at address 0x457b1ba688e9854bdbed2f473f7510c476a3da09
+Estimated gas: 14251759
+Submitting tx...
+Confirmed tx 0x0bdb…3307, gas used 14204908
+```
 
 ## Compiling and Checking Stylus Programs
 
