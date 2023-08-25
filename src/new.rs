@@ -32,6 +32,7 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> Result<(), String> {
             .map_err(|e| format!("could not create .cargo folder in new project: {e}"))?;
         let cargo_config_path = cargo_config_dir_path.join("config");
         let mut f = std::fs::OpenOptions::new()
+            .create(true)
             .write(true)
             .open(cargo_config_path)
             .map_err(|e| format!("could not open config file: {e}"))?;
@@ -95,7 +96,7 @@ fn user_main(input: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
 fn cargo_config() -> &'static str {
     r#"[build]
 target = "wasm32-unknown-unknown"
-    "
+    "#
 }
 
 fn minimal_cargo_toml(name: &str) -> String {
