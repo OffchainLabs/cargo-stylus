@@ -84,6 +84,10 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> Result<(), String> {
 
 fn basic_entrypoint() -> &'static str {
     r#"#![no_main]
+#![no_std]
+extern crate alloc;
+
+use alloc::vec::Vec;
 
 stylus_sdk::entrypoint!(user_main);
 
