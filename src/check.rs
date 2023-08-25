@@ -8,7 +8,8 @@ use crate::{
     color::Color,
     constants::{ARB_WASM_ADDRESS, MAX_PROGRAM_SIZE},
     deploy::activation_calldata,
-    project, wallet, CheckConfig,
+    project::{self, BuildConfig},
+    wallet, CheckConfig,
 };
 use ethers::prelude::*;
 use ethers::utils::get_contract_address;
@@ -29,9 +30,14 @@ use ethers::{
 pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(), String> {
     let wasm_file_path: PathBuf = match cfg.wasm_file_path {
         Some(path) => PathBuf::from_str(&path).unwrap(),
-        None => project::build_project_to_wasm()
-            .map_err(|e| format!("failed to build project to WASM: {e}"))?,
+        None => project::build_project_to_wasm(BuildConfig {
+            opt_level: project::OptLevel::default(),
+            nightly: cfg.nightly,
+        })
+        .map_err(|e| format!("failed to build project to WASM: {e}"))?,
     };
+    println!("Reading WASM file at {}", wasm_file_path.display().grey());
+
     let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)
         .map_err(|e| format!("failed to get compressed WASM bytes: {e}"))?;
 
@@ -43,6 +49,11 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(), String> {
             MAX_PROGRAM_SIZE,
         ));
     }
+
+    println!(
+        "Compressed WASM size: {}",
+        compressed_size.to_string().mint(),
+    );
 
     let provider = Provider::<Http>::try_from(&cfg.endpoint)
         .map_err(|e| format!("could not initialize provider from http: {e}"))?;

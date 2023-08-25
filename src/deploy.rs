@@ -11,6 +11,7 @@ use ethers::{
     signers::Signer,
 };
 
+use crate::project::BuildConfig;
 use crate::{constants, project, tx, wallet, DeployConfig, DeployMode};
 
 /// Performs one of three different modes for a Stylus program:
@@ -59,8 +60,11 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
     if deploy {
         let wasm_file_path: PathBuf = match &cfg.check_cfg.wasm_file_path {
             Some(path) => PathBuf::from_str(path).unwrap(),
-            None => project::build_project_to_wasm()
-                .map_err(|e| format!("could not build project to WASM: {e}"))?,
+            None => project::build_project_to_wasm(BuildConfig {
+                opt_level: project::OptLevel::default(),
+                nightly: cfg.check_cfg.nightly,
+            })
+            .map_err(|e| format!("could not build project to WASM: {e}"))?,
         };
         let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)?;
         println!("Deploying program to address {expected_program_addr:#032x}");

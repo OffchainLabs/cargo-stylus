@@ -80,6 +80,10 @@ pub struct CheckConfig {
     /// Wallet source to use with the cargo stylus plugin.
     #[command(flatten)]
     keystore_opts: KeystoreOpts,
+    /// Whether or not to compile the Rust program using the nightly Rust version. Nightly can help
+    /// with reducing compressed WASM sizes, however, can be a security risk if used liberally.
+    #[arg(long)]
+    nightly: bool,
 }
 
 #[derive(Debug, Args, Clone)]

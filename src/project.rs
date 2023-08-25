@@ -8,20 +8,60 @@ use std::process::{Command, Stdio};
 use brotli2::read::BrotliEncoder;
 use bytesize::ByteSize;
 
+use crate::constants::MAX_PROGRAM_SIZE;
 use crate::{
     color::Color,
     constants::{BROTLI_COMPRESSION_LEVEL, EOF_PREFIX, RUST_TARGET},
 };
 
+#[derive(Default, PartialEq)]
+pub enum OptLevel {
+    #[default]
+    S,
+    Z,
+}
+
+pub struct BuildConfig {
+    pub opt_level: OptLevel,
+    pub nightly: bool,
+}
+
 /// Build a Rust project to WASM and return the path to the compiled WASM file.
-pub fn build_project_to_wasm() -> eyre::Result<PathBuf, String> {
+pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf, String> {
     let cwd: PathBuf = current_dir().map_err(|e| format!("could not get current dir: {e}"))?;
 
+    // Clean the cargo project for fresh checks each time.
     Command::new("cargo")
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
-        .arg("build")
-        .arg("--release")
+        .arg("clean")
+        .output()
+        .map_err(|e| format!("failed to execute cargo clean: {e}"))?;
+
+    let mut cmd = Command::new("cargo");
+    cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+
+    if cfg.nightly {
+        cmd.arg("+nightly");
+        let msg = "Warning:".to_string().yellow();
+        println!("{} building with the Rust nightly toolchain, make sure you are aware of the security risks of doing so", msg);
+    }
+
+    cmd.arg("build");
+
+    if cfg.nightly {
+        cmd.arg("-Z");
+        cmd.arg("build-std=std,panic_abort");
+        cmd.arg("-Z");
+        cmd.arg("build-std-features=panic_immediate_abort");
+    }
+
+    if matches!(cfg.opt_level, OptLevel::Z) {
+        cmd.arg("--config");
+        cmd.arg("profile.release.opt-level='z'");
+    }
+
+    cmd.arg("--release")
         .arg(format!("--target={}", RUST_TARGET))
         .output()
         .map_err(|e| format!("failed to execute cargo build: {e}"))?;
@@ -45,13 +85,44 @@ pub fn build_project_to_wasm() -> eyre::Result<PathBuf, String> {
             false
         })
         .ok_or("could not find WASM file in release dir")?;
+
+    let (_, compressed_wasm_code) = get_compressed_wasm_bytes(&wasm_file_path)?;
+    let compressed_size = ByteSize::b(compressed_wasm_code.len() as u64);
+    if compressed_size > MAX_PROGRAM_SIZE {
+        match cfg.opt_level {
+            OptLevel::S => {
+                println!(
+                    "Compressed program built with defaults had program size {} > max of 24Kb, rebuilding with optimizations", 
+                    compressed_size.red(),
+                );
+                // Attempt to build again with a bumped-up optimization level.
+                return build_project_to_wasm(BuildConfig {
+                    opt_level: OptLevel::Z,
+                    nightly: cfg.nightly,
+                });
+            }
+            OptLevel::Z => {
+                if !cfg.nightly {
+                    let msg = format!(
+                        r#"WASM program size {} > max size of 24Kb after applying optimizations. We recommend
+reducing the codesize or attempting to build again with the --nightly flag. However, this flag can pose a security risk if used liberally"#,
+                        compressed_size.red(),
+                    );
+                    return Err(msg);
+                }
+                return Err(
+                    "program size exceeds max despite --nightly flags. We recommend splitting up your program"
+                        .to_string(),
+                );
+            }
+        }
+    }
+
     Ok(wasm_file_path)
 }
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
 pub fn get_compressed_wasm_bytes(wasm_path: &PathBuf) -> eyre::Result<(Vec<u8>, Vec<u8>), String> {
-    println!("Reading WASM file at {}", wasm_path.display().grey());
-
     let wasm_file_bytes = std::fs::read(wasm_path).map_err(|e| {
         format!(
             "could not read WASM file at target path {}: {e}",
@@ -68,13 +139,6 @@ pub fn get_compressed_wasm_bytes(wasm_path: &PathBuf) -> eyre::Result<(Vec<u8>, 
     compressor
         .read_to_end(&mut compressed_bytes)
         .map_err(|e| format!("could not Brotli compress WASM bytes: {e}"))?;
-
-    println!(
-        "Compressed WASM size: {}",
-        ByteSize::b(compressed_bytes.len() as u64)
-            .to_string()
-            .mint(),
-    );
     let mut deploy_ready_code = hex::decode(EOF_PREFIX).unwrap();
     deploy_ready_code.extend(compressed_bytes);
     Ok((wasm_bytes.to_vec(), deploy_ready_code))
