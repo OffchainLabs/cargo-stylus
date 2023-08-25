@@ -21,27 +21,33 @@ cargo stylus --help
 
 Cargo command for developing Arbitrum Stylus projects
 
-Usage: cargo stylus check | cargo stylus deploy
+Usage: 
+    cargo stylus new
+    cargo stylus export-abi
+    cargo stylus check 
+    cargo stylus deploy
 ```
 
 ### Overview
 
-The cargo stylus command comes with two useful commands `check` and `deploy` for developing and deploying Stylus programs
+The cargo stylus command comes with useful commands such as `new`, `check` and `deploy`, and `export-abi` for developing and deploying Stylus programs
 to Arbitrum chains. Here's a common workflow: 
 
-Clone the [hello-stylus]() repository locally and change directory into it:
+Start a new Stylus project with 
 
-TODO:
+```
+cargo stylus new <YOUR_PROJECT_NAME>
+```
+
+The command above clones a local copy of the [stylus-hello-world](https://github.com/OffchainLabs/stylus-hello-world) starter project, which implements a Counter smart contract in Rust. See the [README](https://github.com/OffchainLabs/stylus-hello-world/blob/main/README.md) of stylus-hello-world for more details.
 
 Then, develop your Rust program normally and take advantage of all the features the [stylus-sdk](https://github.com/OffchainLabs/stylus-sdk-rs) has to offer. To check whether or not your program will successfully deploy and activate onchain, use the `cargo stylus check` subcommand:
 
 ```
-cargo stylus check \
-  --endpoint=<JSON_RPC_ENDPOINT> \
-  --activate-program-address=<DESIRED_PROGRAM_ADDRESS>
+cargo stylus check --endpoint=<JSON_RPC_ENDPOINT>
 ```
 
-This command will attempt to verify that your program can be deployed and activated onchain without requiring a transaction by specifying a JSON-RPC endpoint and an expected program address for your deployment. You can set this address to `0x0000000000000000000000000000000000000000` for local testing, or connect your wallet / private key to use your next, expected contract address for this check. See `cargo stylus check --help` for more options.
+This command will attempt to verify that your program can be deployed and activated onchain without requiring a transaction by specifying a JSON-RPC endpoint. See `cargo stylus check --help` for more options.
 
 If the command above fails, you'll see detailed information about why your WASM will be rejected:
 
@@ -121,21 +127,24 @@ Options:
   -e, --endpoint <ENDPOINT>
           The endpoint of the L2 node to connect to [default: http://localhost:8545]
       --wasm-file-path <WASM_FILE_PATH>
-          If desired, it loads a WASM file from a specified path. 
-          If not provided, it will try to find a WASM file under the current 
-          working directory's Rust target release directory and use 
-          its contents for the deploy command
-      --activate-program-address <ACTIVATE_PROGRAM_ADDRESS>
-          Specify the program address we want to check activation for. 
-          If unspecified, it will compute the next program address from the user's 
-          wallet address and nonce. To avoid needing a wallet to run this command,
-          pass in 0x0000000000000000000000000000000000000000 or any other desired 
-          program address to check against
+          If desired, it loads a WASM file from a specified path. If not provided, it will try 
+          to find a WASM file under the current working directory's Rust target release 
+          directory and use its contents for the deploy command
+      --expected-program-address <EXPECTED_PROGRAM_ADDRESS>
+          Specify the program address we want to check activation for. If unspecified, it 
+          will compute the next program address from the user's wallet address and nonce, 
+          which will require wallet-related flags to be specified 
+          [default: 0x0000000000000000000000000000000000000000]
       --private-key-path <PRIVATE_KEY_PATH>
           Privkey source to use with the cargo stylus plugin
       --keystore-path <KEYSTORE_PATH>
-
+          Path to an Ethereum wallet keystore file, such as the one produced by wallets such as clef
       --keystore-password-path <KEYSTORE_PASSWORD_PATH>
+          Path to a text file containing a password to the specified wallet keystore file
+      --nightly
+          Whether or not to compile the Rust program using the nightly Rust version. 
+          Nightly can help with reducing compressed WASM sizes, however, can be 
+          a security risk if used liberally
 ```
 
 ## Deploying Stylus Programs
@@ -148,29 +157,35 @@ Instruments a Rust project using Stylus and by outputting its brotli-compressed 
 Usage: cargo stylus deploy [OPTIONS]
 
 Options:
-      --estimate-gas-only
-          Does not submit a transaction, but instead estimates the gas required 
-          to complete the operation
-      --mode <MODE>
-          By default, submits two transactions to deploy and activate the 
-          program to Arbitrum. Otherwise, a user could choose to split up the 
-          deploy and activate steps into individual transactions 
-          [possible values: deploy-only, activate-only]
   -e, --endpoint <ENDPOINT>
           The endpoint of the L2 node to connect to [default: http://localhost:8545]
-      --keystore-path <KEYSTORE_PATH>
-
-      --keystore-password-path <KEYSTORE_PASSWORD_PATH>
-
+      --wasm-file-path <WASM_FILE_PATH>
+          If desired, it loads a WASM file from a specified path. If not provided, it will try to find a WASM 
+          file under the current working directory's Rust target release directory and 
+          use its contents for the deploy command
+      --expected-program-address <EXPECTED_PROGRAM_ADDRESS>
+          Specify the program address we want to check activation for. If unspecified, it 
+          will compute the next program address from the user's wallet address and nonce, 
+          which will require wallet-related flags to be specified 
+          [default: 0x0000000000000000000000000000000000000000]
       --private-key-path <PRIVATE_KEY_PATH>
           Privkey source to use with the cargo stylus plugin
+      --keystore-path <KEYSTORE_PATH>
+          Path to an Ethereum wallet keystore file, such as the one produced by wallets such as clef
+      --keystore-password-path <KEYSTORE_PASSWORD_PATH>
+          Path to a text file containing a password to the specified wallet keystore file
+      --nightly
+          Whether or not to compile the Rust program using the nightly Rust version. 
+          Nightly can help with reducing compressed WASM sizes, however, can be a security risk if used liberally
+      --estimate-gas-only
+          Does not submit a transaction, but instead estimates the gas required to complete the operation
+      --mode <MODE>
+          By default, submits two transactions to deploy and activate the program 
+          to Arbitrum. Otherwise, a user could choose to split up the deploy and activate 
+          steps into individual transactions [possible values: deploy-only, activate-only]
       --activate-program-address <ACTIVATE_PROGRAM_ADDRESS>
-          If only activating an already-deployed, onchain program, the 
-          address of the program to send an activation tx for
-      --wasm-file-path <WASM_FILE_PATH>
-          If desired, it loads a WASM file from a specified path. If not provided, 
-          it will try to find a WASM file under the current working directory's 
-          Rust target release directory and use its contents for the deploy command
+          If only activating an already-deployed, onchain program, the address 
+          of the program to send an activation tx for
 ```
 
 ## Deploying Non-Rust WASM Projects
@@ -191,6 +206,14 @@ For example:
 ```
 
 can be saved as `add.wat` and used as `cargo stylus check --wasm-file-path=add.wat` or `cargo stylus deploy --wasm-file-path=add.wat`.
+
+## Exporting Solidity ABIs
+
+Stylus Rust projects that use the [stylus-sdk](https://github.com/OffchainLabs/stylus-sdk-rs) have the option of exporting Solidity ABIs. The cargo stylus tool also makes this easy with the `export-abi` command:
+
+```
+cargo stylus export-abi
+```
 
 ## Optimizing Binary Sizes
 
