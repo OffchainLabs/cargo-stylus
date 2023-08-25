@@ -46,11 +46,25 @@ This command will attempt to verify that your program can be deployed and activa
 If the command above fails, you'll see detailed information about why your WASM will be rejected:
 
 ```
+Reading WASM file at bad-export.wat
+Compressed WASM size: 55 B
+Stylus checks failed: program predeployment check failed when checking against 
+ARB_WASM_ADDRESS 0x0000…0071: (code: -32000, message: program activation failed: failed to parse program)
+
+Caused by:
+    binary exports reserved symbol stylus_ink_left
+
+Location:
+    prover/src/binary.rs:493:9, data: None)
 ```
 
 If your program succeeds, you'll see the following message:
 
 ```
+Finished release [optimized] target(s) in 1.88s
+Reading WASM file at hello-stylus/target/wasm32-unknown-unknown/release/hello-stylus.wasm
+Compressed WASM size: 3 KB
+Program succeeded Stylus onchain activation checks with Stylus version: 1
 ```
 
 Once you're ready to deploy your program onchain, you can use the `cargo stylus deploy` subcommand as follows:
@@ -61,8 +75,10 @@ First, we can estimate the gas required to perform our deployment and activation
 cargo stylus deploy \
   --private-key-path=<PRIVKEY_FILE_PATH> \
   --endpoint=<JSON_RPC_ENDPOINT> \
-  --estimate-gas
+  --estimate-gas-only
 ```
+
+![Image](gas_estimate.png)
 
 Next, attempt an actual deployment. Two transactions will be sent onchain.
 
@@ -71,6 +87,8 @@ cargo stylus deploy \
   --private-key-path=<PRIVKEY_FILE_PATH> \
   --endpoint=<JSON_RPC_ENDPOINT>
 ```
+
+![Image](deploy.png)
 
 ## Compiling and Checking Stylus Programs
 
