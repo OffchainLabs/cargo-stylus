@@ -47,27 +47,27 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(), String> {
     let provider = Provider::<Http>::try_from(&cfg.endpoint)
         .map_err(|e| format!("could not initialize provider from http: {e}"))?;
 
-    let expected_program_addr = match cfg.activate_program_address {
-        Some(addr) => addr,
-        None => {
-            let wallet = wallet::load(cfg.private_key_path, cfg.keystore_opts)?;
-            let chain_id = provider
-                .get_chainid()
-                .await
-                .map_err(|e| format!("could not get chain id {e}"))?
-                .as_u64();
-            let client =
-                SignerMiddleware::new(provider.clone(), wallet.clone().with_chain_id(chain_id));
+    let mut expected_program_addr = cfg.expected_program_address;
 
-            let addr = wallet.address();
-            let nonce = client
-                .get_transaction_count(addr, None)
-                .await
-                .map_err(|e| format!("could not get nonce {addr}: {e}"))?;
+    // If there is no expected program address specified, compute it from the user's wallet.
+    if expected_program_addr != H160::zero() {
+        let wallet = wallet::load(cfg.private_key_path, cfg.keystore_opts)?;
+        let chain_id = provider
+            .get_chainid()
+            .await
+            .map_err(|e| format!("could not get chain id {e}"))?
+            .as_u64();
+        let client =
+            SignerMiddleware::new(provider.clone(), wallet.clone().with_chain_id(chain_id));
 
-            get_contract_address(wallet.address(), nonce)
-        }
-    };
+        let addr = wallet.address();
+        let nonce = client
+            .get_transaction_count(addr, None)
+            .await
+            .map_err(|e| format!("could not get nonce {addr}: {e}"))?;
+
+        expected_program_addr = get_contract_address(wallet.address(), nonce);
+    }
     check_can_activate(provider, &expected_program_addr, deploy_ready_code).await
 }
 

@@ -405,6 +405,7 @@ dependencies = [
  "ethers",
  "eyre",
  "hex",
+ "rustc-host",
  "serde",
  "serde_json",
  "tokio",
@@ -2899,6 +2900,15 @@ name = "rustc-hex"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e75f6a532d0fd9f7f13144f392b6ad56a32696bfcd9c78f797f16bbb6f072d6"
+
+[[package]]
+name = "rustc-host"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32cca3c284cc507e641638806e7d3f162814091e0122a5b9877063b6c9c7b9f2"
+dependencies = [
+ "thiserror",
+]
 
 [[package]]
 name = "rustc_version"

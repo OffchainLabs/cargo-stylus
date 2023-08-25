@@ -8,6 +8,7 @@ mod check;
 mod color;
 mod constants;
 mod deploy;
+mod export_abi;
 mod new;
 mod project;
 mod tx;
@@ -41,7 +42,11 @@ enum StylusSubcommands {
         name: String,
     },
     /// Export the Solidity ABI for a Stylus project directly using the cargo stylus tool.
-    ExportAbi,
+    ExportAbi {
+        /// Build in release mode.
+        #[arg(long)]
+        release: bool,
+    },
     /// Instrument a Rust project using Stylus.
     /// This command runs compiled WASM code through Stylus instrumentation checks and reports any failures.
     #[command(alias = "c")]
@@ -65,11 +70,10 @@ pub struct CheckConfig {
     #[arg(long)]
     wasm_file_path: Option<String>,
     /// Specify the program address we want to check activation for. If unspecified, it will
-    /// compute the next program address from the user's wallet address and nonce.
-    /// To avoid needing a wallet to run this command, pass in 0x0000000000000000000000000000000000000000
-    /// or any other desired program address to check against.
-    #[arg(long)]
-    activate_program_address: Option<H160>,
+    /// compute the next program address from the user's wallet address and nonce, which will require
+    /// wallet-related flags to be specified.
+    #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
+    expected_program_address: H160,
     /// Privkey source to use with the cargo stylus plugin.
     #[arg(long)]
     private_key_path: Option<String>,
@@ -80,6 +84,8 @@ pub struct CheckConfig {
 
 #[derive(Debug, Args, Clone)]
 pub struct DeployConfig {
+    #[command(flatten)]
+    check_cfg: CheckConfig,
     /// Does not submit a transaction, but instead estimates the gas required
     /// to complete the operation.
     #[arg(long)]
@@ -88,23 +94,9 @@ pub struct DeployConfig {
     /// Otherwise, a user could choose to split up the deploy and activate steps into individual transactions.
     #[arg(long, value_enum)]
     mode: Option<DeployMode>,
-    /// The endpoint of the L2 node to connect to.
-    #[arg(short, long, default_value = "http://localhost:8545")]
-    endpoint: String,
-    /// Wallet source to use with the cargo stylus plugin.
-    #[command(flatten)]
-    keystore_opts: KeystoreOpts,
-    /// Privkey source to use with the cargo stylus plugin.
-    #[arg(long)]
-    private_key_path: Option<String>,
     /// If only activating an already-deployed, onchain program, the address of the program to send an activation tx for.
     #[arg(long)]
     activate_program_address: Option<H160>,
-    /// If desired, it loads a WASM file from a specified path. If not provided, it will try to find
-    /// a WASM file under the current working directory's Rust target release directory and use its
-    /// contents for the deploy command.
-    #[arg(long)]
-    wasm_file_path: Option<String>,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -137,13 +129,20 @@ async fn main() -> eyre::Result<(), String> {
                 );
             };
         }
-        StylusSubcommands::ExportAbi => {}
+        StylusSubcommands::ExportAbi { release } => {
+            if let Err(e) = export_abi::export_abi(release) {
+                println!("Could not export Stylus program Solidity ABI: {}", e.red());
+            };
+        }
         StylusSubcommands::Check(cfg) => {
             if let Err(e) = check::run_checks(cfg).await {
                 println!("Stylus checks failed: {}", e.red());
             };
         }
         StylusSubcommands::Deploy(cfg) => {
+            if let Err(e) = check::run_checks(cfg.check_cfg.clone()).await {
+                println!("Stylus checks failed: {}", e.red());
+            };
             if let Err(e) = deploy::deploy(cfg).await {
                 println!("Deploy / activation command failed: {}", e.red());
             };

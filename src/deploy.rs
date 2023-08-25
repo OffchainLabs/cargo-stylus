@@ -18,13 +18,13 @@ use crate::{constants, project, tx, wallet, DeployConfig, DeployMode};
 /// ActivateOnly: Sends a signed tx to activate a Stylus program at a specified address.
 /// DeployAndActivate (default): Sends both transactions above.
 pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
-    let wallet = wallet::load(cfg.private_key_path, cfg.keystore_opts)
+    let wallet = wallet::load(cfg.check_cfg.private_key_path, cfg.check_cfg.keystore_opts)
         .map_err(|e| format!("could not load wallet: {e}"))?;
 
-    let provider = Provider::<Http>::try_from(&cfg.endpoint).map_err(|e| {
+    let provider = Provider::<Http>::try_from(&cfg.check_cfg.endpoint).map_err(|e| {
         format!(
             "could not initialize provider from http endpoint: {}: {e}",
-            &cfg.endpoint
+            &cfg.check_cfg.endpoint
         )
     })?;
     let chain_id = provider
@@ -57,7 +57,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
     };
 
     if deploy {
-        let wasm_file_path: PathBuf = match &cfg.wasm_file_path {
+        let wasm_file_path: PathBuf = match &cfg.check_cfg.wasm_file_path {
             Some(path) => PathBuf::from_str(path).unwrap(),
             None => project::build_project_to_wasm()
                 .map_err(|e| format!("could not build project to WASM: {e}"))?,
@@ -68,9 +68,14 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
         let mut tx_request = Eip1559TransactionRequest::new()
             .from(wallet.address())
             .data(deployment_calldata);
-        tx::submit_signed_tx(&client, cfg.estimate_gas_only, &mut tx_request)
-            .await
-            .map_err(|e| format!("could not submit signed deployment tx: {e}"))?;
+        tx::submit_signed_tx(
+            &client,
+            "deployment",
+            cfg.estimate_gas_only,
+            &mut tx_request,
+        )
+        .await
+        .map_err(|e| format!("could not submit signed deployment tx: {e}"))?;
     }
     if activate {
         let program_addr = cfg
@@ -86,9 +91,14 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
             .from(wallet.address())
             .to(to)
             .data(activate_calldata);
-        tx::submit_signed_tx(&client, cfg.estimate_gas_only, &mut tx_request)
-            .await
-            .map_err(|e| format!("could not submit signed deployment tx: {e}"))?;
+        tx::submit_signed_tx(
+            &client,
+            "activation",
+            cfg.estimate_gas_only,
+            &mut tx_request,
+        )
+        .await
+        .map_err(|e| format!("could not submit signed deployment tx: {e}"))?;
     }
     Ok(())
 }

@@ -11,6 +11,7 @@ use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signe
 /// estimate gas will occur and the actual tx will not be submitted.
 pub async fn submit_signed_tx<M, S>(
     client: &SignerMiddleware<M, S>,
+    tx_kind: &str,
     estimate_only: bool,
     tx_request: &mut Eip1559TransactionRequest,
 ) -> eyre::Result<(), String>
@@ -42,13 +43,13 @@ where
         .await
         .map_err(|e| format!("{}", e))?;
 
-    println!("Estimated gas: {}", estimated.pink());
+    println!("Estimated gas for {tx_kind}: {}", estimated.pink());
 
     if estimate_only {
         return Ok(());
     }
 
-    println!("Submitting tx...");
+    println!("Submitting {tx_kind} tx...");
 
     let pending_tx = client
         .send_transaction(typed, None)
@@ -62,14 +63,14 @@ where
 
     match receipt.status {
         None => Err(format!(
-            "Tx with hash {} reverted",
+            "{tx_kind} tx with hash {} reverted",
             receipt.transaction_hash,
         )),
         Some(_) => {
             let tx_hash = receipt.transaction_hash;
             let gas_used = receipt.gas_used.unwrap();
             println!(
-                "Confirmed tx {}, gas used {}",
+                "Confirmed {tx_kind} tx {}, gas used {}",
                 tx_hash.pink(),
                 gas_used.mint()
             );

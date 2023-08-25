@@ -8,6 +8,7 @@ homepage = "https://github.com/OffchainLabs/cargo-stylus"
 repository = "https://github.com/OffchainLabs/cargo-stylus"
 
 [dependencies]
+rustc-host = "0.1"
 brotli2 = "0.3.2"
 bytes = "1.4.0"
 clap = { version = "4.3.17", features = [ "derive" ] }
