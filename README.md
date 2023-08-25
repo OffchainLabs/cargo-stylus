@@ -36,8 +36,7 @@ Usage:
 
 ### Overview
 
-The cargo stylus command comes with useful commands such as `new`, `check` and `deploy`, and `export-abi` for developing and deploying Stylus programs
-to Arbitrum chains. Here's a common workflow: 
+The cargo stylus command comes with useful commands such as `new`, `check` and `deploy`, and `export-abi` for developing and deploying Stylus programs to Arbitrum chains. Here's a common workflow: 
 
 Start a new Stylus project with 
 
@@ -45,7 +44,9 @@ Start a new Stylus project with
 cargo stylus new <YOUR_PROJECT_NAME>
 ```
 
-The command above clones a local copy of the [stylus-hello-world](https://github.com/OffchainLabs/stylus-hello-world) starter project, which implements a Counter smart contract in Rust. See the [README](https://github.com/OffchainLabs/stylus-hello-world/blob/main/README.md) of stylus-hello-world for more details.
+The command above clones a local copy of the [stylus-hello-world](https://github.com/OffchainLabs/stylus-hello-world) starter project, which implements a Counter smart contract in Rust. See the [README](https://github.com/OffchainLabs/stylus-hello-world/blob/main/README.md) of stylus-hello-world for more details. 
+
+You can also use `cargo stylus new --minimal <YOUR_PROJECT_NAME>` to create a more barebones example with a Stylus entrypoint locally.
 
 Then, develop your Rust program normally and take advantage of all the features the [stylus-sdk](https://github.com/OffchainLabs/stylus-sdk-rs) has to offer. To check whether or not your program will successfully deploy and activate onchain, use the `cargo stylus check` subcommand:
 
