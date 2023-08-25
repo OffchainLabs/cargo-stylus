@@ -113,7 +113,8 @@ Usage: cargo stylus deploy [OPTIONS]
 
 Options:
       --estimate-gas-only
-          Does not submit a transaction, but instead estimates the gas required to complete the operation
+          Does not submit a transaction, but instead estimates the gas required 
+          to complete the operation
       --mode <MODE>
           By default, submits two transactions to deploy and activate the 
           program to Arbitrum. Otherwise, a user could choose to split up the 
@@ -157,9 +158,9 @@ can be saved as `add.wat` and used as `cargo stylus check --wasm-file-path=add.w
 
 ## Optimizing Binary Sizes
 
-Brotli-compressed, Stylus program WASM binaries must fit within the **24Kb** [code-size limit](https://ethereum.org/en/developers/tutorials/downsizing-contracts-to-fight-the-contract-size-limit/) of Ethereum smart contracts. By default, the cargo stylus tool will attempt to compile a Rust program into WASM with reasonable optimizations. However, there are additional options available in case a program exceeds the 24Kb limit from using default settings. Deploying smaller binaries onchain is cheaper and better for the overall network, as deployed WASM programs will exist on the Arbitrum chain's storage forever. 
+Brotli-compressed, Stylus program WASM binaries must fit within the **24Kb** [code-size limit](https://ethereum.org/en/developers/tutorials/downsizing-contracts-to-fight-the-contract-size-limit/) of Ethereum smart contracts. By default, the `cargo stylus check` will attempt to compile a Rust program into WASM with reasonable optimizations and verify its compressed size fits within the limit. However, there are additional options available in case a program exceeds the 24Kb limit from using default settings. Deploying smaller binaries onchain is cheaper and better for the overall network, as deployed WASM programs will exist on the Arbitrum chain's storage forever. 
 
-We recommend optimizing your Stylus program's sizes as much as is reasonable, but keep in mind the safety tradeoffs of using some of the more advanced optimizations.
+We recommend optimizing your Stylus program's sizes to smaller sizes, but keep in mind the safety tradeoffs of using some of the more advanced optimizations. However, some small programs when compiled to much smaller sizes can suffer performance penalties.
 
 For a deep-dive into the different options for optimizing binary sizes using cargo stylus, see [OPTIMIZING_BINARIES.md](./OPTIMIZING_BINARIES.md).
 

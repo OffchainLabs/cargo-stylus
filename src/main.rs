@@ -107,8 +107,10 @@ pub enum DeployMode {
 #[derive(Clone, Debug, Args)]
 #[group(multiple = true)]
 pub struct KeystoreOpts {
+    /// Path to an Ethereum wallet keystore file, such as the one produced by wallets such as clef.
     #[arg(long)]
     keystore_path: Option<String>,
+    /// Path to a text file containing a password to the specified wallet keystore file.
     #[arg(long)]
     keystore_password_path: Option<String>,
 }
