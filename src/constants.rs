@@ -14,3 +14,4 @@ pub const MAX_PROGRAM_SIZE: ByteSize = ByteSize::kb(24);
 pub const ARBWASM_ACTIVATE_METHOD_HASH: &str = "58c780c2";
 /// Target for compiled WASM folder in a Rust project
 pub const RUST_TARGET: &str = "wasm32-unknown-unknown";
+pub const GITHUB_TEMPLATE_REPOSITORY: &str = "https://github.com/OffchainLabs/stylus-hello-world";

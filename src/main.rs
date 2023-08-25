@@ -8,6 +8,7 @@ mod check;
 mod color;
 mod constants;
 mod deploy;
+mod new;
 mod project;
 mod tx;
 mod wallet;
@@ -33,6 +34,14 @@ struct StylusArgs {
 
 #[derive(Parser, Debug, Clone)]
 enum StylusSubcommands {
+    /// Initialize a Stylus Rust project using the https://github.com/OffchainLabs/stylus-hello-world template.
+    New {
+        /// Name of the Stylus project.
+        #[arg(required = true)]
+        name: String,
+    },
+    /// Export the Solidity ABI for a Stylus project directly using the cargo stylus tool.
+    ExportAbi,
     /// Instrument a Rust project using Stylus.
     /// This command runs compiled WASM code through Stylus instrumentation checks and reports any failures.
     #[command(alias = "c")]
@@ -120,6 +129,15 @@ async fn main() -> eyre::Result<(), String> {
     let CargoCli::Stylus(args) = CargoCli::parse();
 
     match args.command {
+        StylusSubcommands::New { name } => {
+            if let Err(e) = new::new_stylus_project(&name) {
+                println!(
+                    "Could not create new stylus project with name {name}: {}",
+                    e.red()
+                );
+            };
+        }
+        StylusSubcommands::ExportAbi => {}
         StylusSubcommands::Check(cfg) => {
             if let Err(e) = check::run_checks(cfg).await {
                 println!("Stylus checks failed: {}", e.red());
