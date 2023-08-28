@@ -19,7 +19,7 @@ use eyre::eyre;
 
 use crate::{
     color::Color,
-    constants::{ARB_WASM_ADDRESS, MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE},
+    constants::ARB_WASM_ADDRESS,
     deploy::activation_calldata,
     project::{self, BuildConfig},
     wallet, CheckConfig,

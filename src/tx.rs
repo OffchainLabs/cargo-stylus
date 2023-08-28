@@ -3,9 +3,21 @@
 use crate::color::Color;
 
 use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::Eip1559TransactionRequest;
+use ethers::types::{Eip1559TransactionRequest, H256};
 use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
 use eyre::eyre;
+
+#[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]
+pub enum TxError {
+    #[error("no head block found")]
+    NoHeadBlock,
+    #[error("no base fee found for block")]
+    NoBaseFee,
+    #[error("no receipt found for tx hash ({tx_hash})")]
+    NoReceiptFound { tx_hash: H256 },
+    #[error("({tx_kind}) got reverted with has ({tx_hash})")]
+    Reverted { tx_kind: String, tx_hash: H256 },
+}
 
 /// Submits a tx to a client given a data payload and a
 /// transaction request to sign and send. If estimate_only is true, only a call to
@@ -28,10 +40,8 @@ where
         .get_block(block_num)
         .await
         .map_err(|e| eyre!("could not get block: {e}"))?
-        .ok_or(eyre!("no block found"))?;
-    let base_fee = block
-        .base_fee_per_gas
-        .ok_or(eyre!("no base fee found for block"))?;
+        .ok_or(TxError::NoHeadBlock)?;
+    let base_fee = block.base_fee_per_gas.ok_or(TxError::NoBaseFee)?;
 
     if !(estimate_only) {
         tx_request.max_fee_per_gas = Some(base_fee);
@@ -57,16 +67,19 @@ where
         .await
         .map_err(|e| eyre!("could not send tx: {e}"))?;
 
+    let tx_hash = pending_tx.tx_hash();
+
     let receipt = pending_tx
         .await
         .map_err(|e| eyre!("could not get receipt: {e}"))?
-        .ok_or(eyre!("no receipt found"))?;
+        .ok_or(TxError::NoReceiptFound { tx_hash })?;
 
     match receipt.status {
-        None => Err(eyre!(
-            "{tx_kind} tx with hash {} reverted",
-            receipt.transaction_hash,
-        )),
+        None => Err(TxError::Reverted {
+            tx_hash,
+            tx_kind: tx_kind.to_string(),
+        }
+        .into()),
         Some(_) => {
             let tx_hash = receipt.transaction_hash;
             let gas_used = receipt.gas_used.unwrap();

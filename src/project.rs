@@ -30,7 +30,7 @@ pub struct BuildConfig {
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]
 pub enum BuildError {
-    #[error("Could not find WASM in release dir ({path})")]
+    #[error("could not find WASM in release dir ({path})")]
     NoWasmFound { path: PathBuf },
     #[error(
         "program size exceeds max despite --nightly flag. We recommend splitting up your program"
@@ -115,7 +115,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
     if let Err(e) = get_compressed_wasm_bytes(&wasm_file_path) {
-        if let Some(BuildError::MaxCompressedSizeExceeded { got, want }) = e.downcast_ref() {
+        if let Some(BuildError::MaxCompressedSizeExceeded { got, .. }) = e.downcast_ref() {
             match cfg.opt_level {
                 OptLevel::S => {
                     println!(
