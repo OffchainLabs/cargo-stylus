@@ -33,16 +33,12 @@ pub enum BuildError {
     #[error("could not find WASM in release dir ({path})")]
     NoWasmFound { path: PathBuf },
     #[error(
-        "program size exceeds max despite --nightly flag. We recommend splitting up your program"
+        r#"program size exceeds max despite --nightly flag. We recommend splitting up your program. 
+        We are actively working to reduce WASM program sizes that use the Stylus SDK.
+        To see all available optimization options, see more in:
+        https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
     )]
     ExceedsMaxDespiteBestEffort,
-    #[error(
-        r#"WASM program size ({size}) > max size of 24Kb after applying optimizations. We recommend
-        reducing the codesize or attempting to build again with the --nightly flag. However, this flag can 
-        pose a security risk if used liberally. To see all available optimization options, 
-        see more in: https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
-    )]
-    ExceedsMaxWithoutNightly { size: ByteSize },
     #[error(
         "Brotli-compressed WASM program size ({got}) is bigger than program size limit: ({want})"
     )]
@@ -135,7 +131,20 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
                 }
                 OptLevel::Z => {
                     if !cfg.nightly {
-                        return Err(BuildError::ExceedsMaxWithoutNightly { size: *got }.into());
+                        println!(
+                            r#"Compressed program still exceeding max program size {} > max of 24Kb, 
+                        rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
+                        using the Stylus SDK. To see all available optimization options, see more in:
+                        https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
+                            got.red(),
+                        );
+                        // Attempt to build again with the nightly flag enabled and extra optimizations
+                        // only available with nightly compilation.
+                        return build_project_to_wasm(BuildConfig {
+                            opt_level: OptLevel::Z,
+                            nightly: true,
+                            clean: false,
+                        });
                     }
                     return Err(BuildError::ExceedsMaxDespiteBestEffort.into());
                 }
