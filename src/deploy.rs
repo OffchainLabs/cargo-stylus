@@ -73,6 +73,10 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         None => {
             if cfg.estimate_gas_only && cfg.activate_program_address.is_none() {
                 // cannot activate if not really deploying
+                println!(
+                    r#"Only estimating gas for deployment tx. To estimate gas for activation, 
+run with --mode=compile-only and specify the --activate-program-address"#
+                );
                 (true, false)
             } else {
                 (true, true)
@@ -162,7 +166,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
                 &mut tx_request,
             )
             .await
-            .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
+            .map_err(|e| eyre!("could not submit signed activation tx: {e}"))?;
         }
     }
     Ok(())
