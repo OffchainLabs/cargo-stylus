@@ -408,6 +408,7 @@ dependencies = [
  "rustc-host",
  "serde",
  "serde_json",
+ "thiserror",
  "tokio",
  "wasmer",
 ]

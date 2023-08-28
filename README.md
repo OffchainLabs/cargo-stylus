@@ -129,30 +129,9 @@ Instruments a Rust project using Stylus. This command runs compiled WASM code th
 
 ```
 Usage: cargo stylus check [OPTIONS]
-
-Options:
-  -e, --endpoint <ENDPOINT>
-          The endpoint of the L2 node to connect to [default: http://localhost:8545]
-      --wasm-file-path <WASM_FILE_PATH>
-          If desired, it loads a WASM file from a specified path. If not provided, it will try 
-          to find a WASM file under the current working directory's Rust target release 
-          directory and use its contents for the deploy command
-      --expected-program-address <EXPECTED_PROGRAM_ADDRESS>
-          Specify the program address we want to check activation for. If unspecified, it 
-          will compute the next program address from the user's wallet address and nonce, 
-          which will require wallet-related flags to be specified 
-          [default: 0x0000000000000000000000000000000000000000]
-      --private-key-path <PRIVATE_KEY_PATH>
-          Privkey source to use with the cargo stylus plugin
-      --keystore-path <KEYSTORE_PATH>
-          Path to an Ethereum wallet keystore file, such as the one produced by wallets such as clef
-      --keystore-password-path <KEYSTORE_PASSWORD_PATH>
-          Path to a text file containing a password to the specified wallet keystore file
-      --nightly
-          Whether or not to compile the Rust program using the nightly Rust version. 
-          Nightly can help with reducing compressed WASM sizes, however, can be 
-          a security risk if used liberally
 ```
+
+See `--help` for all available flags and default values.
 
 ## Deploying Stylus Programs
 
@@ -162,38 +141,9 @@ Instruments a Rust project using Stylus and by outputting its brotli-compressed 
 
 ```
 Usage: cargo stylus deploy [OPTIONS]
-
-Options:
-  -e, --endpoint <ENDPOINT>
-          The endpoint of the L2 node to connect to [default: http://localhost:8545]
-      --wasm-file-path <WASM_FILE_PATH>
-          If desired, it loads a WASM file from a specified path. If not provided, it will try to find a WASM 
-          file under the current working directory's Rust target release directory and 
-          use its contents for the deploy command
-      --expected-program-address <EXPECTED_PROGRAM_ADDRESS>
-          Specify the program address we want to check activation for. If unspecified, it 
-          will compute the next program address from the user's wallet address and nonce, 
-          which will require wallet-related flags to be specified 
-          [default: 0x0000000000000000000000000000000000000000]
-      --private-key-path <PRIVATE_KEY_PATH>
-          Privkey source to use with the cargo stylus plugin
-      --keystore-path <KEYSTORE_PATH>
-          Path to an Ethereum wallet keystore file, such as the one produced by wallets such as clef
-      --keystore-password-path <KEYSTORE_PASSWORD_PATH>
-          Path to a text file containing a password to the specified wallet keystore file
-      --nightly
-          Whether or not to compile the Rust program using the nightly Rust version. 
-          Nightly can help with reducing compressed WASM sizes, however, can be a security risk if used liberally
-      --estimate-gas-only
-          Does not submit a transaction, but instead estimates the gas required to complete the operation
-      --mode <MODE>
-          By default, submits two transactions to deploy and activate the program 
-          to Arbitrum. Otherwise, a user could choose to split up the deploy and activate 
-          steps into individual transactions [possible values: deploy-only, activate-only]
-      --activate-program-address <ACTIVATE_PROGRAM_ADDRESS>
-          If only activating an already-deployed, onchain program, the address 
-          of the program to send an activation tx for
 ```
+
+See `--help` for all available flags and default values.
 
 ## Deploying Non-Rust WASM Projects
 
@@ -229,16 +179,6 @@ Brotli-compressed, Stylus program WASM binaries must fit within the **24Kb** [co
 We recommend optimizing your Stylus program's sizes to smaller sizes, but keep in mind the safety tradeoffs of using some of the more advanced optimizations. However, some small programs when compiled to much smaller sizes can suffer performance penalties.
 
 For a deep-dive into the different options for optimizing binary sizes using cargo stylus, see [OPTIMIZING_BINARIES.md](./OPTIMIZING_BINARIES.md).
-
-## Alternative Installations
-
-### Docker Images
-
-TODO:
-
-### Precompiled Binaries
-
-TODO:
 
 ## License
 

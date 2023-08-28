@@ -124,7 +124,7 @@ pub struct KeystoreOpts {
 }
 
 #[tokio::main]
-async fn main() -> eyre::Result<(), String> {
+async fn main() -> eyre::Result<()> {
     let CargoCli::Stylus(args) = CargoCli::parse();
 
     match args.command {

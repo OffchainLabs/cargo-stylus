@@ -5,6 +5,7 @@ use crate::color::Color;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::Eip1559TransactionRequest;
 use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
+use eyre::eyre;
 
 /// Submits a tx to a client given a data payload and a
 /// transaction request to sign and send. If estimate_only is true, only a call to
@@ -14,7 +15,7 @@ pub async fn submit_signed_tx<M, S>(
     tx_kind: &str,
     estimate_only: bool,
     tx_request: &mut Eip1559TransactionRequest,
-) -> eyre::Result<(), String>
+) -> eyre::Result<()>
 where
     M: Middleware,
     S: Signer,
@@ -22,15 +23,15 @@ where
     let block_num = client
         .get_block_number()
         .await
-        .map_err(|e| format!("could not get block number: {e}"))?;
+        .map_err(|e| eyre!("could not get block number: {e}"))?;
     let block = client
         .get_block(block_num)
         .await
-        .map_err(|e| format!("could not get block: {e}"))?
-        .ok_or("no block found")?;
+        .map_err(|e| eyre!("could not get block: {e}"))?
+        .ok_or(eyre!("no block found"))?;
     let base_fee = block
         .base_fee_per_gas
-        .ok_or("no base fee found for block")?;
+        .ok_or(eyre!("no base fee found for block"))?;
 
     if !(estimate_only) {
         tx_request.max_fee_per_gas = Some(base_fee);
@@ -41,7 +42,7 @@ where
     let estimated = client
         .estimate_gas(&typed, None)
         .await
-        .map_err(|e| format!("{}", e))?;
+        .map_err(|e| eyre!("not estimate gas {e}"))?;
 
     println!("Estimated gas for {tx_kind}: {}", estimated.pink());
 
@@ -54,15 +55,15 @@ where
     let pending_tx = client
         .send_transaction(typed, None)
         .await
-        .map_err(|e| format!("could not send tx: {e}"))?;
+        .map_err(|e| eyre!("could not send tx: {e}"))?;
 
     let receipt = pending_tx
         .await
-        .map_err(|e| format!("could not get receipt: {e}"))?
-        .ok_or("no receipt found")?;
+        .map_err(|e| eyre!("could not get receipt: {e}"))?
+        .ok_or(eyre!("no receipt found"))?;
 
     match receipt.status {
-        None => Err(format!(
+        None => Err(eyre!(
             "{tx_kind} tx with hash {} reverted",
             receipt.transaction_hash,
         )),

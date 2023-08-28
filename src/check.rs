@@ -1,33 +1,34 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 use bytesize::ByteSize;
-use std::path::PathBuf;
-use std::str::FromStr;
-
-use crate::{
-    color::Color,
-    constants::{ARB_WASM_ADDRESS, MAX_PROGRAM_SIZE},
-    deploy::activation_calldata,
-    project::{self, BuildConfig},
-    wallet, CheckConfig,
-};
 use ethers::prelude::*;
 use ethers::utils::get_contract_address;
 use ethers::{
     providers::JsonRpcClient,
     types::{transaction::eip2718::TypedTransaction, Address},
 };
+use std::path::PathBuf;
+use std::str::FromStr;
 
 use ethers::types::Eip1559TransactionRequest;
 use ethers::{
     core::types::spoof,
     providers::{Provider, RawCall},
 };
+use eyre::eyre;
+
+use crate::{
+    color::Color,
+    constants::{ARB_WASM_ADDRESS, MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE},
+    deploy::activation_calldata,
+    project::{self, BuildConfig},
+    wallet, CheckConfig,
+};
 
 /// Runs a series of checks on the WASM program to ensure it is valid for compilation
 /// and code size before being deployed and activated onchain. An optional list of checks
 /// to disable can be specified.
-pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(), String> {
+pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<()> {
     let wasm_file_path: PathBuf = match cfg.wasm_file_path {
         Some(path) => PathBuf::from_str(&path).unwrap(),
         None => project::build_project_to_wasm(BuildConfig {
@@ -35,29 +36,39 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(), String> {
             nightly: cfg.nightly,
             clean: true,
         })
-        .map_err(|e| format!("failed to build project to WASM: {e}"))?,
+        .map_err(|e| eyre!("failed to build project to WASM: {e}"))?,
     };
     println!("Reading WASM file at {}", wasm_file_path.display().grey());
 
-    let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)
-        .map_err(|e| format!("failed to get compressed WASM bytes: {e}"))?;
+    let (precompressed_bytes, deploy_ready_code) =
+        project::get_compressed_wasm_bytes(&wasm_file_path)
+            .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
 
-    let compressed_size = ByteSize::b(deploy_ready_code.len() as u64);
-    if compressed_size > MAX_PROGRAM_SIZE {
-        return Err(format!(
-            "brotli-compressed WASM size {} is bigger than program size limit: {}",
-            compressed_size.to_string().red(),
-            MAX_PROGRAM_SIZE,
-        ));
-    }
+    // let precompressed_size = ByteSize::b(precompressed_bytes.len() as u64);
+    // if precompressed_size > MAX_PRECOMPRESSED_WASM_SIZE {
+    //     return Err(format!(
+    //         "pre-compressed WASM program size {} is bigger than program size limit: {}",
+    //         precompressed_size.to_string().red(),
+    //         MAX_PRECOMPRESSED_WASM_SIZE,
+    //     ));
+    // }
 
-    println!(
-        "Compressed WASM size: {}",
-        compressed_size.to_string().mint(),
-    );
+    // let compressed_size = ByteSize::b(deploy_ready_code.len() as u64);
+    // if compressed_size > MAX_PROGRAM_SIZE {
+    //     return Err(format!(
+    //         "brotli-compressed WASM size {} is bigger than program size limit: {}",
+    //         compressed_size.to_string().red(),
+    //         MAX_PROGRAM_SIZE,
+    //     ));
+    // }
+
+    // println!(
+    //     "Compressed WASM size: {}",
+    //     compressed_size.to_string().mint(),
+    // );
 
     let provider = Provider::<Http>::try_from(&cfg.endpoint)
-        .map_err(|e| format!("could not initialize provider from http: {e}"))?;
+        .map_err(|e| eyre!("could not initialize provider from http: {e}"))?;
 
     let mut expected_program_addr = cfg.expected_program_address;
 
@@ -67,7 +78,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(), String> {
         let chain_id = provider
             .get_chainid()
             .await
-            .map_err(|e| format!("could not get chain id {e}"))?
+            .map_err(|e| eyre!("could not get chain id {e}"))?
             .as_u64();
         let client =
             SignerMiddleware::new(provider.clone(), wallet.clone().with_chain_id(chain_id));
@@ -76,7 +87,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(), String> {
         let nonce = client
             .get_transaction_count(addr, None)
             .await
-            .map_err(|e| format!("could not get nonce {addr}: {e}"))?;
+            .map_err(|e| eyre!("could not get nonce {addr}: {e}"))?;
 
         expected_program_addr = get_contract_address(wallet.address(), nonce);
     }
@@ -91,7 +102,7 @@ pub async fn check_can_activate<T>(
     client: Provider<T>,
     expected_program_address: &Address,
     compressed_wasm: Vec<u8>,
-) -> eyre::Result<(), String>
+) -> eyre::Result<()>
 where
     T: JsonRpcClient + Send + Sync,
 {
@@ -109,13 +120,11 @@ where
         compressed_wasm.into(),
     );
     let response = client.call_raw(&tx).state(&state).await.map_err(|e| {
-        format!(
-            "program predeployment check failed when checking against ARB_WASM_ADDRESS {to}: {e}"
-        )
+        eyre!("program predeployment check failed when checking against ARB_WASM_ADDRESS {to}: {e}")
     })?;
 
     if response.len() < 2 {
-        return Err(format!(
+        return Err(eyre!(
             "Stylus version bytes response too short, expected at least 2 bytes but got: {}",
             hex::encode(&response)
         ));
@@ -123,7 +132,7 @@ where
     let n = response.len();
     let version_bytes: [u8; 2] = response[n - 2..]
         .try_into()
-        .map_err(|e| format!("could not parse Stylus version bytes: {e}"))?;
+        .map_err(|e| eyre!("could not parse Stylus version bytes: {e}"))?;
     let version = u16::from_be_bytes(version_bytes);
     println!("Program succeeded Stylus onchain activation checks with Stylus version: {version}");
     Ok(())

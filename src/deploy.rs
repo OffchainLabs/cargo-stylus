@@ -10,6 +10,7 @@ use ethers::{
     providers::{Http, Middleware, Provider},
     signers::Signer,
 };
+use eyre::eyre;
 
 use crate::project::BuildConfig;
 use crate::{constants, project, tx, wallet, DeployConfig, DeployMode};
@@ -18,12 +19,12 @@ use crate::{constants, project, tx, wallet, DeployConfig, DeployMode};
 /// DeployOnly: Sends a signed tx to deploy a Stylus program to a new address.
 /// ActivateOnly: Sends a signed tx to activate a Stylus program at a specified address.
 /// DeployAndActivate (default): Sends both transactions above.
-pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
+pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
     let wallet = wallet::load(cfg.check_cfg.private_key_path, cfg.check_cfg.keystore_opts)
-        .map_err(|e| format!("could not load wallet: {e}"))?;
+        .map_err(|e| eyre!("could not load wallet: {e}"))?;
 
     let provider = Provider::<Http>::try_from(&cfg.check_cfg.endpoint).map_err(|e| {
-        format!(
+        eyre!(
             "could not initialize provider from http endpoint: {}: {e}",
             &cfg.check_cfg.endpoint
         )
@@ -31,7 +32,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
     let chain_id = provider
         .get_chainid()
         .await
-        .map_err(|e| format!("could not get chain id: {e}"))?
+        .map_err(|e| eyre!("could not get chain id: {e}"))?
         .as_u64();
     let client = SignerMiddleware::new(provider, wallet.clone().with_chain_id(chain_id));
 
@@ -39,7 +40,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
     let nonce = client
         .get_transaction_count(addr, None)
         .await
-        .map_err(|e| format!("could not get nonce for address {addr}: {e}"))?;
+        .map_err(|e| eyre!("could not get nonce for address {addr}: {e}"))?;
 
     let expected_program_addr = get_contract_address(wallet.address(), nonce);
 
@@ -65,7 +66,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
                 nightly: cfg.check_cfg.nightly,
                 clean: false,
             })
-            .map_err(|e| format!("could not build project to WASM: {e}"))?,
+            .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
         };
         let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)?;
         println!("Deploying program to address {expected_program_addr:#032x}");
@@ -80,7 +81,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
             &mut tx_request,
         )
         .await
-        .map_err(|e| format!("could not submit signed deployment tx: {e}"))?;
+        .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
     }
     if activate {
         let program_addr = cfg
@@ -103,7 +104,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<(), String> {
             &mut tx_request,
         )
         .await
-        .map_err(|e| format!("could not submit signed deployment tx: {e}"))?;
+        .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
     }
     Ok(())
 }
