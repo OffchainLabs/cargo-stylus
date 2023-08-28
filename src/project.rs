@@ -39,7 +39,8 @@ pub enum BuildError {
     #[error(
         r#"WASM program size ({size}) > max size of 24Kb after applying optimizations. We recommend
         reducing the codesize or attempting to build again with the --nightly flag. However, this flag can 
-        pose a security risk if used liberally"#
+        pose a security risk if used liberally. To see all available optimization options, 
+        see more in: https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
     )]
     ExceedsMaxWithoutNightly { size: ByteSize },
     #[error(
@@ -121,7 +122,8 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
                     println!(
                         r#"Compressed program built with defaults had program size {} > max of 24Kb, 
                         rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
-                        using the Stylus SDK"#,
+                        using the Stylus SDK. To see all available optimization options, see more in:
+                        https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                         got.red(),
                     );
                     // Attempt to build again with a bumped-up optimization level.

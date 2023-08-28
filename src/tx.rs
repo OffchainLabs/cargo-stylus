@@ -1,6 +1,7 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 use crate::color::Color;
+use crate::deploy::TxKind;
 
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{Eip1559TransactionRequest, H256};
@@ -24,7 +25,7 @@ pub enum TxError {
 /// estimate gas will occur and the actual tx will not be submitted.
 pub async fn submit_signed_tx<M, S>(
     client: &SignerMiddleware<M, S>,
-    tx_kind: &str,
+    tx_kind: TxKind,
     estimate_only: bool,
     tx_request: &mut Eip1559TransactionRequest,
 ) -> eyre::Result<()>

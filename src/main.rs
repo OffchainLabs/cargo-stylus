@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 use clap::{Args, Parser, ValueEnum};
@@ -137,7 +139,7 @@ pub struct TxSendingOpts {
     dry_run: bool,
     /// Outputs the deployment / activation tx data as bytes to a specified directory.
     #[arg(long)]
-    output_tx_data_to_dir: Option<String>,
+    output_tx_data_to_dir: Option<PathBuf>,
 }
 
 #[tokio::main]

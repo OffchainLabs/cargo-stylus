@@ -16,4 +16,5 @@ pub const MAX_PRECOMPRESSED_WASM_SIZE: ByteSize = ByteSize::kb(128);
 pub const ARBWASM_ACTIVATE_METHOD_HASH: &str = "58c780c2";
 /// Target for compiled WASM folder in a Rust project
 pub const RUST_TARGET: &str = "wasm32-unknown-unknown";
+/// URL of the template repository to start a boilerplate Stylus project in Rust.
 pub const GITHUB_TEMPLATE_REPOSITORY: &str = "https://github.com/OffchainLabs/stylus-hello-world";

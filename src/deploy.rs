@@ -1,5 +1,6 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -14,6 +15,23 @@ use eyre::eyre;
 
 use crate::project::BuildConfig;
 use crate::{color::Color, constants, project, tx, wallet, DeployConfig, DeployMode};
+
+/// The transaction kind for using the Cargo stylus tool with Stylus programs.
+/// Stylus programs can be deployed and activated onchain, and this enum represents
+/// these two variants.
+pub enum TxKind {
+    Deployment,
+    Activation,
+}
+
+impl std::fmt::Display for TxKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            &TxKind::Deployment => write!(f, "deployment"),
+            &TxKind::Activation => write!(f, "activation"),
+        }
+    }
+}
 
 /// Performs one of three different modes for a Stylus program:
 /// DeployOnly: Sends a signed tx to deploy a Stylus program to a new address.
@@ -58,6 +76,18 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         }
     };
 
+    // Whether or not to send the transactions to the endpoint.
+    let dry_run = cfg.tx_sending_opts.dry_run;
+
+    // The folder at which to output the transaction data bytes.
+    let output_dir = cfg.tx_sending_opts.output_tx_data_to_dir.as_ref();
+
+    if dry_run && output_dir.is_none() {
+        return Err(eyre!(
+            "using the --dry-run flag requires specifying the --output-tx-data-to-dir flag as well"
+        ));
+    }
+
     if deploy {
         let wasm_file_path: PathBuf = match &cfg.check_cfg.wasm_file_path {
             Some(path) => PathBuf::from_str(path).unwrap(),
@@ -74,17 +104,25 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
             hex::encode(expected_program_addr).mint()
         );
         let deployment_calldata = program_deployment_calldata(&deploy_ready_code);
-        let mut tx_request = Eip1559TransactionRequest::new()
-            .from(wallet.address())
-            .data(deployment_calldata);
-        tx::submit_signed_tx(
-            &client,
-            "deployment",
-            cfg.estimate_gas_only,
-            &mut tx_request,
-        )
-        .await
-        .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
+
+        // Output the tx data to a user's specified directory if desired.
+        if let Some(tx_data_output_dir) = output_dir {
+            write_tx_data(TxKind::Deployment, tx_data_output_dir, &deployment_calldata)?;
+        }
+
+        if !dry_run {
+            let mut tx_request = Eip1559TransactionRequest::new()
+                .from(wallet.address())
+                .data(deployment_calldata);
+            tx::submit_signed_tx(
+                &client,
+                TxKind::Deployment,
+                cfg.estimate_gas_only,
+                &mut tx_request,
+            )
+            .await
+            .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
+        }
     }
     if activate {
         let program_addr = cfg
@@ -99,18 +137,25 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         let to = hex::decode(constants::ARB_WASM_ADDRESS).unwrap();
         let to = H160::from_slice(&to);
 
-        let mut tx_request = Eip1559TransactionRequest::new()
-            .from(wallet.address())
-            .to(to)
-            .data(activate_calldata);
-        tx::submit_signed_tx(
-            &client,
-            "activation",
-            cfg.estimate_gas_only,
-            &mut tx_request,
-        )
-        .await
-        .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
+        // Output the tx data to a user's specified directory if desired.
+        if let Some(tx_data_output_dir) = output_dir {
+            write_tx_data(TxKind::Activation, tx_data_output_dir, &activate_calldata)?;
+        }
+
+        if !dry_run {
+            let mut tx_request = Eip1559TransactionRequest::new()
+                .from(wallet.address())
+                .to(to)
+                .data(activate_calldata);
+            tx::submit_signed_tx(
+                &client,
+                TxKind::Activation,
+                cfg.estimate_gas_only,
+                &mut tx_request,
+            )
+            .await
+            .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
+        }
     }
     Ok(())
 }
@@ -144,4 +189,19 @@ pub fn program_deployment_calldata(code: &[u8]) -> Vec<u8> {
     deploy.push(0xf3); // RETURN
     deploy.extend(code);
     deploy
+}
+
+fn write_tx_data(tx_kind: TxKind, path: &PathBuf, data: &[u8]) -> eyre::Result<()> {
+    let file_name = format!("{tx_kind}_tx_data");
+    let path = path.join(file_name);
+    let path_str = path.as_os_str().to_string_lossy();
+    println!(
+        "Writing {tx_kind} tx data bytes of size {} to path {}",
+        data.len().mint(),
+        path_str.grey(),
+    );
+    let mut f = std::fs::File::create(&path)
+        .map_err(|e| eyre!("could not create file to write tx data to path {path_str}: {e}",))?;
+    f.write_all(data)
+        .map_err(|e| eyre!("could not write tx data as bytes to file to path {path_str}: {e}"))
 }
