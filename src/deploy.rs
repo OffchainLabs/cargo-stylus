@@ -75,7 +75,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
                 // cannot activate if not really deploying
                 println!(
                     r#"Only estimating gas for deployment tx. To estimate gas for activation, 
-run with --mode=compile-only and specify the --activate-program-address"#
+run with --mode=compile-only and specify --activate-program-address"#
                 );
                 (true, false)
             } else {
