@@ -144,8 +144,7 @@ where
                 (Bytes::new(), true)
             } else {
                 return Err(eyre!(
-                    "program predeployment check failed when checking against ARB_WASM_ADDRESS 
-                    {ARB_WASM_ADDRESS}: {e}"
+                    "program predeployment check failed when checking against ARB_WASM_ADDRESS {ARB_WASM_ADDRESS}: {e}"
                 ));
             }
         }
