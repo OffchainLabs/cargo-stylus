@@ -6,6 +6,8 @@ A cargo subcommand for building, verifying, and deploying Arbitrum Stylus WASM p
 
 ## Quick Start
 
+![Image](./header.png)
+
 ### Installing With Cargo
 
 Install [Rust](https://www.rust-lang.org/tools/install), and then install the plugin using the Cargo tool:
@@ -70,6 +72,8 @@ Caused by:
 Location:
     prover/src/binary.rs:493:9, data: None)
 ```
+
+To read more about what counts as valid vs. invalid user WASM programs, see [VALID_WASM](./VALID_WASM.md).
 
 If your program succeeds, you'll see the following message:
 
