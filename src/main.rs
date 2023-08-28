@@ -104,6 +104,9 @@ pub struct DeployConfig {
     /// If only activating an already-deployed, onchain program, the address of the program to send an activation tx for.
     #[arg(long)]
     activate_program_address: Option<H160>,
+    /// Configuration options for sending the deployment / activation txs through the Cargo stylus deploy command.
+    #[command(flatten)]
+    tx_sending_opts: TxSendingOpts,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -121,6 +124,20 @@ pub struct KeystoreOpts {
     /// Path to a text file containing a password to the specified wallet keystore file.
     #[arg(long)]
     keystore_password_path: Option<String>,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct TxSendingOpts {
+    /// Prepares transactions to send onchain for deploying and activating a Stylus program,
+    /// but does not send them. Instead, outputs the prepared tx data hex bytes to files in the directory
+    /// specified by the --output-tx-data-to-dir flag. Useful for sending the deployment / activation
+    /// txs via a user's preferred means instead of via the Cargo stylus tool. For example, Foundry's
+    /// [cast](https://book.getfoundry.sh/cast/) CLI tool.
+    #[arg(long)]
+    dry_run: bool,
+    /// Outputs the deployment / activation tx data as bytes to a specified directory.
+    #[arg(long)]
+    output_tx_data_to_dir: Option<String>,
 }
 
 #[tokio::main]

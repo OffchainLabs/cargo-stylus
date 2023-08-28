@@ -90,7 +90,10 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         let program_addr = cfg
             .activate_program_address
             .unwrap_or(expected_program_addr);
-        println!("Activating program at address {program_addr:#032x}");
+        println!(
+            "Activating program at address {}",
+            hex::encode(program_addr).mint()
+        );
         let activate_calldata = activation_calldata(&program_addr);
 
         let to = hex::decode(constants::ARB_WASM_ADDRESS).unwrap();
