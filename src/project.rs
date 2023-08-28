@@ -9,7 +9,7 @@ use brotli2::read::BrotliEncoder;
 use bytesize::ByteSize;
 use eyre::eyre;
 
-use crate::constants::MAX_PROGRAM_SIZE;
+use crate::constants::{MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE};
 use crate::{
     color::Color,
     constants::{BROTLI_COMPRESSION_LEVEL, EOF_PREFIX, RUST_TARGET},
@@ -36,6 +36,18 @@ pub enum BuildError {
         "program size exceeds max despite --nightly flag. We recommend splitting up your program"
     )]
     ExceedsMaxDespiteBestEffort,
+    #[error(
+        r#"WASM program size ({size}) > max size of 24Kb after applying optimizations. We recommend
+        reducing the codesize or attempting to build again with the --nightly flag. However, this flag can 
+        pose a security risk if used liberally"#
+    )]
+    ExceedsMaxWithoutNightly { size: ByteSize },
+    #[error(
+        "Brotli-compressed WASM program size ({got}) is bigger than program size limit: ({want})"
+    )]
+    MaxCompressedSizeExceeded { got: ByteSize, want: ByteSize },
+    #[error("pre-compressed WASM program size ({got}) is bigger than size limit: ({want})")]
+    MaxPrecompressedSizeExceeded { got: ByteSize, want: ByteSize },
 }
 
 /// Build a Rust project to WASM and return the path to the compiled WASM file.
@@ -102,36 +114,33 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
         })
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
-    let (_, compressed_wasm_code) = get_compressed_wasm_bytes(&wasm_file_path)?;
-    let compressed_size = ByteSize::b(compressed_wasm_code.len() as u64);
-    if compressed_size > MAX_PROGRAM_SIZE {
-        match cfg.opt_level {
-            OptLevel::S => {
-                println!(
-                    "Compressed program built with defaults had program size {} > max of 24Kb, rebuilding with optimizations", 
-                    compressed_size.red(),
-                );
-                // Attempt to build again with a bumped-up optimization level.
-                return build_project_to_wasm(BuildConfig {
-                    opt_level: OptLevel::Z,
-                    nightly: cfg.nightly,
-                    clean: false,
-                });
-            }
-            OptLevel::Z => {
-                if !cfg.nightly {
-                    let msg = eyre!(
-                        r#"WASM program size {} > max size of 24Kb after applying optimizations. We recommend
-reducing the codesize or attempting to build again with the --nightly flag. However, this flag can pose a security risk if used liberally"#,
-                        compressed_size.red(),
+    if let Err(e) = get_compressed_wasm_bytes(&wasm_file_path) {
+        if let Some(BuildError::MaxCompressedSizeExceeded { got, want }) = e.downcast_ref() {
+            match cfg.opt_level {
+                OptLevel::S => {
+                    println!(
+                        r#"Compressed program built with defaults had program size {} > max of 24Kb, 
+                        rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
+                        using the Stylus SDK"#,
+                        got.red(),
                     );
-                    return Err(msg);
+                    // Attempt to build again with a bumped-up optimization level.
+                    return build_project_to_wasm(BuildConfig {
+                        opt_level: OptLevel::Z,
+                        nightly: cfg.nightly,
+                        clean: false,
+                    });
                 }
-                return Err(BuildError::ExceedsMaxDespiteBestEffort.into());
+                OptLevel::Z => {
+                    if !cfg.nightly {
+                        return Err(BuildError::ExceedsMaxWithoutNightly { size: *got }.into());
+                    }
+                    return Err(BuildError::ExceedsMaxDespiteBestEffort.into());
+                }
             }
         }
+        return Err(e);
     }
-
     Ok(wasm_file_path)
 }
 
@@ -155,5 +164,24 @@ pub fn get_compressed_wasm_bytes(wasm_path: &PathBuf) -> eyre::Result<(Vec<u8>, 
         .map_err(|e| eyre!("could not Brotli compress WASM bytes: {e}"))?;
     let mut deploy_ready_code = hex::decode(EOF_PREFIX).unwrap();
     deploy_ready_code.extend(compressed_bytes);
+
+    let precompressed_size = ByteSize::b(wasm_bytes.len() as u64);
+    if precompressed_size > MAX_PRECOMPRESSED_WASM_SIZE {
+        return Err(BuildError::MaxPrecompressedSizeExceeded {
+            got: precompressed_size,
+            want: MAX_PRECOMPRESSED_WASM_SIZE,
+        }
+        .into());
+    }
+
+    let compressed_size = ByteSize::b(deploy_ready_code.len() as u64);
+    if compressed_size > MAX_PROGRAM_SIZE {
+        return Err(BuildError::MaxCompressedSizeExceeded {
+            got: compressed_size,
+            want: MAX_PROGRAM_SIZE,
+        }
+        .into());
+    }
+
     Ok((wasm_bytes.to_vec(), deploy_ready_code))
 }

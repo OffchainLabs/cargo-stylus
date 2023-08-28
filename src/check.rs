@@ -40,32 +40,13 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<()> {
     };
     println!("Reading WASM file at {}", wasm_file_path.display().grey());
 
-    let (precompressed_bytes, deploy_ready_code) =
-        project::get_compressed_wasm_bytes(&wasm_file_path)
-            .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
+    let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)
+        .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
 
-    // let precompressed_size = ByteSize::b(precompressed_bytes.len() as u64);
-    // if precompressed_size > MAX_PRECOMPRESSED_WASM_SIZE {
-    //     return Err(format!(
-    //         "pre-compressed WASM program size {} is bigger than program size limit: {}",
-    //         precompressed_size.to_string().red(),
-    //         MAX_PRECOMPRESSED_WASM_SIZE,
-    //     ));
-    // }
-
-    // let compressed_size = ByteSize::b(deploy_ready_code.len() as u64);
-    // if compressed_size > MAX_PROGRAM_SIZE {
-    //     return Err(format!(
-    //         "brotli-compressed WASM size {} is bigger than program size limit: {}",
-    //         compressed_size.to_string().red(),
-    //         MAX_PROGRAM_SIZE,
-    //     ));
-    // }
-
-    // println!(
-    //     "Compressed WASM size: {}",
-    //     compressed_size.to_string().mint(),
-    // );
+    println!(
+        "Compressed WASM size: {}",
+        ByteSize::b(deploy_ready_code.len() as u64).mint(),
+    );
 
     let provider = Provider::<Http>::try_from(&cfg.endpoint)
         .map_err(|e| eyre!("could not initialize provider from http: {e}"))?;
