@@ -88,6 +88,9 @@ fn basic_entrypoint() -> &'static str {
 #![no_std]
 extern crate alloc;
 
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 use alloc::vec::Vec;
 
 use stylus_sdk::stylus_proc::entrypoint;
@@ -114,6 +117,7 @@ edition = "2021"
 
 [dependencies]
 stylus-sdk = {{ git = "https://github.com/OffchainLabs/stylus-sdk-rs" }}
+wee_alloc = "0.4.5"
 
 [features]
 export-abi = ["stylus-sdk/export-abi"]
