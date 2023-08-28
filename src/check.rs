@@ -25,6 +25,33 @@ use crate::{
     wallet, CheckConfig,
 };
 
+/// Implements a custom wrapper for byte size that can be formatted with color
+/// depending on the byte size. For example, file sizes that are greater than 24Kb
+/// get formatted in pink as they are large.
+pub struct FileByteSize(ByteSize);
+
+impl FileByteSize {
+    fn new(len: u64) -> Self {
+        Self(ByteSize::b(len))
+    }
+}
+
+impl std::fmt::Display for FileByteSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            n if n <= ByteSize::kb(8) => {
+                write!(f, "{}", n.mint())
+            }
+            n if n > ByteSize::kb(8) && n <= ByteSize::kb(24) => {
+                write!(f, "{}", n.yellow())
+            }
+            n => {
+                write!(f, "{}", n.pink())
+            }
+        }
+    }
+}
+
 /// Runs a series of checks on the WASM program to ensure it is valid for compilation
 /// and code size before being deployed and activated onchain. An optional list of checks
 /// to disable can be specified.
@@ -40,12 +67,16 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<()> {
     };
     println!("Reading WASM file at {}", wasm_file_path.display().grey());
 
-    let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)
-        .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
+    let (precompressed_bytes, deploy_ready_code) =
+        project::get_compressed_wasm_bytes(&wasm_file_path)
+            .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
 
+    let precompressed_size = FileByteSize::new(precompressed_bytes.len() as u64);
+    println!("Precompressed WASM size: {}", precompressed_size);
+    let compressed_size = FileByteSize::new(deploy_ready_code.len() as u64);
     println!(
-        "Compressed WASM size: {}",
-        ByteSize::b(deploy_ready_code.len() as u64).mint(),
+        "Compressed WASM size to be deployed onchain: {}",
+        compressed_size
     );
 
     let provider = Provider::<Http>::try_from(&cfg.endpoint)
