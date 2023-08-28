@@ -27,7 +27,8 @@ use crate::{
 
 /// Implements a custom wrapper for byte size that can be formatted with color
 /// depending on the byte size. For example, file sizes that are greater than 24Kb
-/// get formatted in pink as they are large.
+/// get formatted in pink as they are large, yellow for less than 24Kb, and mint for
+/// WASMS less than 8Kb.
 pub struct FileByteSize(ByteSize);
 
 impl FileByteSize {
