@@ -25,7 +25,7 @@ pub enum OptLevel {
 pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub nightly: bool,
-    pub clean: bool,
+    pub rebuild: bool,
 }
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]
@@ -34,9 +34,9 @@ pub enum BuildError {
     NoWasmFound { path: PathBuf },
     #[error(
         r#"program size exceeds max despite --nightly flag. We recommend splitting up your program. 
-        We are actively working to reduce WASM program sizes that use the Stylus SDK.
-        To see all available optimization options, see more in:
-        https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
+We are actively working to reduce WASM program sizes that use the Stylus SDK.
+To see all available optimization options, see more in:
+https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
     )]
     ExceedsMaxDespiteBestEffort,
     #[error(
@@ -51,45 +51,35 @@ pub enum BuildError {
 pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
     let cwd: PathBuf = current_dir().map_err(|e| eyre!("could not get current dir: {e}"))?;
 
-    if cfg.clean {
-        // Clean the cargo project for fresh checks each time.
-        Command::new("cargo")
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .arg("clean")
-            .output()
-            .map_err(|e| eyre!("failed to execute cargo clean: {e}"))?;
-    }
+    if cfg.rebuild {
+        let mut cmd = Command::new("cargo");
+        cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
 
-    let mut cmd = Command::new("cargo");
-    cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
-
-    if cfg.nightly {
-        cmd.arg("+nightly");
-        let msg = "Warning:".to_string().yellow();
-        if cfg.clean {
+        if cfg.nightly {
+            cmd.arg("+nightly");
+            let msg = "Warning:".to_string().yellow();
             println!("{} building with the Rust nightly toolchain, make sure you are aware of the security risks of doing so", msg);
         }
+
+        cmd.arg("build");
+
+        if cfg.nightly {
+            cmd.arg("-Z");
+            cmd.arg("build-std=std,panic_abort");
+            cmd.arg("-Z");
+            cmd.arg("build-std-features=panic_immediate_abort");
+        }
+
+        if matches!(cfg.opt_level, OptLevel::Z) {
+            cmd.arg("--config");
+            cmd.arg("profile.release.opt-level='z'");
+        }
+
+        cmd.arg("--release")
+            .arg(format!("--target={}", RUST_TARGET))
+            .output()
+            .map_err(|e| eyre!("failed to execute cargo build: {e}"))?;
     }
-
-    cmd.arg("build");
-
-    if cfg.nightly {
-        cmd.arg("-Z");
-        cmd.arg("build-std=std,panic_abort");
-        cmd.arg("-Z");
-        cmd.arg("build-std-features=panic_immediate_abort");
-    }
-
-    if matches!(cfg.opt_level, OptLevel::Z) {
-        cmd.arg("--config");
-        cmd.arg("profile.release.opt-level='z'");
-    }
-
-    cmd.arg("--release")
-        .arg(format!("--target={}", RUST_TARGET))
-        .output()
-        .map_err(|e| eyre!("failed to execute cargo build: {e}"))?;
 
     let release_path = cwd.join("target").join(RUST_TARGET).join("release");
 
@@ -117,25 +107,25 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
                 OptLevel::S => {
                     println!(
                         r#"Compressed program built with defaults had program size {} > max of 24Kb, 
-                        rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
-                        using the Stylus SDK. To see all available optimization options, see more in:
-                        https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
+rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
+using the Stylus SDK. To see all available optimization options, see more in:
+https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                         got.red(),
                     );
                     // Attempt to build again with a bumped-up optimization level.
                     return build_project_to_wasm(BuildConfig {
                         opt_level: OptLevel::Z,
                         nightly: cfg.nightly,
-                        clean: false,
+                        rebuild: true,
                     });
                 }
                 OptLevel::Z => {
                     if !cfg.nightly {
                         println!(
                             r#"Compressed program still exceeding max program size {} > max of 24Kb, 
-                        rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
-                        using the Stylus SDK. To see all available optimization options, see more in:
-                        https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
+rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
+using the Stylus SDK. To see all available optimization options, see more in:
+https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                             got.red(),
                         );
                         // Attempt to build again with the nightly flag enabled and extra optimizations
@@ -143,7 +133,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
                         return build_project_to_wasm(BuildConfig {
                             opt_level: OptLevel::Z,
                             nightly: true,
-                            clean: false,
+                            rebuild: true,
                         });
                     }
                     return Err(BuildError::ExceedsMaxDespiteBestEffort.into());

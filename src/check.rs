@@ -17,6 +17,7 @@ use ethers::{
 };
 use eyre::eyre;
 
+use crate::constants::PROGRAM_UP_TO_DATE_ERR;
 use crate::{
     color::Color,
     constants::ARB_WASM_ADDRESS,
@@ -55,14 +56,15 @@ impl std::fmt::Display for FileByteSize {
 
 /// Runs a series of checks on the WASM program to ensure it is valid for compilation
 /// and code size before being deployed and activated onchain. An optional list of checks
-/// to disable can be specified.
-pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<()> {
+/// to disable can be specified. Returns a boolean that says whether a WASM is already up-to-date
+/// and activated onchain.
+pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
     let wasm_file_path: PathBuf = match cfg.wasm_file_path {
         Some(path) => PathBuf::from_str(&path).unwrap(),
         None => project::build_project_to_wasm(BuildConfig {
             opt_level: project::OptLevel::default(),
             nightly: cfg.nightly,
-            clean: true,
+            rebuild: true,
         })
         .map_err(|e| eyre!("failed to build project to WASM: {e}"))?,
     };
@@ -110,12 +112,13 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<()> {
 /// Checks if a program can be successfully activated onchain before it is deployed
 /// by using an eth_call override that injects the program's code at a specified address.
 /// This allows for verifying an activation call is correct and will succeed if sent
-/// as a transaction with the appropriate gas.
+/// as a transaction with the appropriate gas. Returns a boolean that says whether or not the program's
+/// code is up-to-date and activated onchain.
 pub async fn check_can_activate<T>(
     client: Provider<T>,
     expected_program_address: &Address,
     compressed_wasm: Vec<u8>,
-) -> eyre::Result<()>
+) -> eyre::Result<bool>
 where
     T: JsonRpcClient + Send + Sync,
 {
@@ -132,9 +135,28 @@ where
         Address::from_slice(expected_program_address.as_bytes()),
         compressed_wasm.into(),
     );
-    let response = client.call_raw(&tx).state(&state).await.map_err(|e| {
-        eyre!("program predeployment check failed when checking against ARB_WASM_ADDRESS {to}: {e}")
-    })?;
+    let (response, program_up_to_date) = match client.call_raw(&tx).state(&state).await {
+        Ok(response) => (response, false),
+        Err(e) => {
+            // TODO: Improve this check by instead calling ArbWasm to check if a program is up to date
+            // once the feature is available and exposed onchain.
+            if e.to_string().contains(PROGRAM_UP_TO_DATE_ERR) {
+                (Bytes::new(), true)
+            } else {
+                return Err(eyre!(
+                    "program predeployment check failed when checking against ARB_WASM_ADDRESS 
+                    {ARB_WASM_ADDRESS}: {e}"
+                ));
+            }
+        }
+    };
+
+    if program_up_to_date {
+        let msg = r#"Stylus program with same underlying WASM code is already activated successfully onchain,
+and therefore your program does not require an additional activation transaction"#;
+        println!("{}", msg.mint());
+        return Ok(true);
+    }
 
     if response.len() < 2 {
         return Err(eyre!(
@@ -148,5 +170,5 @@ where
         .map_err(|e| eyre!("could not parse Stylus version bytes: {e}"))?;
     let version = u16::from_be_bytes(version_bytes);
     println!("Program succeeded Stylus onchain activation checks with Stylus version: {version}");
-    Ok(())
+    Ok(false)
 }

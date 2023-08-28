@@ -14,7 +14,7 @@ use ethers::{
 use eyre::eyre;
 
 use crate::project::BuildConfig;
-use crate::{color::Color, constants, project, tx, wallet, DeployConfig, DeployMode};
+use crate::{check, color::Color, constants, project, tx, wallet, DeployConfig, DeployMode};
 
 /// The transaction kind for using the Cargo stylus tool with Stylus programs.
 /// Stylus programs can be deployed and activated onchain, and this enum represents
@@ -38,6 +38,10 @@ impl std::fmt::Display for TxKind {
 /// ActivateOnly: Sends a signed tx to activate a Stylus program at a specified address.
 /// DeployAndActivate (default): Sends both transactions above.
 pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
+    // Run stylus checks before deployment.
+    let program_is_up_to_date = check::run_checks(cfg.check_cfg.clone())
+        .await
+        .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
     let wallet = wallet::load(cfg.check_cfg.private_key_path, cfg.check_cfg.keystore_opts)
         .map_err(|e| eyre!("could not load wallet: {e}"))?;
 
@@ -94,7 +98,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
             None => project::build_project_to_wasm(BuildConfig {
                 opt_level: project::OptLevel::default(),
                 nightly: cfg.check_cfg.nightly,
-                clean: false,
+                rebuild: false, // The check step at the start of this command rebuilt.
             })
             .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
         };
@@ -125,6 +129,10 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         }
     }
     if activate {
+        if program_is_up_to_date {
+            println!("Stylus program is already up to date, no need for an activation tx");
+            return Ok(());
+        }
         let program_addr = cfg
             .activate_program_address
             .unwrap_or(expected_program_addr);

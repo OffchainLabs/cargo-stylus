@@ -166,9 +166,6 @@ async fn main() -> eyre::Result<()> {
             };
         }
         StylusSubcommands::Deploy(cfg) => {
-            if let Err(e) = check::run_checks(cfg.check_cfg.clone()).await {
-                println!("Stylus checks failed: {}", e.red());
-            };
             if let Err(e) = deploy::deploy(cfg).await {
                 println!("Deploy / activation command failed: {}", e.red());
             };
