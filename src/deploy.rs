@@ -129,8 +129,8 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         }
     }
     if activate {
+        // If program is up-to-date, there is no need for an activation transaction.
         if program_is_up_to_date {
-            println!("Stylus program is already up to date, no need for an activation tx");
             return Ok(());
         }
         let program_addr = cfg
