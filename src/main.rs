@@ -134,7 +134,7 @@ pub struct TxSendingOpts {
     /// but does not send them. Instead, outputs the prepared tx data hex bytes to files in the directory
     /// specified by the --output-tx-data-to-dir flag. Useful for sending the deployment / activation
     /// txs via a user's preferred means instead of via the Cargo stylus tool. For example, Foundry's
-    /// [cast](https://book.getfoundry.sh/cast/) CLI tool.
+    /// https://book.getfoundry.sh/cast/ CLI tool.
     #[arg(long)]
     dry_run: bool,
     /// Outputs the deployment / activation tx data as bytes to a specified directory.
