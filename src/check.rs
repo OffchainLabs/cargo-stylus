@@ -41,10 +41,10 @@ impl FileByteSize {
 impl std::fmt::Display for FileByteSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
-            n if n <= ByteSize::kb(8) => {
+            n if n <= ByteSize::kb(16) => {
                 write!(f, "{}", n.mint())
             }
-            n if n > ByteSize::kb(8) && n <= ByteSize::kb(24) => {
+            n if n > ByteSize::kb(16) && n <= ByteSize::kb(24) => {
                 write!(f, "{}", n.yellow())
             }
             n => {
