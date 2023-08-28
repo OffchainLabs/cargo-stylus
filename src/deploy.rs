@@ -13,7 +13,7 @@ use ethers::{
 use eyre::eyre;
 
 use crate::project::BuildConfig;
-use crate::{constants, project, tx, wallet, DeployConfig, DeployMode};
+use crate::{color::Color, constants, project, tx, wallet, DeployConfig, DeployMode};
 
 /// Performs one of three different modes for a Stylus program:
 /// DeployOnly: Sends a signed tx to deploy a Stylus program to a new address.
@@ -69,7 +69,10 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
             .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
         };
         let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)?;
-        println!("Deploying program to address {expected_program_addr:#032x}");
+        println!(
+            "Deploying program to address {}",
+            hex::encode(expected_program_addr).mint()
+        );
         let deployment_calldata = program_deployment_calldata(&deploy_ready_code);
         let mut tx_request = Eip1559TransactionRequest::new()
             .from(wallet.address())
