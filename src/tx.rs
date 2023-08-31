@@ -85,7 +85,8 @@ where
             let tx_hash = receipt.transaction_hash;
             let gas_used = receipt.gas_used.unwrap();
             println!(
-                "Confirmed {tx_kind} tx 0x{}, gas used {}",
+                "Confirmed {tx_kind} tx {}{}, gas used {}",
+                "0x".pink(),
                 hex::encode(tx_hash.as_bytes()).pink(),
                 gas_used.mint()
             );
