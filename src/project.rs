@@ -43,7 +43,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
         "Brotli-compressed WASM program size ({got}) is bigger than program size limit: ({want})"
     )]
     MaxCompressedSizeExceeded { got: ByteSize, want: ByteSize },
-    #[error("pre-compressed WASM program size ({got}) is bigger than size limit: ({want})")]
+    #[error("uncompressed WASM program size ({got}) is bigger than size limit: ({want})")]
     MaxPrecompressedSizeExceeded { got: ByteSize, want: ByteSize },
 }
 

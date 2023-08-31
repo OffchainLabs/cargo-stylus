@@ -75,7 +75,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
             .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
 
     let precompressed_size = FileByteSize::new(precompressed_bytes.len() as u64);
-    println!("Precompressed WASM size: {}", precompressed_size);
+    println!("Uncompressed WASM size: {}", precompressed_size);
     let compressed_size = FileByteSize::new(deploy_ready_code.len() as u64);
     println!(
         "Compressed WASM size to be deployed onchain: {}",
