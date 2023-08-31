@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "brotli2",
  "bytes",
