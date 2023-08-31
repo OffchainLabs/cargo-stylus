@@ -19,7 +19,7 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
     }
     let cwd: PathBuf = current_dir().map_err(|e| eyre!("could not get current dir: {e}"))?;
     if minimal {
-        Command::new("cargo")
+        let output = Command::new("cargo")
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .arg("new")
@@ -27,6 +27,9 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
             .arg(name)
             .output()
             .map_err(|e| eyre!("failed to execute cargo new: {e}"))?;
+        if !output.status.success() {
+            return Err(eyre!("cargo new command failed"));
+        }
 
         let cargo_config_dir_path = cwd.join(name).join(".cargo");
         std::fs::create_dir_all(&cargo_config_dir_path)
@@ -66,7 +69,7 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
             .map_err(|e| eyre!("could not write to file: {e}"))?;
         return Ok(());
     }
-    Command::new("git")
+    let output = Command::new("git")
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .arg("clone")
@@ -75,6 +78,9 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
         .output()
         .map_err(|e| eyre!("failed to execute git clone: {e}"))?;
 
+    if !output.status.success() {
+        return Err(eyre!("git clone command failed"));
+    }
     let project_path = cwd.join(name);
     println!(
         "Initialized Stylus project at: {}",

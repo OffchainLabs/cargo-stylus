@@ -75,10 +75,17 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
             cmd.arg("profile.release.opt-level='z'");
         }
 
-        cmd.arg("--release")
+        let output = cmd
+            .arg("--release")
             .arg(format!("--target={}", RUST_TARGET))
             .output()
             .map_err(|e| eyre!("failed to execute cargo build: {e}"))?;
+
+        if !output.status.success() {
+            return Err(eyre!("cargo build command failed"));
+        }
+
+        println!("Got output status: {:?}", output);
     }
 
     let release_path = cwd.join("target").join(RUST_TARGET).join("release");

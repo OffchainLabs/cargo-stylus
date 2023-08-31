@@ -20,7 +20,11 @@ pub fn export_abi(release: bool) -> eyre::Result<()> {
         cmd.arg("--release");
     }
 
-    cmd.output()
+    let output = cmd
+        .output()
         .map_err(|e| eyre!("failed to execute export abi command: {e}"))?;
+    if !output.status.success() {
+        return Err(eyre!("Export ABI command failed: {:?}", output));
+    }
     Ok(())
 }
