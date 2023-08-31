@@ -110,7 +110,7 @@ on the --mode flag under cargo stylus deploy --help"#
         };
         let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)?;
         println!(
-            "Deploying program to address {}",
+            "Deploying program to address 0x{}",
             hex::encode(expected_program_addr).mint()
         );
         let deployment_calldata = program_deployment_calldata(&deploy_ready_code);
