@@ -84,8 +84,6 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
         if !output.status.success() {
             return Err(eyre!("cargo build command failed"));
         }
-
-        println!("Got output status: {:?}", output);
     }
 
     let release_path = cwd.join("target").join(RUST_TARGET).join("release");

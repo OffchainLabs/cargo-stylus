@@ -155,8 +155,11 @@ where
     };
 
     if program_up_to_date {
-        let msg = "Stylus program with same WASM code is already activated successfully onchain";
-        println!("{}", msg.mint());
+        let msg = "already activated";
+        println!(
+            "Stylus program with same WASM code is {} onchain",
+            msg.mint()
+        );
         return Ok(true);
     }
 
