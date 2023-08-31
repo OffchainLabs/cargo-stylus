@@ -111,6 +111,11 @@ fn user_main(input: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
 fn cargo_config() -> &'static str {
     r#"[build]
 target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "link-arg=-zstack-size=32768",
+]
     "#
 }
 
@@ -122,7 +127,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-stylus-sdk = {{ git = "https://github.com/OffchainLabs/stylus-sdk-rs" }}
+stylus-sdk = "0.1.2"
 wee_alloc = "0.4.5"
 
 [features]
