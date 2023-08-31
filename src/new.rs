@@ -111,6 +111,11 @@ fn user_main(input: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
 fn cargo_config() -> &'static str {
     r#"[build]
 target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "link-arg=-zstack-size=8192",
+]
     "#
 }
 
