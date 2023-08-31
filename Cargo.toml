@@ -6,6 +6,8 @@ authors = ["Offchain Labs"]
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/OffchainLabs/cargo-stylus"
 repository = "https://github.com/OffchainLabs/cargo-stylus"
+keywords = ["arbitrum", "ethereum", "stylus", "alloy", "cargo"]
+description = "CLI tool for deploying Stylus contracts on Arbitrum chains"
 
 [dependencies]
 rustc-host = "0.1"
