@@ -59,8 +59,8 @@ impl std::fmt::Display for FileByteSize {
 /// to disable can be specified. Returns a boolean that says whether a WASM is already up-to-date
 /// and activated onchain.
 pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
-    let wasm_file_path: PathBuf = match cfg.wasm_file_path {
-        Some(path) => PathBuf::from_str(&path).unwrap(),
+    let wasm_file_path: PathBuf = match &cfg.wasm_file_path {
+        Some(path) => PathBuf::from_str(path).unwrap(),
         None => project::build_project_to_wasm(BuildConfig {
             opt_level: project::OptLevel::default(),
             nightly: cfg.nightly,
@@ -89,11 +89,11 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
     let provider = Provider::<Http>::try_from(&cfg.endpoint)
         .map_err(|e| eyre!("could not initialize provider from http: {e}"))?;
 
-    let mut expected_program_addr = cfg.expected_program_address;
+    let mut expected_program_addr = cfg.clone().expected_program_address;
 
     // If there is no expected program address specified, compute it from the user's wallet.
     if expected_program_addr != H160::zero() {
-        let wallet = wallet::load(cfg.private_key_path, cfg.keystore_opts)?;
+        let wallet = wallet::load(&cfg)?;
         let chain_id = provider
             .get_chainid()
             .await
@@ -155,8 +155,7 @@ where
     };
 
     if program_up_to_date {
-        let msg = r#"Stylus program with same underlying WASM code is already activated successfully onchain,
-and therefore your program does not require an additional activation transaction"#;
+        let msg = "Stylus program with same WASM code is already activated successfully onchain";
         println!("{}", msg.mint());
         return Ok(true);
     }

@@ -81,9 +81,14 @@ pub struct CheckConfig {
     /// wallet-related flags to be specified.
     #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
     expected_program_address: H160,
-    /// Privkey source to use with the cargo stylus plugin.
+    /// File path to a text file containing a private key to use with the cargo stylus plugin.
     #[arg(long)]
     private_key_path: Option<String>,
+    /// Private key 0x-prefixed hex string to use with the cargo stylus plugin. Warning: this exposes
+    /// your private key secret in plaintext in your CLI history. We instead recommend using the
+    /// --private-key-path flag or account keystore options.
+    #[arg(long)]
+    private_key: Option<String>,
     /// Wallet source to use with the cargo stylus plugin.
     #[command(flatten)]
     keystore_opts: KeystoreOpts,

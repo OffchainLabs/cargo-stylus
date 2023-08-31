@@ -1,7 +1,7 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use ethers::types::{Eip1559TransactionRequest, H160, U256};
@@ -26,9 +26,9 @@ pub enum TxKind {
 
 impl std::fmt::Display for TxKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            &TxKind::Deployment => write!(f, "deployment"),
-            &TxKind::Activation => write!(f, "activation"),
+        match *self {
+            TxKind::Deployment => write!(f, "deployment"),
+            TxKind::Activation => write!(f, "activation"),
         }
     }
 }
@@ -42,8 +42,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
     let program_is_up_to_date = check::run_checks(cfg.check_cfg.clone())
         .await
         .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
-    let wallet = wallet::load(cfg.check_cfg.private_key_path, cfg.check_cfg.keystore_opts)
-        .map_err(|e| eyre!("could not load wallet: {e}"))?;
+    let wallet = wallet::load(&cfg.check_cfg).map_err(|e| eyre!("could not load wallet: {e}"))?;
 
     let provider = Provider::<Http>::try_from(&cfg.check_cfg.endpoint).map_err(|e| {
         eyre!(
@@ -205,7 +204,7 @@ pub fn program_deployment_calldata(code: &[u8]) -> Vec<u8> {
     deploy
 }
 
-fn write_tx_data(tx_kind: TxKind, path: &PathBuf, data: &[u8]) -> eyre::Result<()> {
+fn write_tx_data(tx_kind: TxKind, path: &Path, data: &[u8]) -> eyre::Result<()> {
     let file_name = format!("{tx_kind}_tx_data");
     let path = path.join(file_name);
     let path_str = path.as_os_str().to_string_lossy();
