@@ -60,10 +60,10 @@ All testnet information, including faucets and RPC endpoints can be found [here]
 Then, develop your Rust program normally and take advantage of all the features the [stylus-sdk](https://github.com/OffchainLabs/stylus-sdk-rs) has to offer. To check whether or not your program will successfully deploy and activate onchain, use the `cargo stylus check` subcommand:
 
 ```
-cargo stylus check --endpoint=<JSON_RPC_ENDPOINT>
+cargo stylus check
 ```
 
-This command will attempt to verify that your program can be deployed and activated onchain without requiring a transaction by specifying a JSON-RPC endpoint. See [here](https://docs.arbitrum.io/stylus/reference/testnet-information) for available testnet RPC URLs. See `cargo stylus check --help` for more options.
+This command will attempt to verify that your program can be deployed and activated onchain without requiring a transaction by specifying a JSON-RPC endpoint. By default, it will use the public URL of the Stylus testnet as its endpoint. See [here](https://docs.arbitrum.io/stylus/reference/testnet-information) for available testnet RPC URLs. See `cargo stylus check --help` for more options.
 
 If the command above fails, you'll see detailed information about why your WASM will be rejected:
 
@@ -98,7 +98,6 @@ First, we can estimate the gas required to perform our deployment and activation
 ```
 cargo stylus deploy \
   --private-key-path=<PRIVKEY_FILE_PATH> \
-  --endpoint=<JSON_RPC_ENDPOINT> \
   --estimate-gas-only
 ```
 
@@ -114,8 +113,7 @@ Next, attempt an actual deployment. Two transactions will be sent onchain.
 
 ```
 cargo stylus deploy \
-  --private-key-path=<PRIVKEY_FILE_PATH> \
-  --endpoint=<JSON_RPC_ENDPOINT>
+  --private-key-path=<PRIVKEY_FILE_PATH>
 ```
 
 and see:

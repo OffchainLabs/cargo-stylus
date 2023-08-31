@@ -82,6 +82,10 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
         compressed_size
     );
 
+    println!(
+        "Connecting to Stylus RPC endpoint: {}",
+        &cfg.endpoint.mint()
+    );
     let provider = Provider::<Http>::try_from(&cfg.endpoint)
         .map_err(|e| eyre!("could not initialize provider from http: {e}"))?;
 

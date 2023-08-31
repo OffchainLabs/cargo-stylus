@@ -67,8 +67,9 @@ enum StylusSubcommands {
 #[derive(Debug, Args, Clone)]
 pub struct CheckConfig {
     /// The endpoint of the L2 node to connect to. See https://docs.arbitrum.io/stylus/reference/testnet-information
-    /// for latest Stylus testnet information including public endpoints.
-    #[arg(short, long, default_value = "http://localhost:8545")]
+    /// for latest Stylus testnet information including public endpoints. Defaults
+    /// to the current Stylus testnet RPC endpoint.
+    #[arg(short, long, default_value = "https://stylus-testnet.arbitrum.io/rpc")]
     endpoint: String,
     /// If desired, it loads a WASM file from a specified path. If not provided, it will try to find
     /// a WASM file under the current working directory's Rust target release directory and use its
