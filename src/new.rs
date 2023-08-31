@@ -114,7 +114,7 @@ target = "wasm32-unknown-unknown"
 
 [target.wasm32-unknown-unknown]
 rustflags = [
-  "-C", "link-arg=-zstack-size=8192",
+  "-C", "link-arg=-zstack-size=32768",
 ]
     "#
 }
