@@ -41,7 +41,7 @@ pub fn export_abi(release: bool, output: Option<PathBuf>) -> eyre::Result<()> {
         .output()
         .map_err(|e| eyre!("failed to execute export abi command: {e}"))?;
     if !output.status.success() {
-        return bail!("Export ABI command failed: {:?}", output);
+        bail!("Export ABI command failed: {:?}", output);
     }
     Ok(())
 }
