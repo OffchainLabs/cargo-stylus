@@ -62,7 +62,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
     println!(
         "Deployer address: {}{}",
         "0x".mint(),
-        hex::encode(&addr).mint()
+        hex::encode(addr).mint()
     );
 
     let nonce = client
