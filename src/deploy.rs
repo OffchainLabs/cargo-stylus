@@ -11,7 +11,7 @@ use ethers::{
     providers::{Http, Middleware, Provider},
     signers::Signer,
 };
-use eyre::eyre;
+use eyre::{bail, eyre};
 
 use crate::project::BuildConfig;
 use crate::{check, color::Color, constants, project, tx, wallet, DeployConfig, DeployMode};
@@ -55,9 +55,16 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         .await
         .map_err(|e| eyre!("could not get chain id: {e}"))?
         .as_u64();
-    let client = SignerMiddleware::new(provider, wallet.clone().with_chain_id(chain_id));
+    let client = SignerMiddleware::new(&provider, wallet.clone().with_chain_id(chain_id));
 
     let addr = wallet.address();
+
+    println!(
+        "Deployer address: {}{}",
+        "0x".mint(),
+        hex::encode(addr).mint()
+    );
+
     let nonce = client
         .get_transaction_count(addr, None)
         .await
@@ -88,13 +95,27 @@ on the --mode flag under cargo stylus deploy --help"#
     // Whether or not to send the transactions to the endpoint.
     let dry_run = cfg.tx_sending_opts.dry_run;
 
+    // If we are attempting to send a real transaction, we check if the deployer has any funds
+    // and we return an error, letting the user know they need funds to send the tx and linking to
+    // our quickstart on ways to do so on testnet.
+    if !dry_run {
+        let balance = provider.get_balance(addr, None).await?;
+        if balance == U256::zero() {
+            bail!(
+                r#"address 0x{} has 0 balance onchain – please refer to our Quickstart guide for deploying 
+programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart"#,
+                hex::encode(addr),
+            );
+        }
+    }
+
     // The folder at which to output the transaction data bytes.
     let output_dir = cfg.tx_sending_opts.output_tx_data_to_dir.as_ref();
 
     if dry_run && output_dir.is_none() {
-        return Err(eyre!(
+        bail!(
             "using the --dry-run flag requires specifying the --output-tx-data-to-dir flag as well"
-        ));
+        );
     }
 
     if deploy {

@@ -15,7 +15,7 @@ use ethers::{
     core::types::spoof,
     providers::{Provider, RawCall},
 };
-use eyre::eyre;
+use eyre::{bail, eyre};
 
 use crate::constants::PROGRAM_UP_TO_DATE_ERR;
 use crate::{
@@ -147,9 +147,9 @@ where
             if e.to_string().contains(PROGRAM_UP_TO_DATE_ERR) {
                 (Bytes::new(), true)
             } else {
-                return Err(eyre!(
+                bail!(
                     "program predeployment check failed when checking against ARB_WASM_ADDRESS {ARB_WASM_ADDRESS}: {e}"
-                ));
+                );
             }
         }
     };
@@ -164,10 +164,10 @@ where
     }
 
     if response.len() < 2 {
-        return Err(eyre!(
+        bail!(
             "Stylus version bytes response too short, expected at least 2 bytes but got: {}",
             hex::encode(&response)
-        ));
+        );
     }
     let n = response.len();
     let version_bytes: [u8; 2] = response[n - 2..]

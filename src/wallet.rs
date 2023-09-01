@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader};
 use std::str::FromStr;
 
 use ethers::signers::LocalWallet;
-use eyre::eyre;
+use eyre::{bail, eyre};
 
 use crate::CheckConfig;
 
@@ -18,15 +18,13 @@ pub fn load(cfg: &CheckConfig) -> eyre::Result<LocalWallet> {
         ..
     } = cfg;
     if private_key.is_some() && private_key_path.is_some() {
-        return Err(eyre!(
-            "cannot provide both --private-key and --private-key-path"
-        ));
+        bail!("cannot provide both --private-key and --private-key-path");
     }
     let priv_key_flag_set = private_key.is_some() || private_key_path.is_some();
     if priv_key_flag_set
         && (keystore_opts.keystore_password_path.is_some() && keystore_opts.keystore_path.is_some())
     {
-        return Err(eyre!("must provide either (--private-key-path or --private-key) or (--keystore-path and --keystore-password-path)"));
+        bail!("must provide either (--private-key-path or --private-key) or (--keystore-path and --keystore-password-path)");
     }
 
     match (private_key.as_ref(), private_key_path.as_ref()) {
