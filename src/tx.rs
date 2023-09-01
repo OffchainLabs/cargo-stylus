@@ -53,7 +53,7 @@ where
     let estimated = client
         .estimate_gas(&typed, None)
         .await
-        .map_err(|e| eyre!("not estimate gas {e}"))?;
+        .map_err(|e| eyre!("could not estimate gas {e}"))?;
 
     println!("Estimated gas for {tx_kind}: {}", estimated.pink());
 

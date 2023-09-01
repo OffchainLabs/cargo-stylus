@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+use std::path::PathBuf;
+
 use clap::{Args, Parser, ValueEnum};
 use color::Color;
 use ethers::types::H160;
@@ -51,6 +51,9 @@ enum StylusSubcommands {
         /// Build in release mode.
         #[arg(long)]
         release: bool,
+        /// Specify an output file to write the ABI to.
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
     /// Instrument a Rust project using Stylus.
     /// This command runs compiled WASM code through Stylus instrumentation checks and reports any failures.
@@ -162,8 +165,8 @@ async fn main() -> eyre::Result<()> {
                 );
             };
         }
-        StylusSubcommands::ExportAbi { release } => {
-            if let Err(e) = export_abi::export_abi(release) {
+        StylusSubcommands::ExportAbi { release, output } => {
+            if let Err(e) = export_abi::export_abi(release, output) {
                 println!("Could not export Stylus program Solidity ABI: {}", e.red());
             };
         }

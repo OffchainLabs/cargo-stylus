@@ -1,6 +1,6 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
-use eyre::eyre;
+use eyre::{bail, eyre};
 use std::{
     env::current_dir,
     io::Write,
@@ -15,7 +15,7 @@ use crate::{color::Color, constants::GITHUB_TEMPLATE_REPOSITORY};
 /// it to the user's choosing.
 pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
     if name.is_empty() {
-        return Err(eyre!("cannot have an empty project name"));
+        bail!("cannot have an empty project name");
     }
     let cwd: PathBuf = current_dir().map_err(|e| eyre!("could not get current dir: {e}"))?;
     if minimal {
@@ -28,7 +28,7 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
             .output()
             .map_err(|e| eyre!("failed to execute cargo new: {e}"))?;
         if !output.status.success() {
-            return Err(eyre!("cargo new command failed"));
+            bail!("cargo new command failed");
         }
 
         let cargo_config_dir_path = cwd.join(name).join(".cargo");
@@ -79,7 +79,7 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
         .map_err(|e| eyre!("failed to execute git clone: {e}"))?;
 
     if !output.status.success() {
-        return Err(eyre!("git clone command failed"));
+        bail!("git clone command failed");
     }
     let project_path = cwd.join(name);
     println!(
