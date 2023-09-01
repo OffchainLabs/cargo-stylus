@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 
 use brotli2::read::BrotliEncoder;
 use bytesize::ByteSize;
-use eyre::eyre;
+use eyre::{bail, eyre};
 
 use crate::constants::{MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE};
 use crate::{
@@ -82,7 +82,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
             .map_err(|e| eyre!("failed to execute cargo build: {e}"))?;
 
         if !output.status.success() {
-            return Err(eyre!("cargo build command failed"));
+            bail!("cargo build command failed");
         }
     }
 

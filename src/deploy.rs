@@ -11,7 +11,7 @@ use ethers::{
     providers::{Http, Middleware, Provider},
     signers::Signer,
 };
-use eyre::eyre;
+use eyre::{bail, eyre};
 
 use crate::project::BuildConfig;
 use crate::{check, color::Color, constants, project, tx, wallet, DeployConfig, DeployMode};
@@ -101,11 +101,11 @@ on the --mode flag under cargo stylus deploy --help"#
     if !dry_run {
         let balance = provider.get_balance(addr, None).await?;
         if balance == U256::zero() {
-            return Err(eyre!(
+            bail!(
                 r#"address 0x{} has 0 balance onchain – please refer to our Quickstart guide for deploying 
 programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart"#,
                 hex::encode(addr),
-            ));
+            );
         }
     }
 
@@ -113,9 +113,9 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
     let output_dir = cfg.tx_sending_opts.output_tx_data_to_dir.as_ref();
 
     if dry_run && output_dir.is_none() {
-        return Err(eyre!(
+        bail!(
             "using the --dry-run flag requires specifying the --output-tx-data-to-dir flag as well"
-        ));
+        );
     }
 
     if deploy {

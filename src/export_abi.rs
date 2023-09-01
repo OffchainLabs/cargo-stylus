@@ -1,6 +1,6 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
-use eyre::eyre;
+use eyre::{bail, eyre};
 use std::{
     fs::File,
     path::PathBuf,
@@ -41,7 +41,7 @@ pub fn export_abi(release: bool, output: Option<PathBuf>) -> eyre::Result<()> {
         .output()
         .map_err(|e| eyre!("failed to execute export abi command: {e}"))?;
     if !output.status.success() {
-        return Err(eyre!("Export ABI command failed: {:?}", output));
+        return bail!("Export ABI command failed: {:?}", output);
     }
     Ok(())
 }
