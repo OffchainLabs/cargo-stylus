@@ -102,8 +102,8 @@ on the --mode flag under cargo stylus deploy --help"#
         let balance = provider.get_balance(addr, None).await?;
         if balance == U256::zero() {
             return Err(eyre!(
-                r#"address 0x{} has 0 balance onchain – please refer to our Quickstart guide on obtaining
-testnet ETH for deploying on Stylus here https://docs.arbitrum.io/stylus/stylus-quickstart"#,
+                r#"address 0x{} has 0 balance onchain – please refer to our Quickstart guide for deploying 
+programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart"#,
                 hex::encode(addr),
             ));
         }
