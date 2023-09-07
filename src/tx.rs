@@ -5,6 +5,7 @@ use crate::deploy::TxKind;
 
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{Eip1559TransactionRequest, H256};
+use ethers::utils::{format_ether, format_units};
 use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
 use eyre::eyre;
 
@@ -44,6 +45,9 @@ where
         .ok_or(TxError::NoHeadBlock)?;
     let base_fee = block.base_fee_per_gas.ok_or(TxError::NoBaseFee)?;
 
+    let base_fee_gwei = format_units(base_fee, "gwei")
+        .map_err(|e| eyre!("could not format base fee as gwei: {e}"))?;
+    println!("Base fee: {} gwei", base_fee_gwei.grey());
     if !(estimate_only) {
         tx_request.max_fee_per_gas = Some(base_fee);
         tx_request.max_priority_fee_per_gas = Some(base_fee);
@@ -55,7 +59,10 @@ where
         .await
         .map_err(|e| eyre!("could not estimate gas {e}"))?;
 
-    println!("Estimated gas for {tx_kind}: {}", estimated.pink());
+    println!(
+        "Estimated gas for {tx_kind}: {} gas units",
+        estimated.pink()
+    );
 
     if estimate_only {
         return Ok(());
