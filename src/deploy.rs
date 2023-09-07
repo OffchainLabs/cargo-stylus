@@ -1,5 +1,7 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+#![allow(clippy::println_empty_string)]
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -61,8 +63,8 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
 
     println!(
         "Deployer address: {}{}",
-        "0x".mint(),
-        hex::encode(addr).mint()
+        "0x".grey(),
+        hex::encode(addr).grey()
     );
 
     let nonce = client
@@ -129,6 +131,8 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
             .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
         };
         let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)?;
+        println!("");
+        println!("{}", "====DEPLOYMENT====".grey());
         println!(
             "Deploying program to address {}{}",
             "0x".mint(),
@@ -154,6 +158,7 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
             .await
             .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
         }
+        println!("");
     }
     if activate {
         // If program is up-to-date, there is no need for an activation transaction.
@@ -163,8 +168,10 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
         let program_addr = cfg
             .activate_program_address
             .unwrap_or(expected_program_addr);
+        println!("{}", "====ACTIVATION====".grey());
         println!(
-            "Activating program at address {}",
+            "Activating program at address {}{}",
+            "0x".mint(),
             hex::encode(program_addr).mint()
         );
         let activate_calldata = activation_calldata(&program_addr);
@@ -191,6 +198,7 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
             .await
             .map_err(|e| eyre!("could not submit signed activation tx: {e}"))?;
         }
+        println!("");
     }
     Ok(())
 }
