@@ -149,7 +149,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                         });
                     }
                     return Err(BuildError::ExceedsMaxDespiteBestEffort {
-                        got: got.clone(),
+                        got: *got,
                         want: MAX_PROGRAM_SIZE,
                     }
                     .into());

@@ -54,6 +54,10 @@ enum StylusSubcommands {
         /// Specify an output file to write the ABI to.
         #[arg(long)]
         output: Option<PathBuf>,
+        /// Output the JSON ABI instead, created by solc. Must have solc installed for this option to work.
+        /// See https://docs.soliditylang.org/en/latest/installing-solidity.html
+        #[arg(long)]
+        json: bool,
     },
     /// Instrument a Rust project using Stylus.
     /// This command runs compiled WASM code through Stylus instrumentation checks and reports any failures.
@@ -165,10 +169,21 @@ async fn main() -> eyre::Result<()> {
                 );
             };
         }
-        StylusSubcommands::ExportAbi { release, output } => {
-            if let Err(e) = export_abi::export_abi(release, output) {
+        StylusSubcommands::ExportAbi {
+            release,
+            json,
+            output,
+        } => {
+            if json {
+                if let Err(e) = export_abi::export_json_abi(release, output) {
+                    println!(
+                        "Could not export Stylus program Solidity ABI as JSON: {}",
+                        e.red()
+                    );
+                };
+            } else if let Err(e) = export_abi::export_solidity_abi(release, output) {
                 println!("Could not export Stylus program Solidity ABI: {}", e.red());
-            };
+            }
         }
         StylusSubcommands::Check(cfg) => {
             if let Err(e) = check::run_checks(cfg).await {

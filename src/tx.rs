@@ -1,5 +1,7 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+#![allow(clippy::println_empty_string)]
+
 use crate::color::Color;
 use crate::deploy::TxKind;
 
