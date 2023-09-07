@@ -33,12 +33,12 @@ pub enum BuildError {
     #[error("could not find WASM in release dir ({path})")]
     NoWasmFound { path: PathBuf },
     #[error(
-        r#"program size exceeds max despite --nightly flag. We recommend splitting up your program. 
+        r#"compressed program size ({got}) exceeds max ({want}) despite --nightly flag. We recommend splitting up your program. 
 We are actively working to reduce WASM program sizes that use the Stylus SDK.
 To see all available optimization options, see more in:
 https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
     )]
-    ExceedsMaxDespiteBestEffort,
+    ExceedsMaxDespiteBestEffort { got: ByteSize, want: ByteSize },
     #[error(
         "Brotli-compressed WASM program size ({got}) is bigger than program size limit: ({want})"
     )]
@@ -141,7 +141,11 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                             rebuild: true,
                         });
                     }
-                    return Err(BuildError::ExceedsMaxDespiteBestEffort.into());
+                    return Err(BuildError::ExceedsMaxDespiteBestEffort {
+                        got: got.clone(),
+                        want: MAX_PROGRAM_SIZE,
+                    }
+                    .into());
                 }
             }
         }
