@@ -164,7 +164,8 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
             .activate_program_address
             .unwrap_or(expected_program_addr);
         println!(
-            "Activating program at address {}",
+            "Activating program at address {}{}",
+            "0x".mint(),
             hex::encode(program_addr).mint()
         );
         let activate_calldata = activation_calldata(&program_addr);
