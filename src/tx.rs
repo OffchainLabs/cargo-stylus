@@ -4,7 +4,7 @@ use crate::color::Color;
 use crate::deploy::TxKind;
 
 use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{Eip1559TransactionRequest, H256};
+use ethers::types::{Eip1559TransactionRequest, H256, U256};
 use ethers::utils::{format_ether, format_units};
 use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
 use eyre::eyre;
@@ -61,7 +61,7 @@ where
 
     println!(
         "Estimated gas for {tx_kind}: {} gas units",
-        estimated.pink()
+        estimated.mint()
     );
 
     if estimate_only {
@@ -91,11 +91,22 @@ where
         Some(_) => {
             let tx_hash = receipt.transaction_hash;
             let gas_used = receipt.gas_used.unwrap();
+            let effective_price = receipt.effective_gas_price.unwrap_or(U256::zero());
+            let effective_price_gwei = format_units(effective_price, "gwei")
+                .map_err(|e| eyre!("could not format effective gas price: {e}"))?;
             println!(
-                "Confirmed {tx_kind} tx {}{}, gas used {}",
+                "Confirmed {tx_kind} tx {}{}",
                 "0x".pink(),
                 hex::encode(tx_hash.as_bytes()).pink(),
-                gas_used.mint()
+            );
+            println!(
+                "Gas units used {}, effective gas price {} gwei",
+                gas_used.mint(),
+                effective_price_gwei.grey(),
+            );
+            println!(
+                "Transaction fee: {} ETH",
+                format_ether(gas_used * effective_price).mint()
             );
             Ok(())
         }
