@@ -3,6 +3,7 @@ use std::io::BufReader;
 use std::fs;
 use serde_json::Value;
 use eyre::bail;
+use alloy_json_abi::{JsonAbi, Function};
 
 pub fn c_headers(in_path: String, out_path: String) ->eyre::Result<()> {
     let f = fs::File::open(&in_path)?;
@@ -32,38 +33,29 @@ pub fn c_headers(in_path: String, out_path: String) ->eyre::Result<()> {
                 continue;
             };
             
-            let mut methods :HashMap<&str, Vec<(&str, &str)>> = HashMap::default();
+            let mut methods :HashMap<String, Vec<Function>> = HashMap::default();
 
-            debug_path.push("evm");
-            if let Some(Value::Object(evm_vals)) = properties.get("evm") {
-                debug_path.push("methodIdentifiers");
-                if let Some(Value::Object(method_map)) = evm_vals.get("methodIdentifiers") {
-                    for (method_name, method_val) in method_map.iter() {
-                        let Some(method_val_str) = method_val.as_str() else {
-                            println!("skipping output for {:?}/{} not a string..", &debug_path, method_name);
-                            continue;
-                        };
-                        let Some(simple_name_length) = method_name.find('(') else {
-                            println!("skipping output for {:?}/{} no \"(\"..", &debug_path, method_name);
-                            continue;
-                        };
-                        let simple_name = &method_name[..simple_name_length];
-                        methods.entry(simple_name).or_insert(Vec::default()).push((method_name.as_str(), method_val_str));
-                    }
-                } else {
-                    println!("skipping output for {:?}: not an object..", &debug_path);
-                }
-                debug_path.pop();
+            if let Some(raw) = properties.get("abi") {
+                // Sadly, JsonAbi = serde_json::from_value is not supported.
+                // Tonight, we hack!
+                let abi_json = serde_json::to_string(raw)?;
+                let abi:JsonAbi = serde_json::from_str(&abi_json)?;
+                for function in abi.functions() {
+                    let name = function.name.clone();
+                    methods.entry(name).or_insert(Vec::default()).push(function.clone());
+                }    
+            } else {
+                println!("skipping abi for {:?}: not found", &debug_path);               
             }
-            debug_path.pop();
 
             for (simple_name, overloads) in methods {
-                for (index, (full_name, identifier)) in overloads.iter().enumerate() {
+                for (index, overload) in overloads.iter().enumerate() {
                     let index_suffix = match index {
                         0 => String::default(),
                         x => format!("_{}",x),
                     };
-                    header_body.push_str(format!("#define METHOD_{}{} 0x{} // {}\n", simple_name, index_suffix, identifier, full_name).as_str())
+                    let selector = u32::from_be_bytes(overload.selector());
+                    header_body.push_str(format!("#define METHOD_{}{} 0x{:08x} // {}\n", simple_name, index_suffix, selector, overload.signature()).as_str())
                 }
             }
 

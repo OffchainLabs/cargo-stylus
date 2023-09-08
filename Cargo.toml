@@ -17,6 +17,7 @@ clap = { version = "4.3.17", features = [ "derive" ] }
 eyre = "0.6.8"
 hex = "0.4.3"
 serde = { version = "1.0.174", features = ["derive"] }
+alloy-json-abi = "0.3.2"
 bytesize = "1.2.0"
 ethers = "2.0.8"
 serde_json = "1.0.103"
