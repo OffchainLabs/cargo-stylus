@@ -6,6 +6,7 @@ use clap::{Args, Parser, ValueEnum};
 use color::Color;
 use ethers::types::H160;
 
+mod cheader;
 mod check;
 mod color;
 mod constants;
@@ -21,6 +22,15 @@ mod wallet;
 #[command(bin_name = "cargo")]
 enum CargoCli {
     Stylus(StylusArgs),
+    CHeaders(CHeaderArgs)
+}
+
+#[derive(Parser, Debug)]
+#[command(name = "c_header")]
+struct CHeaderArgs {
+    #[arg(required = true)]
+    input: String,
+    out_dir: String,
 }
 
 #[derive(Parser, Debug)]
@@ -158,7 +168,12 @@ pub struct TxSendingOpts {
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let CargoCli::Stylus(args) = CargoCli::parse();
+    let args = match CargoCli::parse() {
+        CargoCli::Stylus(args) => args,
+        CargoCli::CHeaders(args) => {
+            return cheader::c_headers(args.input, args.out_dir);
+        }
+    };
 
     match args.command {
         StylusSubcommands::New { name, minimal } => {
