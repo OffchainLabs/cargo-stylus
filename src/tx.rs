@@ -98,8 +98,8 @@ where
                 .map_err(|e| eyre!("could not format effective gas price: {e}"))?;
             println!(
                 "Confirmed {tx_kind} tx {}{}",
-                "0x".pink(),
-                hex::encode(tx_hash.as_bytes()).pink(),
+                "0x".mint(),
+                hex::encode(tx_hash.as_bytes()).mint(),
             );
             println!(
                 "Gas units used {}, effective gas price {} gwei",
