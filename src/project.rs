@@ -30,7 +30,7 @@ pub struct BuildConfig {
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]
 pub enum BuildError {
-    #[error("could not find WASM in release dir ({path})")]
+    #[error("could not find WASM in release dir ({path}). Hint: Do you have a main.rs?")]
     NoWasmFound { path: PathBuf },
     #[error(
         r#"compressed program size ({got}) exceeds max ({want}) despite --nightly flag. We recommend splitting up your program. 
