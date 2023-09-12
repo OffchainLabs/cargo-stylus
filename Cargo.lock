@@ -451,6 +451,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tiny-keccak",
  "tokio",
  "wasmer",
 ]

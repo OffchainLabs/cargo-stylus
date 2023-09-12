@@ -22,7 +22,7 @@ mod wallet;
 #[command(bin_name = "cargo")]
 enum CargoCli {
     Stylus(StylusArgs),
-    CHeaders(CHeaderArgs)
+    CHeaders(CHeaderArgs),
 }
 
 #[derive(Parser, Debug)]

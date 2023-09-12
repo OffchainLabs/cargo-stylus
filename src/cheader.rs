@@ -1,15 +1,16 @@
-use std::collections::HashMap;
-use std::io::BufReader;
-use std::fs;
-use serde_json::Value;
+use alloy_json_abi::{Function, JsonAbi};
 use eyre::bail;
-use alloy_json_abi::{JsonAbi, Function};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::fs;
+use std::io::BufReader;
+use tiny_keccak::{Hasher, Keccak};
 
-pub fn c_headers(in_path: String, out_path: String) ->eyre::Result<()> {
+pub fn c_headers(in_path: String, out_path: String) -> eyre::Result<()> {
     let f = fs::File::open(&in_path)?;
 
     let input: Value = serde_json::from_reader(BufReader::new(f))?;
-    
+
     let Some(input_contracts) = input["contracts"].as_object() else {
         bail!("did not find top-level contracts object in {}", in_path)
     };
@@ -31,20 +32,23 @@ pub fn c_headers(in_path: String, out_path: String) ->eyre::Result<()> {
                 println!("skipping output for {:?} not an object..", &debug_path);
                 continue;
             };
-            
-            let mut methods :HashMap<String, Vec<Function>> = HashMap::default();
+
+            let mut methods: HashMap<String, Vec<Function>> = HashMap::default();
 
             if let Some(raw) = properties.get("abi") {
                 // Sadly, JsonAbi = serde_json::from_value is not supported.
                 // Tonight, we hack!
                 let abi_json = serde_json::to_string(raw)?;
-                let abi:JsonAbi = serde_json::from_str(&abi_json)?;
+                let abi: JsonAbi = serde_json::from_str(&abi_json)?;
                 for function in abi.functions() {
                     let name = function.name.clone();
-                    methods.entry(name).or_insert(Vec::default()).push(function.clone());
-                }    
+                    methods
+                        .entry(name)
+                        .or_insert(Vec::default())
+                        .push(function.clone());
+                }
             } else {
-                println!("skipping abi for {:?}: not found", &debug_path);               
+                println!("skipping abi for {:?}: not found", &debug_path);
             }
 
             let mut header_body = String::default();
@@ -55,12 +59,33 @@ pub fn c_headers(in_path: String, out_path: String) ->eyre::Result<()> {
                 for (index, overload) in overloads.iter().enumerate() {
                     let c_name = match index {
                         0 => simple_name.clone(),
-                        x => format!("{}_{}",simple_name, x),
+                        x => format!("{}_{}", simple_name, x),
                     };
                     let selector = u32::from_be_bytes(overload.selector());
-                    header_body.push_str(format!("#define SELECTOR_{} 0x{:08x} // {}\n", c_name, selector, overload.signature()).as_str());
-                    header_body.push_str(format!("ArbResult {}(uint8_t *input, size_t len); // {}\n", c_name, overload.signature()).as_str());
-                    router_body.push_str(format!("    if (selector==SELECTOR_{}) return {}(input, len);\n", c_name, c_name).as_str());
+                    header_body.push_str(
+                        format!(
+                            "#define SELECTOR_{} 0x{:08x} // {}\n",
+                            c_name,
+                            selector,
+                            overload.signature()
+                        )
+                        .as_str(),
+                    );
+                    header_body.push_str(
+                        format!(
+                            "ArbResult {}(uint8_t *input, size_t len); // {}\n",
+                            c_name,
+                            overload.signature()
+                        )
+                        .as_str(),
+                    );
+                    router_body.push_str(
+                        format!(
+                            "    if (selector==SELECTOR_{}) return {}(input, len);\n",
+                            c_name, c_name
+                        )
+                        .as_str(),
+                    );
                 }
             }
 
@@ -84,14 +109,36 @@ pub fn c_headers(in_path: String, out_path: String) ->eyre::Result<()> {
                             println!("skipping output inside {:?}: no slot..", &debug_path);
                             continue;
                         };
+                        let Ok(slot) = slot.parse::<u64>() else {
+                            println!("skipping output inside {:?}: slot not u64 ..", &debug_path);
+                            continue;
+                        };
+                        let Some(Value::String(val_type)) = storage_obj.get("type") else {
+                            println!("skipping output inside {:?}: no type..", &debug_path);
+                            continue;
+                        };
                         let Some(Value::Number(offset)) = storage_obj.get("offset") else {
                             println!("skipping output inside {:?}: no offset..", &debug_path);
                             continue;
                         };
+                        let mut slot_buf = vec![0u8; 32 - 8];
+                        slot_buf.extend(slot.to_be_bytes());
+                        if val_type.starts_with("t_array(") && val_type.ends_with(")dyn_storage") {
+                            let mut keccak = Keccak::v256();
+                            keccak.update(&slot_buf);
+                            keccak.finalize(&mut slot_buf);
+                        }
+                        let slot_strings: Vec<String> = slot_buf
+                            .iter()
+                            .map(|input| -> String { format!("0x{:02x}", input) })
+                            .collect();
+                        let slot_vals = slot_strings.join(", ");
                         header_body.push_str("#define STORAGE_SLOT_");
                         header_body.push_str(&label);
-                        header_body.push(' ');
-                        header_body.push_str(&slot);
+                        header_body.push_str(" {");
+                        header_body.push_str(slot_vals.as_str());
+                        header_body.push_str("} // ");
+                        header_body.push_str(val_type);
                         header_body.push('\n');
                         header_body.push_str("#define STORAGE_OFFSET_");
                         header_body.push_str(&label);
@@ -114,7 +161,8 @@ pub fn c_headers(in_path: String, out_path: String) ->eyre::Result<()> {
                 unique_identifier.push_str(&contract_name.to_uppercase());
                 unique_identifier.push('_');
 
-                let contents = format!(r#" // autogenerated by cargo-stylus
+                let contents = format!(
+                    r#" // autogenerated by cargo-stylus
 #ifndef {uniq}
 #define {uniq}
 
@@ -131,16 +179,19 @@ extern "C" {{
 #endif
 
 #endif // {uniq}
-"#
-                ,uniq=unique_identifier, body=header_body);
+"#,
+                    uniq = unique_identifier,
+                    body = header_body
+                );
 
-                let filename :String = contract_name.into();
+                let filename: String = contract_name.into();
                 pathbuf.push(filename + ".h");
                 fs::write(&pathbuf, &contents)?;
-                pathbuf.pop();   
+                pathbuf.pop();
             }
             if router_body.len() != 0 {
-                let contents = format!(r#" // autogenerated by cargo-stylus
+                let contents = format!(
+                    r#" // autogenerated by cargo-stylus
 
 #include "{contract}.h"
 #include <stylus.h>
@@ -159,15 +210,16 @@ ArbResult {contract}_entry(uint8_t *input, size_t len) {{
 }}
 
 ENTRYPOINT({contract}_entry)
-"#
-            ,contract=contract_name, body=router_body);
+"#,
+                    contract = contract_name,
+                    body = router_body
+                );
 
-            let filename :String = contract_name.into();
-            pathbuf.push(filename + "_main.c");
-            fs::write(&pathbuf, &contents)?;
-            pathbuf.pop();   
-
-        }
+                let filename: String = contract_name.into();
+                pathbuf.push(filename + "_main.c");
+                fs::write(&pathbuf, &contents)?;
+                pathbuf.pop();
+            }
         }
         pathbuf.pop();
     }
