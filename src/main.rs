@@ -165,7 +165,7 @@ async fn main() -> eyre::Result<()> {
             if let Err(e) = new::new_stylus_project(&name, minimal) {
                 println!(
                     "Could not create new stylus project with name {name}: {}",
-                    e.red()
+                    e.pink()
                 );
             };
         }
@@ -178,21 +178,21 @@ async fn main() -> eyre::Result<()> {
                 if let Err(e) = export_abi::export_json_abi(release, output) {
                     println!(
                         "Could not export Stylus program Solidity ABI as JSON: {}",
-                        e.red()
+                        e.pink()
                     );
                 };
             } else if let Err(e) = export_abi::export_solidity_abi(release, output) {
-                println!("Could not export Stylus program Solidity ABI: {}", e.red());
+                println!("Could not export Stylus program Solidity ABI: {}", e.pink());
             }
         }
         StylusSubcommands::Check(cfg) => {
             if let Err(e) = check::run_checks(cfg).await {
-                println!("Stylus checks failed: {}", e.red());
+                println!("Stylus checks failed: {}", e.pink());
             };
         }
         StylusSubcommands::Deploy(cfg) => {
             if let Err(e) = deploy::deploy(cfg).await {
-                println!("Deploy / activation command failed: {}", e.red());
+                println!("Deploy / activation command failed: {}", e.pink());
             };
         }
     }

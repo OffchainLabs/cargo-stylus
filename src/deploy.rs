@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use ethers::types::{Eip1559TransactionRequest, H160, U256};
-use ethers::utils::get_contract_address;
+use ethers::utils::{get_contract_address, to_checksum};
 use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
@@ -61,11 +61,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
 
     let addr = wallet.address();
 
-    println!(
-        "Deployer address: {}{}",
-        "0x".grey(),
-        hex::encode(addr).grey()
-    );
+    println!("Deployer address: {}", to_checksum(&addr, None).grey(),);
 
     let nonce = client
         .get_transaction_count(addr, None)
@@ -104,9 +100,9 @@ on the --mode flag under cargo stylus deploy --help"#
         let balance = provider.get_balance(addr, None).await?;
         if balance == U256::zero() {
             bail!(
-                r#"address 0x{} has 0 balance onchain – please refer to our Quickstart guide for deploying 
+                r#"address {} has 0 balance onchain – please refer to our Quickstart guide for deploying 
 programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart"#,
-                hex::encode(addr),
+                to_checksum(&addr, None),
             );
         }
     }
@@ -134,9 +130,8 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
         println!("");
         println!("{}", "====DEPLOYMENT====".grey());
         println!(
-            "Deploying program to address {}{}",
-            "0x".mint(),
-            hex::encode(expected_program_addr).mint()
+            "Deploying program to address {}",
+            to_checksum(&expected_program_addr, None).mint(),
         );
         let deployment_calldata = program_deployment_calldata(&deploy_ready_code);
 
@@ -170,9 +165,8 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
             .unwrap_or(expected_program_addr);
         println!("{}", "====ACTIVATION====".grey());
         println!(
-            "Activating program at address {}{}",
-            "0x".mint(),
-            hex::encode(program_addr).mint()
+            "Activating program at address {}",
+            to_checksum(&program_addr, None).mint(),
         );
         let activate_calldata = activation_calldata(&program_addr);
 
