@@ -22,7 +22,7 @@ mod wallet;
 #[command(bin_name = "cargo")]
 enum CargoCli {
     Stylus(StylusArgs),
-    CHeaders(CHeaderArgs),
+    CHeaders(CHeaderArgs), // not behind the stylus command, to hide it from rust-developers.
 }
 
 #[derive(Parser, Debug)]
