@@ -1,4 +1,4 @@
-use alloy_json_abi::{Function, JsonAbi};
+use alloy_json_abi::{Function, JsonAbi, StateMutability};
 use eyre::bail;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -62,6 +62,12 @@ pub fn c_headers(in_path: String, out_path: String) -> eyre::Result<()> {
                         x => format!("{}_{}", simple_name, x),
                     };
                     let selector = u32::from_be_bytes(overload.selector());
+                    let (hdr_params, call_params, payable) = match overload.state_mutability {
+                        StateMutability::Pure => ("(uint8_t *input, size_t len)", "(input, len)", false),
+                        StateMutability::View => ("(const void *storage, uint8_t *input, size_t len)", "(NULL, input, len)", false),
+                        StateMutability::NonPayable => ("(void *storage, uint8_t *input, size_t len)", "(NULL, input, len)", false),
+                        StateMutability::Payable => ("(void *storage, uint8_t *input, size_t len, bebi32 value)", "(NULL, input, len, value)", true),
+                    };
                     header_body.push_str(
                         format!(
                             "#define SELECTOR_{} 0x{:08x} // {}\n",
@@ -73,16 +79,32 @@ pub fn c_headers(in_path: String, out_path: String) -> eyre::Result<()> {
                     );
                     header_body.push_str(
                         format!(
-                            "ArbResult {}(uint8_t *input, size_t len); // {}\n",
+                            "ArbResult {}{}; // {}\n",
                             c_name,
+                            hdr_params,
                             overload.signature()
                         )
                         .as_str(),
                     );
                     router_body.push_str(
                         format!(
-                            "    if (selector==SELECTOR_{}) return {}(input, len);\n",
-                            c_name, c_name
+                            "    if (selector==SELECTOR_{}) {{\n",
+                            c_name,
+                        )
+                        .as_str(),
+                    );
+                    if !payable {
+                        router_body.push_str(
+                            format!(
+                                "        if (!bebi32_is_0(value)) return _return_nodata(Failure);\n",
+                            )
+                            .as_str(),
+                        );    
+                    }
+                    router_body.push_str(
+                        format!(
+                            "        return {}{};\n    }}\n",
+                            c_name, call_params
                         )
                         .as_str(),
                     );
@@ -167,10 +189,13 @@ pub fn c_headers(in_path: String, out_path: String) -> eyre::Result<()> {
 #define {uniq}
 
 #include <stylus.h>
+#include <bebi.h>
 
 #ifdef __cplusplus
 extern "C" {{
 #endif
+
+ArbResult default_func(void *storage, uint8_t *input, size_t len, bebi32 value);
 
 {body}
 
@@ -196,17 +221,22 @@ extern "C" {{
 #include "{contract}.h"
 #include <stylus.h>
 #include <bebi.h>
+#include <stylus_utils.h>
+
 
 ArbResult {contract}_entry(uint8_t *input, size_t len) {{
-    ArbResult err = {{Failure, 0, 0}};
+    bebi32 value;
+    msg_value(value);
     if (len < 4) {{
-        return err;
+        return default_func(NULL, input, len, value);
     }}
     uint32_t selector = bebi_get_u32(input, 0);
     input +=4;
     len -=4;
 {body}
-    return err;
+    input -=4;
+    len +=4;
+    return default_func(NULL, input, len, value);
 }}
 
 ENTRYPOINT({contract}_entry)
