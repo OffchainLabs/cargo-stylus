@@ -26,7 +26,7 @@ enum CargoCli {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "c_header")]
+#[command(name = "c_generate")]
 struct CGenArgs {
     #[arg(required = true)]
     input: String,
