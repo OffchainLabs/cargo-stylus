@@ -6,7 +6,7 @@ use clap::{Args, Parser, ValueEnum};
 use color::Color;
 use ethers::types::H160;
 
-mod cheader;
+mod cgen;
 mod check;
 mod color;
 mod constants;
@@ -22,12 +22,12 @@ mod wallet;
 #[command(bin_name = "cargo")]
 enum CargoCli {
     Stylus(StylusArgs),
-    CHeaders(CHeaderArgs), // not behind the stylus command, to hide it from rust-developers.
+    CGen(CGenArgs), // not behind the stylus command, to hide it from rust-developers.
 }
 
 #[derive(Parser, Debug)]
 #[command(name = "c_header")]
-struct CHeaderArgs {
+struct CGenArgs {
     #[arg(required = true)]
     input: String,
     out_dir: String,
@@ -170,8 +170,8 @@ pub struct TxSendingOpts {
 async fn main() -> eyre::Result<()> {
     let args = match CargoCli::parse() {
         CargoCli::Stylus(args) => args,
-        CargoCli::CHeaders(args) => {
-            return cheader::c_headers(args.input, args.out_dir);
+        CargoCli::CGen(args) => {
+            return cgen::c_gen(args.input, args.out_dir);
         }
     };
 
