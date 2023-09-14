@@ -63,10 +63,24 @@ pub fn c_headers(in_path: String, out_path: String) -> eyre::Result<()> {
                     };
                     let selector = u32::from_be_bytes(overload.selector());
                     let (hdr_params, call_params, payable) = match overload.state_mutability {
-                        StateMutability::Pure => ("(uint8_t *input, size_t len)", "(input, len)", false),
-                        StateMutability::View => ("(const void *storage, uint8_t *input, size_t len)", "(NULL, input, len)", false),
-                        StateMutability::NonPayable => ("(void *storage, uint8_t *input, size_t len)", "(NULL, input, len)", false),
-                        StateMutability::Payable => ("(void *storage, uint8_t *input, size_t len, bebi32 value)", "(NULL, input, len, value)", true),
+                        StateMutability::Pure => {
+                            ("(uint8_t *input, size_t len)", "(input, len)", false)
+                        }
+                        StateMutability::View => (
+                            "(const void *storage, uint8_t *input, size_t len)",
+                            "(NULL, input, len)",
+                            false,
+                        ),
+                        StateMutability::NonPayable => (
+                            "(void *storage, uint8_t *input, size_t len)",
+                            "(NULL, input, len)",
+                            false,
+                        ),
+                        StateMutability::Payable => (
+                            "(void *storage, uint8_t *input, size_t len, bebi32 value)",
+                            "(NULL, input, len, value)",
+                            true,
+                        ),
                     };
                     header_body.push_str(
                         format!(
@@ -86,27 +100,18 @@ pub fn c_headers(in_path: String, out_path: String) -> eyre::Result<()> {
                         )
                         .as_str(),
                     );
-                    router_body.push_str(
-                        format!(
-                            "    if (selector==SELECTOR_{}) {{\n",
-                            c_name,
-                        )
-                        .as_str(),
-                    );
+                    router_body
+                        .push_str(format!("    if (selector==SELECTOR_{}) {{\n", c_name,).as_str());
                     if !payable {
                         router_body.push_str(
                             format!(
                                 "        if (!bebi32_is_0(value)) return _return_nodata(Failure);\n",
                             )
                             .as_str(),
-                        );    
+                        );
                     }
                     router_body.push_str(
-                        format!(
-                            "        return {}{};\n    }}\n",
-                            c_name, call_params
-                        )
-                        .as_str(),
+                        format!("        return {}{};\n    }}\n", c_name, call_params).as_str(),
                     );
                 }
             }
