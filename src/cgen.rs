@@ -6,6 +6,14 @@ use std::fs;
 use std::io::BufReader;
 use tiny_keccak::{Hasher, Keccak};
 
+fn c_bytearray_initializer(val: &[u8]) -> String {
+    let slot_strings: Vec<String> = val
+        .iter()
+        .map(|input| -> String { format!("0x{:02x}", input) })
+        .collect();
+    format!("{{{}}}", slot_strings.join(", "))
+}
+
 pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
     let f = fs::File::open(&in_path)?;
 
@@ -141,34 +149,67 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
                             println!("skipping output inside {:?}: no type..", &debug_path);
                             continue;
                         };
-                        let Some(Value::Number(offset)) = storage_obj.get("offset") else {
+                        let Some(Value::Number(read_offset)) = storage_obj.get("offset") else {
                             println!("skipping output inside {:?}: no offset..", &debug_path);
                             continue;
                         };
+                        let offset = match read_offset.as_i64() {
+                            None => {
+                                println!(
+                                    "skipping output inside {:?}: unexpected offset..",
+                                    &debug_path
+                                );
+                                continue;
+                            }
+                            Some(num) => {
+                                if num > 32 || num < 0 {
+                                    println!(
+                                        "skipping output inside {:?}: unexpected offset..",
+                                        &debug_path
+                                    );
+                                    continue;
+                                };
+                                32 - num
+                            }
+                        };
                         let mut slot_buf = vec![0u8; 32 - 8];
                         slot_buf.extend(slot.to_be_bytes());
-                        if val_type.starts_with("t_array(") && val_type.ends_with(")dyn_storage") {
-                            let mut keccak = Keccak::v256();
-                            keccak.update(&slot_buf);
-                            keccak.finalize(&mut slot_buf);
+
+                        header_body.push_str(
+                            format!(
+                                "#define STORAGE_SLOT_{} {} // {}\n",
+                                &label,
+                                c_bytearray_initializer(&slot_buf),
+                                val_type
+                            )
+                            .as_str(),
+                        );
+                        if val_type.starts_with("t_array(") {
+                            if val_type.ends_with(")dyn_storage") {
+                                let mut keccak = Keccak::v256();
+                                keccak.update(&slot_buf);
+                                keccak.finalize(&mut slot_buf);
+                                header_body.push_str(
+                                    format!(
+                                        "#define STORAGE_BASE_{} {} // {}\n",
+                                        &label,
+                                        c_bytearray_initializer(&slot_buf),
+                                        val_type
+                                    )
+                                    .as_str(),
+                                );
+                            }
+                        } else if !val_type.starts_with("t_mapping") {
+                            header_body.push_str(
+                                format!(
+                                    "#define STORAGE_BE_OFFSET_{} {} // {}\n",
+                                    &label,
+                                    offset.to_string(),
+                                    val_type
+                                )
+                                .as_str(),
+                            );
                         }
-                        let slot_strings: Vec<String> = slot_buf
-                            .iter()
-                            .map(|input| -> String { format!("0x{:02x}", input) })
-                            .collect();
-                        let slot_vals = slot_strings.join(", ");
-                        header_body.push_str("#define STORAGE_SLOT_");
-                        header_body.push_str(&label);
-                        header_body.push_str(" {");
-                        header_body.push_str(slot_vals.as_str());
-                        header_body.push_str("} // ");
-                        header_body.push_str(val_type);
-                        header_body.push('\n');
-                        header_body.push_str("#define STORAGE_OFFSET_");
-                        header_body.push_str(&label);
-                        header_body.push(' ');
-                        header_body.push_str(offset.to_string().as_str());
-                        header_body.push('\n');
                     }
                 } else {
                     println!("skipping output for {:?}: not an array..", &debug_path);
