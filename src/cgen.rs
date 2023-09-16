@@ -202,7 +202,7 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
                         } else if !val_type.starts_with("t_mapping") {
                             header_body.push_str(
                                 format!(
-                                    "#define STORAGE_BE_OFFSET_{} {} // {}\n",
+                                    "#define STORAGE_END_OFFSET_{} {} // {}\n",
                                     &label,
                                     offset.to_string(),
                                     val_type
