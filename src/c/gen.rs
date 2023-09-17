@@ -31,11 +31,13 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
             println!("skipping output for {:?} not an object..", &debug_path);
             continue;
         };
-        pathbuf.push(&solidity_file_name);
+        pathbuf.push(solidity_file_name);
         fs::create_dir_all(&pathbuf)?;
+
         for (contract_name, contract_val) in contracts.iter() {
             let mut debug_path = debug_path.clone();
-            debug_path.push(&contract_name);
+            debug_path.push(contract_name);
+
             let Some(properties) = contract_val.as_object() else {
                 println!("skipping output for {:?} not an object..", &debug_path);
                 continue;
@@ -63,7 +65,8 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
             let mut router_body = String::default();
 
             for (simple_name, mut overloads) in methods {
-                overloads.sort_by(|a, b| a.signature().cmp(&b.signature()));
+                overloads.sort_by_key(|a| a.signature());
+
                 for (index, overload) in overloads.iter().enumerate() {
                     let c_name = match index {
                         0 => simple_name.clone(),
@@ -90,38 +93,21 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
                             true,
                         ),
                     };
-                    header_body.push_str(
-                        format!(
-                            "#define SELECTOR_{} 0x{:08x} // {}\n",
-                            c_name,
-                            selector,
-                            overload.signature()
-                        )
-                        .as_str(),
-                    );
-                    header_body.push_str(
-                        format!(
-                            "ArbResult {}{}; // {}\n",
-                            c_name,
-                            hdr_params,
-                            overload.signature()
-                        )
-                        .as_str(),
-                    );
-                    router_body
-                        .push_str(format!("    if (selector==SELECTOR_{}) {{\n", c_name,).as_str());
+
+                    let sig = &overload.signature();
+
+                    header_body +=
+                        &format!("#define SELECTOR_{c_name} 0x{selector:08x} // {sig}\n");
+                    header_body += &format!("ArbResult {c_name}{hdr_params}; // {sig}\n");
+                    router_body += &format!("    if (selector==SELECTOR_{c_name}) {{\n");
                     if !payable {
-                        router_body.push_str(
-                            format!("        if (!bebi32_is_0(value)) revert();\n",).as_str(),
-                        );
+                        router_body += "        if (!bebi32_is_0(value)) revert();\n";
                     }
-                    router_body.push_str(
-                        format!("        return {}{};\n    }}\n", c_name, call_params).as_str(),
-                    );
+                    router_body += &format!("        return {c_name}{call_params};\n    }}\n");
                 }
             }
 
-            if header_body.len() != 0 {
+            if !header_body.is_empty() {
                 header_body.push('\n');
             }
             debug_path.push("storageLayout");
@@ -156,16 +142,14 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
                         let offset = match read_offset.as_i64() {
                             None => {
                                 println!(
-                                    "skipping output inside {:?}: unexpected offset..",
-                                    &debug_path
+                                    "skipping output inside {debug_path:?}: unexpected offset..",
                                 );
                                 continue;
                             }
                             Some(num) => {
-                                if num > 32 || num < 0 {
+                                if !(0..=32).contains(&num) {
                                     println!(
-                                        "skipping output inside {:?}: unexpected offset..",
-                                        &debug_path
+                                        "skipping output inside {debug_path:?}: unexpected offset..",
                                     );
                                     continue;
                                 };
@@ -175,56 +159,40 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
                         let mut slot_buf = vec![0u8; 32 - 8];
                         slot_buf.extend(slot.to_be_bytes());
 
-                        header_body.push_str(
-                            format!(
-                                "#define STORAGE_SLOT_{} {} // {}\n",
-                                &label,
-                                c_bytearray_initializer(&slot_buf),
-                                val_type
-                            )
-                            .as_str(),
+                        header_body += &format!(
+                            "#define STORAGE_SLOT_{label} {} // {val_type}\n",
+                            c_bytearray_initializer(&slot_buf),
                         );
                         if val_type.starts_with("t_array(") {
                             if val_type.ends_with(")dyn_storage") {
                                 let mut keccak = Keccak::v256();
                                 keccak.update(&slot_buf);
                                 keccak.finalize(&mut slot_buf);
-                                header_body.push_str(
-                                    format!(
-                                        "#define STORAGE_BASE_{} {} // {}\n",
-                                        &label,
-                                        c_bytearray_initializer(&slot_buf),
-                                        val_type
-                                    )
-                                    .as_str(),
+                                header_body += &format!(
+                                    "#define STORAGE_BASE_{label} {} // {val_type}\n",
+                                    c_bytearray_initializer(&slot_buf),
                                 );
                             }
                         } else if !val_type.starts_with("t_mapping") {
-                            header_body.push_str(
-                                format!(
-                                    "#define STORAGE_END_OFFSET_{} {} // {}\n",
-                                    &label,
-                                    offset.to_string(),
-                                    val_type
-                                )
-                                .as_str(),
+                            header_body += &format!(
+                                "#define STORAGE_END_OFFSET_{label} {offset} // {val_type}\n",
                             );
                         }
                     }
                 } else {
-                    println!("skipping output for {:?}: not an array..", &debug_path);
+                    println!("skipping output for {debug_path:?}: not an array..");
                 }
                 debug_path.pop();
             } else {
                 println!("skipping output for {:?}: not an object..", &debug_path);
             }
             debug_path.pop();
-            if header_body.len() != 0 {
+            if !header_body.is_empty() {
                 let mut unique_identifier = String::from("__");
-                unique_identifier.push_str(&solidity_file_name.to_uppercase());
-                unique_identifier.push('_');
-                unique_identifier.push_str(&contract_name.to_uppercase());
-                unique_identifier.push('_');
+                unique_identifier += &solidity_file_name.to_uppercase();
+                unique_identifier += "_";
+                unique_identifier += &contract_name.to_uppercase();
+                unique_identifier += "_";
 
                 let contents = format!(
                     r#" // autogenerated by cargo-stylus
@@ -257,7 +225,7 @@ ArbResult default_func(void *storage, uint8_t *input, size_t len, bebi32 value);
                 fs::write(&pathbuf, &contents)?;
                 pathbuf.pop();
             }
-            if router_body.len() != 0 {
+            if !router_body.is_empty() {
                 let contents = format!(
                     r#" // autogenerated by cargo-stylus
 
