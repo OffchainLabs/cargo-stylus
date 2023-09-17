@@ -6,7 +6,7 @@ use clap::{Args, Parser, ValueEnum};
 use color::Color;
 use ethers::types::H160;
 
-mod cgen;
+mod c;
 mod check;
 mod color;
 mod constants;
@@ -171,7 +171,7 @@ async fn main() -> eyre::Result<()> {
     let args = match CargoCli::parse() {
         CargoCli::Stylus(args) => args,
         CargoCli::CGen(args) => {
-            return cgen::c_gen(args.input, args.out_dir);
+            return c::gen::c_gen(args.input, args.out_dir);
         }
     };
 
