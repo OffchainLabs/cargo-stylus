@@ -1,3 +1,6 @@
+// Copyright 2023, Offchain Labs, Inc.
+// For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
 use alloy_json_abi::{Function, JsonAbi, StateMutability};
 use eyre::bail;
 use serde_json::Value;
