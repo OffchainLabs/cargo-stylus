@@ -102,7 +102,7 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
 
                     writeln!(router, "    if (selector==SELECTOR_{c_name}) {{")?;
                     if !payable {
-                        writeln!(router, "        if (!bebi32_is_0(value)) revert();")?;
+                        writeln!(router, "        if (!bebi32_is_zero(value)) revert();")?;
                     }
                     writeln!(router, "        return {c_name}{call_params};\n    }}")?;
                 }
