@@ -6,6 +6,7 @@ use clap::{Args, Parser, ValueEnum};
 use color::Color;
 use ethers::types::H160;
 
+mod c;
 mod check;
 mod color;
 mod constants;
@@ -21,6 +22,15 @@ mod wallet;
 #[command(bin_name = "cargo")]
 enum CargoCli {
     Stylus(StylusArgs),
+    CGen(CGenArgs), // not behind the stylus command, to hide it from rust-developers.
+}
+
+#[derive(Parser, Debug)]
+#[command(name = "c_generate")]
+struct CGenArgs {
+    #[arg(required = true)]
+    input: String,
+    out_dir: String,
 }
 
 #[derive(Parser, Debug)]
@@ -158,7 +168,12 @@ pub struct TxSendingOpts {
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let CargoCli::Stylus(args) = CargoCli::parse();
+    let args = match CargoCli::parse() {
+        CargoCli::Stylus(args) => args,
+        CargoCli::CGen(args) => {
+            return c::gen::c_gen(args.input, args.out_dir);
+        }
+    };
 
     match args.command {
         StylusSubcommands::New { name, minimal } => {
