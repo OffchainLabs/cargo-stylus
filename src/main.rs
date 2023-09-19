@@ -1,5 +1,6 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
 use std::path::PathBuf;
 
 use clap::{Args, Parser, ValueEnum};
@@ -15,6 +16,7 @@ mod export_abi;
 mod new;
 mod project;
 mod tx;
+mod util;
 mod wallet;
 
 #[derive(Parser, Debug)]

@@ -18,6 +18,7 @@ use ethers::{
 use eyre::{bail, eyre};
 
 use crate::constants::PROGRAM_UP_TO_DATE_ERR;
+use crate::util;
 use crate::{
     color::Color,
     constants::ARB_WASM_ADDRESS,
@@ -86,8 +87,8 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
         "Connecting to Stylus RPC endpoint: {}",
         &cfg.endpoint.mint()
     );
-    let provider = Provider::<Http>::try_from(&cfg.endpoint)
-        .map_err(|e| eyre!("could not initialize provider from http: {e}"))?;
+
+    let provider = util::new_provider(&cfg.endpoint)?;
 
     let mut expected_program_addr = cfg.clone().expected_program_address;
 
