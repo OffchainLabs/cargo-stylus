@@ -1,5 +1,6 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
 #![allow(clippy::println_empty_string)]
 
 use std::io::Write;
@@ -8,14 +9,11 @@ use std::str::FromStr;
 
 use ethers::types::{Eip1559TransactionRequest, H160, U256};
 use ethers::utils::{get_contract_address, to_checksum};
-use ethers::{
-    middleware::SignerMiddleware,
-    providers::{Http, Middleware, Provider},
-    signers::Signer,
-};
+use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
 use eyre::{bail, eyre};
 
 use crate::project::BuildConfig;
+use crate::util;
 use crate::{check, color::Color, constants, project, tx, wallet, DeployConfig, DeployMode};
 
 /// The transaction kind for using the Cargo stylus tool with Stylus programs.
@@ -46,12 +44,8 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
     let wallet = wallet::load(&cfg.check_cfg).map_err(|e| eyre!("could not load wallet: {e}"))?;
 
-    let provider = Provider::<Http>::try_from(&cfg.check_cfg.endpoint).map_err(|e| {
-        eyre!(
-            "could not initialize provider from http endpoint: {}: {e}",
-            &cfg.check_cfg.endpoint
-        )
-    })?;
+    let provider = util::new_provider(&cfg.check_cfg.endpoint)?;
+
     let chain_id = provider
         .get_chainid()
         .await

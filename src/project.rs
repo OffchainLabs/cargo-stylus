@@ -32,9 +32,9 @@ pub struct BuildConfig {
 pub enum BuildError {
     // The text of this comment, and the error message contents including and following the word "Hint"
     // are subject to the following license, and are reproduced here in compliance with that license.
-    // 
+    //
     // Copyright 2023 James Prestwich
-    // 
+    //
     // Licensed under the Apache License, Version 2.0 (the "License");
     // you may not use this file except in compliance with the License.
     // You may obtain a copy of the License at
