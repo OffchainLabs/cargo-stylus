@@ -11,6 +11,5 @@ pub fn new_provider(url: &str) -> Result<Provider<Http>> {
         Provider::<Http>::try_from(url).wrap_err_with(|| eyre!("failed to init http provider"))?;
 
     provider.set_interval(Duration::from_millis(250));
-
     Ok(provider)
 }
