@@ -127,7 +127,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-stylus-sdk = "0.2.4"
+stylus-sdk = "0.4.1"
 wee_alloc = "0.4.5"
 
 [features]
