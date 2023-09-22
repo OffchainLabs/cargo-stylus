@@ -9,9 +9,9 @@ pub const BROTLI_COMPRESSION_LEVEL: u32 = 11;
 /// Address of the Arbitrum WASM precompile on L2.
 pub const ARB_WASM_ADDRESS: &str = "0000000000000000000000000000000000000071";
 /// Maximum allowed size of a program on Arbitrum (and Ethereum).
-pub const MAX_PROGRAM_SIZE: ByteSize = ByteSize::kb(24);
+pub const MAX_PROGRAM_SIZE: ByteSize = ByteSize::mb(128);
 /// Maximum allowed size of a precompressed WASM program.
-pub const MAX_PRECOMPRESSED_WASM_SIZE: ByteSize = ByteSize::kb(128);
+pub const MAX_PRECOMPRESSED_WASM_SIZE: ByteSize = ByteSize::mb(128);
 /// 4 bytes method selector for the activate method of ArbWasm.
 pub const ARBWASM_ACTIVATE_METHOD_HASH: &str = "58c780c2";
 /// Target for compiled WASM folder in a Rust project

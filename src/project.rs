@@ -132,7 +132,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
             match cfg.opt_level {
                 OptLevel::S => {
                     println!(
-                        r#"Compressed program built with defaults had program size {} > max of 24Kb, 
+                        r#"Compressed program built with defaults had program size {} > max of 128mb, 
 rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
 using the Stylus SDK. To see all available optimization options, see more in:
 https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
@@ -148,7 +148,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                 OptLevel::Z => {
                     if !cfg.nightly {
                         println!(
-                            r#"Compressed program still exceeding max program size {} > max of 24Kb, 
+                            r#"Compressed program still exceeding max program size {} > max of 128mb, 
 rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
 using the Stylus SDK. To see all available optimization options, see more in:
 https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
