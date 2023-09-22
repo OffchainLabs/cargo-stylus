@@ -1,4 +1,4 @@
-# Cargo Stylus 
+# Cargo Stylus (for eth-global)
 
 [![linux](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/linux.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/linux.yml) [![mac](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/mac.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/mac.yml) [![windows](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/windows.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/windows.yml) [![lint](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/check.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/check.yml)
 
@@ -13,7 +13,8 @@ A cargo subcommand for building, verifying, and deploying Arbitrum Stylus WASM p
 Install [Rust](https://www.rust-lang.org/tools/install), and then install the plugin using the Cargo tool:
 
 ```
-cargo install cargo-stylus
+cargo install --force --git https://github.com/OffchainLabs/cargo-stylus --br
+anch eth-global
 ```
 
 Add the `wasm32-unknown-unknown` build target to your Rust compiler:
