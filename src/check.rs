@@ -1,5 +1,6 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
 use bytesize::ByteSize;
 use ethers::prelude::*;
 use ethers::utils::get_contract_address;
@@ -76,12 +77,10 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
             .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
 
     let precompressed_size = FileByteSize::new(precompressed_bytes.len() as u64);
-    println!("Uncompressed WASM size: {}", precompressed_size);
+    println!("Uncompressed WASM size: {precompressed_size}");
+
     let compressed_size = FileByteSize::new(deploy_ready_code.len() as u64);
-    println!(
-        "Compressed WASM size to be deployed onchain: {}",
-        compressed_size
-    );
+    println!("Compressed WASM size to be deployed onchain: {compressed_size}",);
 
     println!(
         "Connecting to Stylus RPC endpoint: {}",
@@ -93,7 +92,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
     let mut expected_program_addr = cfg.clone().expected_program_address;
 
     // If there is no expected program address specified, compute it from the user's wallet.
-    if expected_program_addr != H160::zero() {
+    if !expected_program_addr.is_zero() {
         let wallet = wallet::load(&cfg)?;
         let chain_id = provider
             .get_chainid()
@@ -125,7 +124,7 @@ pub async fn check_can_activate<T>(
     compressed_wasm: Vec<u8>,
 ) -> eyre::Result<bool>
 where
-    T: JsonRpcClient + Send + Sync,
+    T: JsonRpcClient,
 {
     let calldata = activation_calldata(expected_program_address);
     let to = hex::decode(ARB_WASM_ADDRESS).unwrap();

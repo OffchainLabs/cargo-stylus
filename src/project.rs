@@ -30,21 +30,7 @@ pub struct BuildConfig {
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]
 pub enum BuildError {
-    // The text of this comment, and the error message contents including and following the word "Hint"
-    // are subject to the following license, and are reproduced here in compliance with that license.
-    //
-    // Copyright 2023 James Prestwich
-    //
-    // Licensed under the Apache License, Version 2.0 (the "License");
-    // you may not use this file except in compliance with the License.
-    // You may obtain a copy of the License at
-    //     http://www.apache.org/licenses/LICENSE-2.0
-    // Unless required by applicable law or agreed to in writing, software
-    // distributed under the License is distributed on an "AS IS" BASIS,
-    // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    // See the License for the specific language governing permissions and
-    // limitations under the License.
-    #[error("could not find WASM in release dir ({path}). Hint: Do you have a main.rs?")]
+    #[error("could not find WASM in release dir ({path}).")]
     NoWasmFound { path: PathBuf },
     #[error(
         r#"compressed program size ({got}) exceeds max ({want}) despite --nightly flag. We recommend splitting up your program. 
@@ -78,8 +64,8 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
 
         if cfg.nightly {
             cmd.arg("+nightly");
-            let msg = "Warning:".to_string().yellow();
-            println!("{} building with the Rust nightly toolchain, make sure you are aware of the security risks of doing so", msg);
+            let msg = "Warning:".yellow();
+            println!("{msg} using Rust nightly. Make sure you are aware of the security risks.");
         }
 
         cmd.arg("build");
@@ -91,7 +77,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
             cmd.arg("build-std-features=panic_immediate_abort");
         }
 
-        if matches!(cfg.opt_level, OptLevel::Z) {
+        if cfg.opt_level == OptLevel::Z {
             cmd.arg("--config");
             cmd.arg("profile.release.opt-level='z'");
         }
@@ -121,7 +107,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
         .into_iter()
         .find(|p| {
             if let Some(ext) = p.file_name() {
-                return ext.to_str().unwrap_or("").contains(".wasm");
+                return ext.to_str().unwrap_or_default().contains(".wasm");
             }
             false
         })
@@ -213,6 +199,5 @@ pub fn get_compressed_wasm_bytes(wasm_path: &PathBuf) -> eyre::Result<(Vec<u8>, 
         }
         .into());
     }
-
     Ok((wasm_bytes.to_vec(), deploy_ready_code))
 }
