@@ -437,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus"
-version = "0.1.8"
+version = "0.2.0"
 dependencies = [
  "alloy-json-abi",
  "brotli2",

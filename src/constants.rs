@@ -23,8 +23,12 @@ pub const ARBWASM_ACTIVATE_METHOD_HASH: &str = "58c780c2";
 /// Target for compiled WASM folder in a Rust project
 pub const RUST_TARGET: &str = "wasm32-unknown-unknown";
 
-/// URL of the template repository to start a boilerplate Stylus project in Rust.
-pub const GITHUB_TEMPLATE_REPOSITORY: &str = "https://github.com/OffchainLabs/stylus-hello-world";
+/// The default repo to clone when creating new projects
+pub const GITHUB_TEMPLATE_REPO: &str = "https://github.com/OffchainLabs/stylus-hello-world";
+
+/// The minimal entrypoint repo
+pub const GITHUB_TEMPLATE_REPO_MINIMAL: &str =
+    "https://github.com/OffchainLabs/stylus-hello-world-minimal";
 
 /// The error returned from a call onchain if a program is up to date and requires no activation.
 pub const PROGRAM_UP_TO_DATE_ERR: &str = "ProgramUpToDate";

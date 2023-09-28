@@ -1,19 +1,16 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
-use std::env::current_dir;
-use std::io::Read;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
-
-use brotli2::read::BrotliEncoder;
-use bytesize::ByteSize;
-use eyre::{bail, eyre};
 
 use crate::constants::{MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE};
+use crate::util;
 use crate::{
     color::Color,
     constants::{BROTLI_COMPRESSION_LEVEL, EOF_PREFIX, RUST_TARGET},
 };
+use brotli2::read::BrotliEncoder;
+use bytesize::ByteSize;
+use eyre::{bail, eyre, Result};
+use std::{env::current_dir, io::Read, path::PathBuf};
 
 #[derive(Default, PartialEq)]
 pub enum OptLevel {
@@ -55,12 +52,11 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#)
 }
 
 /// Build a Rust project to WASM and return the path to the compiled WASM file.
-pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
+pub fn build_project_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let cwd: PathBuf = current_dir().map_err(|e| eyre!("could not get current dir: {e}"))?;
 
     if cfg.rebuild {
-        let mut cmd = Command::new("cargo");
-        cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+        let mut cmd = util::new_command("cargo");
 
         if cfg.nightly {
             cmd.arg("+nightly");
@@ -69,6 +65,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
         }
 
         cmd.arg("build");
+        cmd.arg("--lib");
 
         if cfg.nightly {
             cmd.arg("-Z");
@@ -84,7 +81,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
 
         let output = cmd
             .arg("--release")
-            .arg(format!("--target={}", RUST_TARGET))
+            .arg(format!("--target={RUST_TARGET}"))
             .output()
             .map_err(|e| eyre!("failed to execute cargo build: {e}"))?;
 
@@ -93,13 +90,17 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
         }
     }
 
-    let release_path = cwd.join("target").join(RUST_TARGET).join("release");
+    let release_path = cwd
+        .join("target")
+        .join(RUST_TARGET)
+        .join("release")
+        .join("deps");
 
     // Gets the files in the release folder.
     let release_files: Vec<PathBuf> = std::fs::read_dir(&release_path)
-        .map_err(|e| eyre!("could not read release dir: {e}"))?
-        .filter(|r| r.is_ok())
-        .map(|r| r.unwrap().path())
+        .map_err(|e| eyre!("could not read deps dir: {e}"))?
+        .filter_map(|r| r.ok())
+        .map(|r| r.path())
         .filter(|r| r.is_file())
         .collect();
 
@@ -113,7 +114,7 @@ pub fn build_project_to_wasm(cfg: BuildConfig) -> eyre::Result<PathBuf> {
         })
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
-    if let Err(e) = get_compressed_wasm_bytes(&wasm_file_path) {
+    if let Err(e) = compress_wasm(&wasm_file_path) {
         if let Some(BuildError::MaxCompressedSizeExceeded { got, .. }) = e.downcast_ref() {
             match cfg.opt_level {
                 OptLevel::S => {
@@ -125,7 +126,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                         got.red(),
                     );
                     // Attempt to build again with a bumped-up optimization level.
-                    return build_project_to_wasm(BuildConfig {
+                    return build_project_dylib(BuildConfig {
                         opt_level: OptLevel::Z,
                         nightly: cfg.nightly,
                         rebuild: true,
@@ -142,7 +143,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                         );
                         // Attempt to build again with the nightly flag enabled and extra optimizations
                         // only available with nightly compilation.
-                        return build_project_to_wasm(BuildConfig {
+                        return build_project_dylib(BuildConfig {
                             opt_level: OptLevel::Z,
                             nightly: true,
                             rebuild: true,
@@ -162,7 +163,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
 }
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
-pub fn get_compressed_wasm_bytes(wasm_path: &PathBuf) -> eyre::Result<(Vec<u8>, Vec<u8>)> {
+pub fn compress_wasm(wasm_path: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
     let wasm_file_bytes = std::fs::read(wasm_path).map_err(|e| {
         eyre!(
             "could not read WASM file at target path {}: {e}",
@@ -172,13 +173,13 @@ pub fn get_compressed_wasm_bytes(wasm_path: &PathBuf) -> eyre::Result<(Vec<u8>, 
 
     let wasm_bytes = wasmer::wat2wasm(&wasm_file_bytes)
         .map_err(|e| eyre!("could not parse wasm file bytes: {e}"))?;
-    let wasm_bytes = &*wasm_bytes;
 
-    let mut compressor = BrotliEncoder::new(wasm_bytes, BROTLI_COMPRESSION_LEVEL);
+    let mut compressor = BrotliEncoder::new(&*wasm_bytes, BROTLI_COMPRESSION_LEVEL);
     let mut compressed_bytes = vec![];
     compressor
         .read_to_end(&mut compressed_bytes)
         .map_err(|e| eyre!("could not Brotli compress WASM bytes: {e}"))?;
+
     let mut deploy_ready_code = hex::decode(EOF_PREFIX).unwrap();
     deploy_ready_code.extend(compressed_bytes);
 

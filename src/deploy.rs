@@ -84,7 +84,7 @@ on the --mode flag under cargo stylus deploy --help"#
         }
     };
 
-    // Whether or not to send the transactions to the endpoint.
+    // Whether to send the transactions to the endpoint.
     let dry_run = cfg.tx_sending_opts.dry_run;
 
     // If we are attempting to send a real transaction, we check if the deployer has any funds
@@ -113,21 +113,21 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
     if deploy {
         let wasm_file_path: PathBuf = match &cfg.check_cfg.wasm_file_path {
             Some(path) => PathBuf::from_str(path).unwrap(),
-            None => project::build_project_to_wasm(BuildConfig {
+            None => project::build_project_dylib(BuildConfig {
                 opt_level: project::OptLevel::default(),
                 nightly: cfg.check_cfg.nightly,
                 rebuild: false, // The check step at the start of this command rebuilt.
             })
             .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
         };
-        let (_, deploy_ready_code) = project::get_compressed_wasm_bytes(&wasm_file_path)?;
+        let (_, init_code) = project::compress_wasm(&wasm_file_path)?;
         println!("");
         println!("{}", "====DEPLOYMENT====".grey());
         println!(
             "Deploying program to address {}",
             to_checksum(&expected_program_addr, None).mint(),
         );
-        let deployment_calldata = program_deployment_calldata(&deploy_ready_code);
+        let deployment_calldata = program_deployment_calldata(&init_code);
 
         // Output the tx data to a user's specified directory if desired.
         if let Some(tx_data_output_dir) = output_dir {
