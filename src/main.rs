@@ -3,9 +3,8 @@
 
 use alloy_primitives::TxHash;
 use clap::{Args, Parser, ValueEnum};
-use color::Color;
 use ethers::types::H160;
-use eyre::Result;
+use eyre::{eyre, Context, Result};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
@@ -47,11 +46,11 @@ struct CGenArgs {
 #[command(propagate_version = true)]
 struct StylusArgs {
     #[command(subcommand)]
-    command: StylusSubcommands,
+    command: Subcommands,
 }
 
 #[derive(Parser, Debug, Clone)]
-enum StylusSubcommands {
+enum Subcommands {
     /// Create a new Rust project.
     New {
         /// Project name.
@@ -83,9 +82,12 @@ enum StylusSubcommands {
     /// Replay a transaction in gdb.
     #[command(alias = "r")]
     Replay(ReplayConfig),
+    /// Trace a transaction.
+    #[command(alias = "t")]
+    Trace(TraceConfig),
 }
 
-#[derive(Debug, Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct CheckConfig {
     /// RPC endpoint of the Stylus node to connect to.
     #[arg(short, long, default_value = "https://stylus-testnet.arbitrum.io/rpc")]
@@ -114,7 +116,7 @@ pub struct CheckConfig {
     nightly: bool,
 }
 
-#[derive(Debug, Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct DeployConfig {
     #[command(flatten)]
     check_cfg: CheckConfig,
@@ -133,7 +135,7 @@ pub struct DeployConfig {
     tx_sending_opts: TxSendingOpts,
 }
 
-#[derive(Debug, Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct ReplayConfig {
     /// RPC endpoint.
     #[arg(short, long, default_value = "http://localhost:8545")]
@@ -151,6 +153,20 @@ pub struct ReplayConfig {
     #[arg(short, long, hide(true))]
     child: bool,
 }
+
+#[derive(Args, Clone, Debug)]
+pub struct TraceConfig {
+    /// RPC endpoint.
+    #[arg(short, long, default_value = "http://localhost:8545")]
+    endpoint: String,
+    /// Tx to replay.
+    #[arg(short, long)]
+    tx: TxHash,
+    /// Project path.
+    #[arg(short, long, default_value = ".")]
+    project: PathBuf,
+}
+
 
 #[derive(Debug, Clone, ValueEnum)]
 pub enum DeployMode {
@@ -193,7 +209,7 @@ fn main() -> Result<()> {
 
     // use the current thread for replay
     let mut runtime = match &args.command {
-        StylusSubcommands::Replay(_) => Builder::new_current_thread(),
+        Subcommands::Replay(_) => Builder::new_current_thread(),
         _ => Builder::new_multi_thread(),
     };
 
@@ -202,43 +218,44 @@ fn main() -> Result<()> {
 }
 
 async fn main_impl(args: StylusArgs) -> Result<()> {
+    macro_rules! run {
+        ($expr:expr, $($msg:expr),+) => {
+            $expr.wrap_err_with(|| eyre!($($msg),+))?
+        };
+    }
+
     match args.command {
-        StylusSubcommands::New { name, minimal } => {
-            if let Err(e) = new::new_stylus_project(&name, minimal) {
-                println!(
-                    "Could not create new stylus project with name {name}: {}",
-                    e.pink()
-                );
-            };
+        Subcommands::New { name, minimal } => {
+            run!(
+                new::new_stylus_project(&name, minimal),
+                "failed to create project"
+            );
         }
-        StylusSubcommands::ExportAbi {
+        Subcommands::ExportAbi {
             release,
             json,
             output,
-        } => {
-            if json {
-                if let Err(e) = export_abi::export_json_abi(release, output) {
-                    println!(
-                        "Could not export Stylus program Solidity ABI as JSON: {}",
-                        e.pink()
-                    );
-                };
-            } else if let Err(e) = export_abi::export_solidity_abi(release, output) {
-                println!("Could not export Stylus program Solidity ABI: {}", e.pink());
-            }
+        } => match json {
+            true => run!(
+                export_abi::export_json_abi(release, output),
+                "failed to export json"
+            ),
+            false => run!(
+                export_abi::export_solidity_abi(release, output),
+                "failed to export abi"
+            ),
+        },
+        Subcommands::Check(config) => {
+            run!(check::run_checks(config).await, "stylus checks failed");
         }
-        StylusSubcommands::Check(config) => {
-            if let Err(e) = check::run_checks(config).await {
-                println!("Stylus checks failed: {}", e.pink());
-            };
+        Subcommands::Deploy(config) => {
+            run!(deploy::deploy(config).await, "failed to deploy");
         }
-        StylusSubcommands::Deploy(config) => {
-            if let Err(e) = deploy::deploy(config).await {
-                println!("Deploy / activation command failed: {}", e.pink());
-            };
+        Subcommands::Replay(config) => {
+            run!(replay::replay(config).await, "failed to replay tx");
         }
-        StylusSubcommands::Replay(config) => {
-            replay::replay(config).await?;
+        Subcommands::Trace(config) => {
+            run!(replay::trace(config).await, "failed to trace");
         }
     }
     Ok(())

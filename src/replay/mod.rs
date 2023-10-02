@@ -1,7 +1,7 @@
 // Copyright 2023, Offchain Labs, Inc.
-// For licensing, see https://github.com/OffchainLabs/stylus-sdk-rs/blob/stylus/licenses/COPYRIGHT.md
+// For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
-use crate::{color::Color, util, ReplayConfig};
+use crate::{color::Color, util, ReplayConfig, TraceConfig};
 use eyre::{bail, eyre, Result};
 use std::{
     os::unix::process::CommandExt,
@@ -31,7 +31,6 @@ pub async fn replay(config: ReplayConfig) -> Result<()> {
     }
 
     let provider = util::new_provider(&config.endpoint)?;
-
     let trace = Trace::new(provider, config.tx).await?;
 
     build_so(&config.project, config.stable_rust)?;
@@ -53,6 +52,13 @@ pub async fn replay(config: ReplayConfig) -> Result<()> {
             x => println!("call exited with unknown status code: {}", x.red()),
         }
     }
+    Ok(())
+}
+
+pub async fn trace(config: TraceConfig) -> Result<()> {
+    let provider = util::new_provider(&config.endpoint)?;
+    let trace = Trace::new(provider, config.tx).await?;
+    println!("{}", trace.json);
     Ok(())
 }
 
@@ -86,13 +92,12 @@ pub fn find_so(project: &Path) -> Result<PathBuf> {
         let Some(ext) = entry.file_name() else {
             continue;
         };
-        if ext.to_string_lossy().contains(".so") {
+        let ext = ext.to_string_lossy();
+
+        if ext.contains(".so") {
             if let Some(other) = file {
                 let other = other.file_name().unwrap().to_string_lossy();
-                bail!(
-                    "more than one .so found: {other} and {}",
-                    ext.to_string_lossy()
-                );
+                bail!("more than one .so found: {ext} and {other}",);
             }
             file = Some(entry);
         }

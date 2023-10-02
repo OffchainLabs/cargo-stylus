@@ -21,6 +21,7 @@ pub struct Trace {
     top_frame: TraceFrame,
     pub receipt: TransactionReceipt,
     pub tx: Transaction,
+    pub json: Value,
 }
 
 impl Trace {
@@ -39,18 +40,18 @@ impl Trace {
             tracer: Some(GethDebugTracerType::JsTracer(query.to_owned())),
             ..GethDebugTracingOptions::default()
         };
-        let GethTrace::Unknown(trace) = provider.debug_trace_transaction(hash, tracer).await?
-        else {
+        let GethTrace::Unknown(json) = provider.debug_trace_transaction(hash, tracer).await? else {
             bail!("malformed tracing result")
         };
 
         let to = receipt.to.map(|x| Address::from(x.0));
-        let top_frame = TraceFrame::parse_frame(to, trace)?;
+        let top_frame = TraceFrame::parse_frame(to, json.clone())?;
 
         Ok(Self {
             top_frame,
             receipt,
             tx,
+            json,
         })
     }
 
