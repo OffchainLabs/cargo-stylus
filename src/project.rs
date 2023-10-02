@@ -108,7 +108,7 @@ pub fn build_project_dylib(cfg: BuildConfig) -> Result<PathBuf> {
         .into_iter()
         .find(|p| {
             if let Some(ext) = p.file_name() {
-                return ext.to_str().unwrap_or_default().contains(".wasm");
+                return ext.to_string_lossy().contains(".wasm");
             }
             false
         })
