@@ -117,6 +117,7 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
                 opt_level: project::OptLevel::default(),
                 nightly: cfg.check_cfg.nightly,
                 rebuild: false, // The check step at the start of this command rebuilt.
+                bin: cfg.check_cfg.bin,
             })
             .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
         };

@@ -90,6 +90,11 @@ pub struct CheckConfig {
     /// to the current Stylus testnet RPC endpoint.
     #[arg(short, long, default_value = "https://stylus-testnet.arbitrum.io/rpc")]
     endpoint: String,
+    /// Build only the specified binary (See cargo's `--bin` attribute
+    /// https://doc.rust-lang.org/cargo/commands/cargo-build.html#target-selection).
+    /// Useful for projects with workspaces that have multiple contracts.
+    #[arg(long)]
+    bin: Option<String>,
     /// If desired, it loads a WASM file from a specified path. If not provided, it will try to find
     /// a WASM file under the current working directory's Rust target release directory and use its
     /// contents for the deploy command.
