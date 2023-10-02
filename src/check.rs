@@ -63,7 +63,7 @@ impl std::fmt::Display for FileByteSize {
 pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
     let wasm_file_path: PathBuf = match &cfg.wasm_file_path {
         Some(path) => PathBuf::from_str(path).unwrap(),
-        None => project::build_project_to_wasm(BuildConfig {
+        None => project::build_project_dylib(BuildConfig {
             opt_level: project::OptLevel::default(),
             nightly: cfg.nightly,
             rebuild: true,
@@ -72,14 +72,13 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
     };
     println!("Reading WASM file at {}", wasm_file_path.display().grey());
 
-    let (precompressed_bytes, deploy_ready_code) =
-        project::get_compressed_wasm_bytes(&wasm_file_path)
-            .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
+    let (precompressed_bytes, init_code) = project::compress_wasm(&wasm_file_path)
+        .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
 
     let precompressed_size = FileByteSize::new(precompressed_bytes.len() as u64);
     println!("Uncompressed WASM size: {precompressed_size}");
 
-    let compressed_size = FileByteSize::new(deploy_ready_code.len() as u64);
+    let compressed_size = FileByteSize::new(init_code.len() as u64);
     println!("Compressed WASM size to be deployed onchain: {compressed_size}",);
 
     println!(
@@ -110,7 +109,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
 
         expected_program_addr = get_contract_address(wallet.address(), nonce);
     }
-    check_can_activate(provider, &expected_program_addr, deploy_ready_code).await
+    check_can_activate(provider, &expected_program_addr, init_code).await
 }
 
 /// Checks if a program can be successfully activated onchain before it is deployed
