@@ -167,7 +167,6 @@ pub struct TraceConfig {
     project: PathBuf,
 }
 
-
 #[derive(Debug, Clone, ValueEnum)]
 pub enum DeployMode {
     DeployOnly,

@@ -15,7 +15,20 @@ mod trace;
 
 pub async fn replay(config: ReplayConfig) -> Result<()> {
     if !config.child {
-        let mut cmd = util::new_command("rust-gdb"); // TODO: fall back to gdb
+        let rust_gdb = util::command_exists("rust-gdb");
+        if !rust_gdb {
+            println!(
+                "{} not installed, falling back to {}",
+                "rust-gdb".red(),
+                "gdb".red()
+            );
+        }
+
+        let mut cmd = match rust_gdb {
+            true => util::new_command("rust-gdb"),
+            false => util::new_command("gdb"),
+        };
+        cmd.arg("--quiet");
         cmd.arg("-ex=set breakpoint pending on");
         cmd.arg("-ex=b user_entrypoint");
         cmd.arg("-ex=r");
