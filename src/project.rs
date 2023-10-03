@@ -23,7 +23,6 @@ pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub nightly: bool,
     pub rebuild: bool,
-    pub bin: Option<String>,
 }
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]
@@ -80,11 +79,6 @@ pub fn build_project_dylib(cfg: BuildConfig) -> Result<PathBuf> {
             cmd.arg("profile.release.opt-level='z'");
         }
 
-        if let Some(bin) = &cfg.bin {
-            cmd.arg("--bin");
-            cmd.arg(bin);
-        }
-
         let output = cmd
             .arg("--release")
             .arg(format!("--target={RUST_TARGET}"))
@@ -113,18 +107,8 @@ pub fn build_project_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let wasm_file_path = release_files
         .into_iter()
         .find(|p| {
-            if let Some(file_name) = p.file_name() {
-                let file_name = file_name.to_str().unwrap_or_default();
-
-                if !file_name.contains(".wasm") {
-                    return false;
-                }
-
-                if let Some(bin) = &cfg.bin {
-                    return file_name.contains(bin);
-                }
-
-                return true;
+            if let Some(ext) = p.file_name() {
+                return ext.to_string_lossy().contains(".wasm");
             }
             false
         })
@@ -146,7 +130,6 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                         opt_level: OptLevel::Z,
                         nightly: cfg.nightly,
                         rebuild: true,
-                        bin: cfg.bin,
                     });
                 }
                 OptLevel::Z => {
@@ -164,7 +147,6 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                             opt_level: OptLevel::Z,
                             nightly: true,
                             rebuild: true,
-                            bin: cfg.bin,
                         });
                     }
                     return Err(BuildError::ExceedsMaxDespiteBestEffort {

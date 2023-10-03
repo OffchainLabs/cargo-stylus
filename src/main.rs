@@ -1,11 +1,12 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use std::path::PathBuf;
-
+use alloy_primitives::TxHash;
 use clap::{Args, Parser, ValueEnum};
-use color::Color;
 use ethers::types::H160;
+use eyre::{eyre, Context, Result};
+use std::path::PathBuf;
+use tokio::runtime::Builder;
 
 mod c;
 mod check;
@@ -15,6 +16,7 @@ mod deploy;
 mod export_abi;
 mod new;
 mod project;
+mod replay;
 mod tx;
 mod util;
 mod wallet;
@@ -44,60 +46,53 @@ struct CGenArgs {
 #[command(propagate_version = true)]
 struct StylusArgs {
     #[command(subcommand)]
-    command: StylusSubcommands,
+    command: Subcommands,
 }
 
 #[derive(Parser, Debug, Clone)]
-enum StylusSubcommands {
-    /// Initialize a Stylus Rust project using the https://github.com/OffchainLabs/stylus-hello-world template.
+enum Subcommands {
+    /// Create a new Rust project.
     New {
-        /// Name of the Stylus project.
+        /// Project name.
         #[arg(required = true)]
         name: String,
-        /// Initializes a minimal version of a Stylus program, with just a barebones entrypoint and the Stylus SDK.
+        /// Create a minimal program.
         #[arg(long)]
         minimal: bool,
     },
-    /// Export the Solidity ABI for a Stylus project directly using the cargo stylus tool.
+    /// Export a Solidity ABI.
     ExportAbi {
         /// Build in release mode.
         #[arg(long)]
         release: bool,
-        /// Specify an output file to write the ABI to.
+        /// The Output file (defaults to stdout).
         #[arg(long)]
         output: Option<PathBuf>,
-        /// Output the JSON ABI instead, created by solc. Must have solc installed for this option to work.
+        /// Output a JSON ABI instead using solc. Requires solc.
         /// See https://docs.soliditylang.org/en/latest/installing-solidity.html
         #[arg(long)]
         json: bool,
     },
-    /// Instrument a Rust project using Stylus.
-    /// This command runs compiled WASM code through Stylus instrumentation checks and reports any failures.
+    /// Check that a contract can be activated onchain.
     #[command(alias = "c")]
     Check(CheckConfig),
-    /// Instruments a Rust project using Stylus and by outputting its brotli-compressed WASM code.
-    /// Then, it submits two transactions: the first deploys the WASM
-    /// program to an address and the second triggers an activation onchain
-    /// Developers can choose to split up the deploy and activate steps via this command as desired.
+    /// Deploy a stylus contract.
     #[command(alias = "d")]
     Deploy(DeployConfig),
+    /// Replay a transaction in gdb.
+    #[command(alias = "r")]
+    Replay(ReplayConfig),
+    /// Trace a transaction.
+    #[command(alias = "t")]
+    Trace(TraceConfig),
 }
 
-#[derive(Debug, Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct CheckConfig {
-    /// The endpoint of the L2 node to connect to. See https://docs.arbitrum.io/stylus/reference/testnet-information
-    /// for latest Stylus testnet information including public endpoints. Defaults
-    /// to the current Stylus testnet RPC endpoint.
+    /// RPC endpoint of the Stylus node to connect to.
     #[arg(short, long, default_value = "https://stylus-testnet.arbitrum.io/rpc")]
     endpoint: String,
-    /// Build only the specified binary (See cargo's `--bin` attribute
-    /// https://doc.rust-lang.org/cargo/commands/cargo-build.html#target-selection).
-    /// Useful for projects with workspaces that have multiple contracts.
-    #[arg(long)]
-    bin: Option<String>,
-    /// If desired, it loads a WASM file from a specified path. If not provided, it will try to find
-    /// a WASM file under the current working directory's Rust target release directory and use its
-    /// contents for the deploy command.
+    /// Specifies a WASM file instead of looking for one in the current directory.
     #[arg(long)]
     wasm_file_path: Option<String>,
     /// Specify the program address we want to check activation for. If unspecified, it will
@@ -105,7 +100,7 @@ pub struct CheckConfig {
     /// wallet-related flags to be specified.
     #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
     expected_program_address: H160,
-    /// File path to a text file containing a private key to use with the cargo stylus plugin.
+    /// File path to a text file containing a private key.
     #[arg(long)]
     private_key_path: Option<String>,
     /// Private key 0x-prefixed hex string to use with the cargo stylus plugin. Warning: this exposes
@@ -116,18 +111,16 @@ pub struct CheckConfig {
     /// Wallet source to use with the cargo stylus plugin.
     #[command(flatten)]
     keystore_opts: KeystoreOpts,
-    /// Whether or not to compile the Rust program using the nightly Rust version. Nightly can help
-    /// with reducing compressed WASM sizes, however, can be a security risk if used liberally.
+    /// Whether to use Rust nightly.
     #[arg(long)]
     nightly: bool,
 }
 
-#[derive(Debug, Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct DeployConfig {
     #[command(flatten)]
     check_cfg: CheckConfig,
-    /// Does not submit a transaction, but instead estimates the gas required
-    /// to complete the operation.
+    /// Estimates deployment gas costs.
     #[arg(long)]
     estimate_gas_only: bool,
     /// By default, submits two transactions to deploy and activate the program to Arbitrum.
@@ -140,6 +133,38 @@ pub struct DeployConfig {
     /// Configuration options for sending the deployment / activation txs through the Cargo stylus deploy command.
     #[command(flatten)]
     tx_sending_opts: TxSendingOpts,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct ReplayConfig {
+    /// RPC endpoint.
+    #[arg(short, long, default_value = "http://localhost:8545")]
+    endpoint: String,
+    /// Tx to replay.
+    #[arg(short, long)]
+    tx: TxHash,
+    /// Project path.
+    #[arg(short, long, default_value = ".")]
+    project: PathBuf,
+    /// Whether to use stable Rust. Note that nightly is needed to expand macros.
+    #[arg(short, long)]
+    stable_rust: bool,
+    /// Whether this process is the child of another.
+    #[arg(short, long, hide(true))]
+    child: bool,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct TraceConfig {
+    /// RPC endpoint.
+    #[arg(short, long, default_value = "http://localhost:8545")]
+    endpoint: String,
+    /// Tx to replay.
+    #[arg(short, long)]
+    tx: TxHash,
+    /// Project path.
+    #[arg(short, long, default_value = ".")]
+    project: PathBuf,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -173,8 +198,7 @@ pub struct TxSendingOpts {
     output_tx_data_to_dir: Option<PathBuf>,
 }
 
-#[tokio::main]
-async fn main() -> eyre::Result<()> {
+fn main() -> Result<()> {
     let args = match CargoCli::parse() {
         CargoCli::Stylus(args) => args,
         CargoCli::CGen(args) => {
@@ -182,40 +206,55 @@ async fn main() -> eyre::Result<()> {
         }
     };
 
+    // use the current thread for replay
+    let mut runtime = match &args.command {
+        Subcommands::Replay(_) => Builder::new_current_thread(),
+        _ => Builder::new_multi_thread(),
+    };
+
+    let runtime = runtime.enable_all().build()?;
+    runtime.block_on(main_impl(args))
+}
+
+async fn main_impl(args: StylusArgs) -> Result<()> {
+    macro_rules! run {
+        ($expr:expr, $($msg:expr),+) => {
+            $expr.wrap_err_with(|| eyre!($($msg),+))?
+        };
+    }
+
     match args.command {
-        StylusSubcommands::New { name, minimal } => {
-            if let Err(e) = new::new_stylus_project(&name, minimal) {
-                println!(
-                    "Could not create new stylus project with name {name}: {}",
-                    e.pink()
-                );
-            };
+        Subcommands::New { name, minimal } => {
+            run!(
+                new::new_stylus_project(&name, minimal),
+                "failed to create project"
+            );
         }
-        StylusSubcommands::ExportAbi {
+        Subcommands::ExportAbi {
             release,
             json,
             output,
-        } => {
-            if json {
-                if let Err(e) = export_abi::export_json_abi(release, output) {
-                    println!(
-                        "Could not export Stylus program Solidity ABI as JSON: {}",
-                        e.pink()
-                    );
-                };
-            } else if let Err(e) = export_abi::export_solidity_abi(release, output) {
-                println!("Could not export Stylus program Solidity ABI: {}", e.pink());
-            }
+        } => match json {
+            true => run!(
+                export_abi::export_json_abi(release, output),
+                "failed to export json"
+            ),
+            false => run!(
+                export_abi::export_solidity_abi(release, output),
+                "failed to export abi"
+            ),
+        },
+        Subcommands::Check(config) => {
+            run!(check::run_checks(config).await, "stylus checks failed");
         }
-        StylusSubcommands::Check(cfg) => {
-            if let Err(e) = check::run_checks(cfg).await {
-                println!("Stylus checks failed: {}", e.pink());
-            };
+        Subcommands::Deploy(config) => {
+            run!(deploy::deploy(config).await, "failed to deploy");
         }
-        StylusSubcommands::Deploy(cfg) => {
-            if let Err(e) = deploy::deploy(cfg).await {
-                println!("Deploy / activation command failed: {}", e.pink());
-            };
+        Subcommands::Replay(config) => {
+            run!(replay::replay(config).await, "failed to replay tx");
+        }
+        Subcommands::Trace(config) => {
+            run!(replay::trace(config).await, "failed to trace");
         }
     }
     Ok(())

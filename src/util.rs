@@ -23,3 +23,13 @@ pub fn new_command<S: AsRef<OsStr>>(program: S) -> Command {
     command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
     command
 }
+
+pub fn command_exists<S: AsRef<OsStr>>(program: S) -> bool {
+    Command::new(program)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .arg("--version")
+        .output()
+        .map(|x| x.status.success())
+        .unwrap_or_default()
+}

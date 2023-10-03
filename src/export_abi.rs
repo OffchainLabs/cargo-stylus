@@ -1,6 +1,6 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
-use eyre::{bail, eyre};
+use eyre::{bail, eyre, Result};
 use std::{
     fs::File,
     path::PathBuf,
@@ -8,7 +8,7 @@ use std::{
 };
 
 /// Exports the Solidity ABI for a Stylus Rust program in the current directory to stdout.
-pub fn export_solidity_abi(release: bool, output_file: Option<PathBuf>) -> eyre::Result<()> {
+pub fn export_solidity_abi(release: bool, output_file: Option<PathBuf>) -> Result<()> {
     let target_host =
         rustc_host::from_cli().map_err(|e| eyre!("could not get host target architecture: {e}"))?;
     let mut cmd = Command::new("cargo");
@@ -48,7 +48,7 @@ pub fn export_solidity_abi(release: bool, output_file: Option<PathBuf>) -> eyre:
 
 /// Exports the Solidity JSON ABI output from solc given a Stylus Rust project in the current directory.
 /// The solc binary must be installed for this command to succeed.
-pub fn export_json_abi(release: bool, output_file: Option<PathBuf>) -> eyre::Result<()> {
+pub fn export_json_abi(release: bool, output_file: Option<PathBuf>) -> Result<()> {
     // We first check if solc is installed.
     let output = Command::new("solc")
         .arg("--version")

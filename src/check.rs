@@ -67,7 +67,6 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
             opt_level: project::OptLevel::default(),
             nightly: cfg.nightly,
             rebuild: true,
-            bin: cfg.bin.clone(),
         })
         .map_err(|e| eyre!("failed to build project to WASM: {e}"))?,
     };
