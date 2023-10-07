@@ -30,10 +30,7 @@ pub enum BuildError {
     #[error("could not find WASM in release dir ({path}).")]
     NoWasmFound { path: PathBuf },
     #[error(
-        r#"compressed program size ({got}) exceeds max ({want}) despite --nightly flag. We recommend splitting up your program. 
-We are actively working to reduce WASM program sizes that use the Stylus SDK.
-To see all available optimization options, see more in:
-https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
+        r#"compressed program size ({got}) exceeds max ({want}) despite --nightly flag. We recommend splitting up your program."#
     )]
     ExceedsMaxDespiteBestEffort { got: ByteSize, want: ByteSize },
     #[error(
@@ -135,10 +132,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                 OptLevel::Z => {
                     if !cfg.nightly {
                         println!(
-                            r#"Compressed program still exceeding max program size {} > max of 24Kb, 
-rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
-using the Stylus SDK. To see all available optimization options, see more in:
-https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
+                            r#"Program still exceeds max program size {} > max of 24Kb"#,
                             got.red(),
                         );
                         // Attempt to build again with the nightly flag enabled and extra optimizations
