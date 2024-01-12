@@ -154,6 +154,27 @@ Usage: cargo stylus deploy [OPTIONS]
 
 See `--help` for all available flags and default values.
 
+## Verifying Stylus Programs
+
+**cargo stylus verify**
+
+Verifies that a deployed smart contract is identical to that produced by the
+current project. Since Stylus smart contracts include a hash of all project
+files, this additionally verifies that code comments and other files are
+identical. To ensure build reproducibility, if a program is to be verified,
+it should be both deployed and verified using `cargo stylus reproducible`.
+
+See `--help` for all available flags and default values.
+
+## Reproducibly Deploying and Verifying
+
+**cargo stylus reproducible**
+
+Runs a `cargo stylus` command in a Docker container to ensure build
+reproducibility.
+
+See `--help` for all available flags and default values.
+
 ## Deploying Non-Rust WASM Projects
 
 The Stylus tool can also be used to deploy non-Rust, WASM projects to Stylus by specifying the WASM file directly with the `--wasm-file-path` flag to any of the cargo stylus commands. 

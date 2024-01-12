@@ -13,12 +13,14 @@ mod check;
 mod color;
 mod constants;
 mod deploy;
+mod docker;
 mod export_abi;
 mod new;
 mod project;
 mod replay;
 mod tx;
 mod util;
+mod verify;
 mod wallet;
 
 #[derive(Parser, Debug)]
@@ -51,6 +53,19 @@ struct StylusArgs {
 
 #[derive(Parser, Debug, Clone)]
 enum Subcommands {
+    /// Build in a Docker container to ensure reproducibility.
+    ///
+    /// Specify the Rust version to use, followed by the cargo stylus subcommand.
+    /// Example: `cargo stylus reproducible 1.75 check`
+    Reproducible {
+        /// Rust version to use.
+        #[arg()]
+        version: String,
+
+        /// Stylus subcommand.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        stylus: Vec<String>,
+    },
     /// Create a new Rust project.
     New {
         /// Project name.
@@ -79,6 +94,9 @@ enum Subcommands {
     /// Deploy a stylus contract.
     #[command(alias = "d")]
     Deploy(DeployConfig),
+    /// Verify a stylus contact.
+    #[command(alias = "v")]
+    Verify(VerifyConfig),
     /// Replay a transaction in gdb.
     #[command(alias = "r")]
     Replay(ReplayConfig),
@@ -88,18 +106,10 @@ enum Subcommands {
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct CheckConfig {
+pub struct CommonConfig {
     /// RPC endpoint of the Stylus node to connect to.
     #[arg(short, long, default_value = "https://stylus-testnet.arbitrum.io/rpc")]
     endpoint: String,
-    /// Specifies a WASM file instead of looking for one in the current directory.
-    #[arg(long)]
-    wasm_file_path: Option<String>,
-    /// Specify the program address we want to check activation for. If unspecified, it will
-    /// compute the next program address from the user's wallet address and nonce, which will require
-    /// wallet-related flags to be specified.
-    #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
-    expected_program_address: H160,
     /// File path to a text file containing a private key.
     #[arg(long)]
     private_key_path: Option<String>,
@@ -121,6 +131,20 @@ pub struct CheckConfig {
 }
 
 #[derive(Args, Clone, Debug)]
+pub struct CheckConfig {
+    #[command(flatten)]
+    common_cfg: CommonConfig,
+    /// Specifies a WASM file instead of looking for one in the current directory.
+    #[arg(long)]
+    wasm_file_path: Option<String>,
+    /// Specify the program address we want to check activation for. If unspecified, it will
+    /// compute the next program address from the user's wallet address and nonce, which will require
+    /// wallet-related flags to be specified.
+    #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
+    expected_program_address: H160,
+}
+
+#[derive(Args, Clone, Debug)]
 pub struct DeployConfig {
     #[command(flatten)]
     check_cfg: CheckConfig,
@@ -137,6 +161,16 @@ pub struct DeployConfig {
     /// Configuration options for sending the deployment / activation txs through the Cargo stylus deploy command.
     #[command(flatten)]
     tx_sending_opts: TxSendingOpts,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct VerifyConfig {
+    #[command(flatten)]
+    common_cfg: CommonConfig,
+
+    /// Hash of the deployment transaction.
+    #[arg(long)]
+    deployment_tx: String,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -254,11 +288,20 @@ async fn main_impl(args: StylusArgs) -> Result<()> {
         Subcommands::Deploy(config) => {
             run!(deploy::deploy(config).await, "failed to deploy");
         }
+        Subcommands::Verify(config) => {
+            run!(verify::verify(config).await, "failed to verify");
+        }
         Subcommands::Replay(config) => {
             run!(replay::replay(config).await, "failed to replay tx");
         }
         Subcommands::Trace(config) => {
             run!(replay::trace(config).await, "failed to trace");
+        }
+        Subcommands::Reproducible { version, stylus } => {
+            run!(
+                docker::run_reproducible(&version, &stylus),
+                "failed reproducible run"
+            );
         }
     }
     Ok(())

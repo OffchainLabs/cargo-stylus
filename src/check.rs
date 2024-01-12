@@ -65,16 +65,16 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
         Some(path) => PathBuf::from_str(path).unwrap(),
         None => project::build_project_dylib(BuildConfig {
             opt_level: project::OptLevel::default(),
-            nightly: cfg.nightly,
+            nightly: cfg.common_cfg.nightly,
             rebuild: true,
-            skip_contract_size_check: cfg.skip_contract_size_check,
+            skip_contract_size_check: cfg.common_cfg.skip_contract_size_check,
         })
         .map_err(|e| eyre!("failed to build project to WASM: {e}"))?,
     };
     println!("Reading WASM file at {}", wasm_file_path.display().grey());
 
     let (precompressed_bytes, init_code) =
-        project::compress_wasm(&wasm_file_path, cfg.skip_contract_size_check)
+        project::compress_wasm(&wasm_file_path, cfg.common_cfg.skip_contract_size_check)
             .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
 
     let precompressed_size = FileByteSize::new(precompressed_bytes.len() as u64);
@@ -85,10 +85,10 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
 
     println!(
         "Connecting to Stylus RPC endpoint: {}",
-        &cfg.endpoint.mint()
+        &cfg.common_cfg.endpoint.mint()
     );
 
-    let provider = util::new_provider(&cfg.endpoint)?;
+    let provider = util::new_provider(&cfg.common_cfg.endpoint)?;
 
     let mut expected_program_addr = cfg.clone().expected_program_address;
 
