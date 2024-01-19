@@ -38,7 +38,7 @@ impl std::fmt::Display for TxKind {
 /// DeployAndActivate (default): Sends both transactions above.
 pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
     // Run stylus checks before deployment.
-    let program_is_up_to_date = check::run_checks(cfg.check_cfg.clone())
+    let (up_to_date, data_fee) = check::run_checks(cfg.check_cfg.clone())
         .await
         .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
     let wallet = wallet::load(&cfg.check_cfg).map_err(|e| eyre!("could not load wallet: {e}"))?;
@@ -150,7 +150,7 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
     }
     if activate {
         // If program is up-to-date, there is no need for an activation transaction.
-        if program_is_up_to_date {
+        if up_to_date {
             return Ok(());
         }
         let program_addr = cfg
@@ -175,7 +175,9 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
             let mut tx_request = Eip1559TransactionRequest::new()
                 .from(wallet.address())
                 .to(to)
-                .data(activate_calldata);
+                .data(activate_calldata)
+                .value(data_fee.unwrap().saturating_mul(2.into())); // pad 2x
+
             tx::submit_signed_tx(
                 &client,
                 TxKind::Activation,
@@ -185,7 +187,7 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
             .await
             .map_err(|e| eyre!("could not submit signed activation tx: {e}"))?;
         }
-        println!("");
+        println!();
     }
     Ok(())
 }

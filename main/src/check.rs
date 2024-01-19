@@ -1,7 +1,7 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use crate::constants::PROGRAM_UP_TO_DATE_ERR;
+use crate::constants::{ONE_ETH, PROGRAM_UP_TO_DATE_ERR};
 use crate::{
     constants::ARB_WASM_ADDRESS,
     deploy::activation_calldata,
@@ -56,9 +56,10 @@ impl std::fmt::Display for FileByteSize {
 
 /// Runs a series of checks on the WASM program to ensure it is valid for compilation
 /// and code size before being deployed and activated onchain. An optional list of checks
-/// to disable can be specified. Returns a boolean that says whether a WASM is already up-to-date
-/// and activated onchain.
-pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
+/// to disable can be specified.
+///
+/// Returns whether the WASM is already up-to-date and activated onchain, and the data fee.
+pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(bool, Option<U256>)> {
     let wasm_file_path: PathBuf = match &cfg.wasm_file_path {
         Some(path) => PathBuf::from_str(path).unwrap(),
         None => project::build_project_dylib(BuildConfig {
@@ -77,7 +78,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
     println!("Uncompressed WASM size: {precompressed_size}");
 
     let compressed_size = FileByteSize::new(init_code.len() as u64);
-    println!("Compressed WASM size to be deployed onchain: {compressed_size}",);
+    println!("Compressed WASM size to be deployed onchain: {compressed_size}");
 
     println!(
         "Connecting to Stylus RPC endpoint: {}",
@@ -112,14 +113,15 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
 
 /// Checks if a program can be successfully activated onchain before it is deployed
 /// by using an eth_call override that injects the program's code at a specified address.
-/// This allows for verifying an activation call is correct and will succeed if sent
-/// as a transaction with the appropriate gas. Returns a boolean that says whether or not the program's
-/// code is up-to-date and activated onchain.
+/// This ensures an activation call is correct and will succeed if sent as a transaction with the
+/// appropriate gas.
+///
+/// Returns whether the program's code is up-to-date and activated onchain, and the data fee.
 pub async fn check_can_activate<T>(
     client: Provider<T>,
     expected_program_address: &Address,
     compressed_wasm: Vec<u8>,
-) -> eyre::Result<bool>
+) -> eyre::Result<(bool, Option<U256>)>
 where
     T: JsonRpcClient,
 {
@@ -127,15 +129,21 @@ where
     let to = hex::decode(ARB_WASM_ADDRESS).unwrap();
     let to = Address::from_slice(&to);
 
-    let tx_request = Eip1559TransactionRequest::new().to(to).data(calldata);
-    let tx = TypedTransaction::Eip1559(tx_request);
+    let tx = Eip1559TransactionRequest::new()
+        .to(to)
+        .data(calldata)
+        .value(ONE_ETH);
+    let tx = TypedTransaction::Eip1559(tx);
 
-    // Spoof the state as if the program already exists at the specified address
-    // using an eth_call override.
-    let state = spoof::code(
+    // pretend the program already exists at the specified address via an eth_call override
+    let mut state = spoof::code(
         Address::from_slice(expected_program_address.as_bytes()),
         compressed_wasm.into(),
     );
+
+    // spoof the deployer's balance
+    state.account(Default::default()).balance = Some(U256::MAX);
+
     let (response, program_up_to_date) = match client.call_raw(&tx).state(&state).await {
         Ok(response) => (response, false),
         Err(e) => {
@@ -157,20 +165,16 @@ where
             "Stylus program with same WASM code is {} onchain",
             msg.mint()
         );
-        return Ok(true);
+        return Ok((true, None));
     }
 
-    if response.len() < 2 {
-        bail!(
-            "Stylus version bytes response too short, expected at least 2 bytes but got: {}",
-            hex::encode(&response)
-        );
+    // TODO: switch to alloy
+    if response.len() != 64 {
+        bail!("unexpected ArbWasm result: {}", hex::encode(&response));
     }
-    let n = response.len();
-    let version_bytes: [u8; 2] = response[n - 2..]
-        .try_into()
-        .map_err(|e| eyre!("could not parse Stylus version bytes: {e}"))?;
-    let version = u16::from_be_bytes(version_bytes);
+    let version = u16::from_be_bytes(response[30..32].try_into().unwrap());
+    let data_fee = U256::from_big_endian(&response[32..]);
+
     println!("Program succeeded Stylus onchain activation checks with Stylus version: {version}");
-    Ok(false)
+    Ok((false, Some(data_fee)))
 }

@@ -1,6 +1,8 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
 use bytesize::ByteSize;
+use ethers::types::U256;
 
 /// EOF prefix used in Stylus compressed WASMs on-chain
 pub const EOF_PREFIX: &str = "EFF000";
@@ -32,3 +34,6 @@ pub const GITHUB_TEMPLATE_REPO_MINIMAL: &str =
 
 /// The error returned from a call onchain if a program is up to date and requires no activation.
 pub const PROGRAM_UP_TO_DATE_ERR: &str = "ProgramUpToDate";
+
+/// One ether in wei.
+pub const ONE_ETH: U256 = U256([1000000000000000000, 0, 0, 0]);
