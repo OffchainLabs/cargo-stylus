@@ -1,16 +1,14 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use alloy_primitives::TxHash;
 use clap::{Args, Parser, ValueEnum};
 use ethers::types::H160;
 use eyre::{eyre, Context, Result};
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 use tokio::runtime::Builder;
 
 mod c;
 mod check;
-mod color;
 mod constants;
 mod deploy;
 mod export_abi;
@@ -18,7 +16,6 @@ mod new;
 mod project;
 mod replay;
 mod tx;
-mod util;
 mod wallet;
 
 #[derive(Parser, Debug)]
@@ -41,7 +38,7 @@ struct CGenArgs {
 #[command(name = "stylus")]
 #[command(bin_name = "cargo stylus")]
 #[command(author = "Offchain Labs, Inc.")]
-#[command(version = "0.0.1")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Cargo command for developing Arbitrum Stylus projects", long_about = None)]
 #[command(propagate_version = true)]
 struct StylusArgs {
@@ -81,14 +78,14 @@ enum Subcommands {
     Deploy(DeployConfig),
     /// Replay a transaction in gdb.
     #[command(alias = "r")]
-    Replay(ReplayConfig),
+    Replay,
     /// Trace a transaction.
     #[command(alias = "t")]
-    Trace(TraceConfig),
+    Trace,
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct CheckConfig {
+struct CheckConfig {
     /// RPC endpoint of the Stylus node to connect to.
     #[arg(short, long, default_value = "https://stylus-testnet.arbitrum.io/rpc")]
     endpoint: String,
@@ -117,7 +114,7 @@ pub struct CheckConfig {
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct DeployConfig {
+struct DeployConfig {
     #[command(flatten)]
     check_cfg: CheckConfig,
     /// Estimates deployment gas costs.
@@ -135,40 +132,8 @@ pub struct DeployConfig {
     tx_sending_opts: TxSendingOpts,
 }
 
-#[derive(Args, Clone, Debug)]
-pub struct ReplayConfig {
-    /// RPC endpoint.
-    #[arg(short, long, default_value = "http://localhost:8545")]
-    endpoint: String,
-    /// Tx to replay.
-    #[arg(short, long)]
-    tx: TxHash,
-    /// Project path.
-    #[arg(short, long, default_value = ".")]
-    project: PathBuf,
-    /// Whether to use stable Rust. Note that nightly is needed to expand macros.
-    #[arg(short, long)]
-    stable_rust: bool,
-    /// Whether this process is the child of another.
-    #[arg(short, long, hide(true))]
-    child: bool,
-}
-
-#[derive(Args, Clone, Debug)]
-pub struct TraceConfig {
-    /// RPC endpoint.
-    #[arg(short, long, default_value = "http://localhost:8545")]
-    endpoint: String,
-    /// Tx to replay.
-    #[arg(short, long)]
-    tx: TxHash,
-    /// Project path.
-    #[arg(short, long, default_value = ".")]
-    project: PathBuf,
-}
-
 #[derive(Debug, Clone, ValueEnum)]
-pub enum DeployMode {
+enum DeployMode {
     DeployOnly,
     ActivateOnly,
 }
@@ -185,7 +150,7 @@ pub struct KeystoreOpts {
 }
 
 #[derive(Clone, Debug, Args)]
-pub struct TxSendingOpts {
+struct TxSendingOpts {
     /// Prepares transactions to send onchain for deploying and activating a Stylus program,
     /// but does not send them. Instead, outputs the prepared tx data hex bytes to files in the directory
     /// specified by the --output-tx-data-to-dir flag. Useful for sending the deployment / activation
@@ -199,6 +164,16 @@ pub struct TxSendingOpts {
 }
 
 fn main() -> Result<()> {
+    let help = env::args().any(|x| x == "help" || x == "--help");
+    if help {
+        if env::args().any(|x| x == "trace") {
+            replay::trace()?;
+        }
+        if env::args().any(|x| x == "replay") {
+            replay::replay()?;
+        }
+    }
+
     let args = match CargoCli::parse() {
         CargoCli::Stylus(args) => args,
         CargoCli::CGen(args) => {
@@ -206,13 +181,7 @@ fn main() -> Result<()> {
         }
     };
 
-    // use the current thread for replay
-    let mut runtime = match &args.command {
-        Subcommands::Replay(_) => Builder::new_current_thread(),
-        _ => Builder::new_multi_thread(),
-    };
-
-    let runtime = runtime.enable_all().build()?;
+    let runtime = Builder::new_multi_thread().enable_all().build()?;
     runtime.block_on(main_impl(args))
 }
 
@@ -250,11 +219,11 @@ async fn main_impl(args: StylusArgs) -> Result<()> {
         Subcommands::Deploy(config) => {
             run!(deploy::deploy(config).await, "failed to deploy");
         }
-        Subcommands::Replay(config) => {
-            run!(replay::replay(config).await, "failed to replay tx");
+        Subcommands::Replay => {
+            run!(replay::replay(), "failed to replay tx");
         }
-        Subcommands::Trace(config) => {
-            run!(replay::trace(config).await, "failed to trace");
+        Subcommands::Trace => {
+            run!(replay::trace(), "failed to trace tx");
         }
     }
     Ok(())

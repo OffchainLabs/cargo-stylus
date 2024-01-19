@@ -3,8 +3,8 @@
 
 #![allow(clippy::redundant_closure_call)]
 
-use crate::color::{Color, DebugColor};
 use alloy_primitives::{Address, TxHash, B256, U256};
+use cargo_stylus_util::color::{Color, DebugColor};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
     types::{
@@ -18,7 +18,7 @@ use std::{collections::VecDeque, mem};
 
 #[derive(Debug)]
 pub struct Trace {
-    top_frame: TraceFrame,
+    pub top_frame: TraceFrame,
     pub receipt: TransactionReceipt,
     pub tx: Transaction,
     pub json: Value,
@@ -339,8 +339,8 @@ impl TraceFrame {
                     data: read_data!(args),
                 },
                 "read_return_data" => ReadReturnData {
-                    offset: read_usize!(args),
-                    size: read_usize!(args),
+                    offset: read_u32!(args),
+                    size: read_u32!(args),
                     data: read_data!(outs),
                 },
                 "return_data_size" => ReturnDataSize {
@@ -506,8 +506,8 @@ pub enum HostioKind {
         topics: usize,
     },
     ReadReturnData {
-        offset: usize,
-        size: usize,
+        offset: u32,
+        size: u32,
         data: Box<[u8]>,
     },
     ReturnDataSize {

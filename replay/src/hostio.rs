@@ -1,4 +1,4 @@
-// Copyright 2022-2023, Offchain Labs, Inc.
+// Copyright 2022-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/stylus-sdk-rs/blob/stylus/licenses/COPYRIGHT.md
 
 #![allow(unused)]
@@ -500,8 +500,8 @@ pub unsafe extern "C" fn read_return_data(
     size_value: usize,
 ) -> usize {
     frame!(ReadReturnData { offset, size, data });
-    assert_eq!(offset_value, offset);
-    assert_eq!(size_value, size);
+    assert_eq!(offset_value, offset as usize);
+    assert_eq!(size_value, size as usize);
     copy!(data, dest, data.len());
     data.len()
 }

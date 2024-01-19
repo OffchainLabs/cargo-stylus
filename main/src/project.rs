@@ -1,14 +1,13 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use crate::constants::{MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE};
-use crate::util;
-use crate::{
-    color::Color,
-    constants::{BROTLI_COMPRESSION_LEVEL, EOF_PREFIX, RUST_TARGET},
+use crate::constants::{
+    BROTLI_COMPRESSION_LEVEL, EOF_PREFIX, MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE,
+    RUST_TARGET,
 };
 use brotli2::read::BrotliEncoder;
 use bytesize::ByteSize;
+use cargo_stylus_util::{color::Color, sys};
 use eyre::{bail, eyre, Result};
 use std::{env::current_dir, io::Read, path::PathBuf};
 
@@ -56,7 +55,7 @@ pub fn build_project_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let cwd: PathBuf = current_dir().map_err(|e| eyre!("could not get current dir: {e}"))?;
 
     if cfg.rebuild {
-        let mut cmd = util::new_command("cargo");
+        let mut cmd = sys::new_command("cargo");
 
         if cfg.nightly {
             cmd.arg("+nightly");

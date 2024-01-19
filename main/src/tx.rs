@@ -1,14 +1,16 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 #![allow(clippy::println_empty_string)]
 
-use crate::color::Color;
 use crate::deploy::TxKind;
-
-use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{Eip1559TransactionRequest, H256, U256};
-use ethers::utils::{format_ether, format_units};
-use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
+use cargo_stylus_util::color::Color;
+use ethers::{
+    middleware::SignerMiddleware,
+    providers::Middleware,
+    signers::Signer,
+    types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, H256, U256},
+    utils::{format_ether, format_units},
+};
 use eyre::eyre;
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]

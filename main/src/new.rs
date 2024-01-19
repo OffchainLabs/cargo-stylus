@@ -1,13 +1,10 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
+use crate::constants::{GITHUB_TEMPLATE_REPO, GITHUB_TEMPLATE_REPO_MINIMAL};
+use cargo_stylus_util::{color::Color, sys};
 use eyre::{bail, eyre};
 use std::{env::current_dir, path::PathBuf};
-
-use crate::{
-    color::Color,
-    constants::{GITHUB_TEMPLATE_REPO, GITHUB_TEMPLATE_REPO_MINIMAL},
-    util,
-};
 
 /// Creates a new Stylus project in the current directory
 pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
@@ -20,7 +17,7 @@ pub fn new_stylus_project(name: &str, minimal: bool) -> eyre::Result<()> {
         true => GITHUB_TEMPLATE_REPO_MINIMAL,
         false => GITHUB_TEMPLATE_REPO,
     };
-    let output = util::new_command("git")
+    let output = sys::new_command("git")
         .arg("clone")
         .arg(repo)
         .arg(name)

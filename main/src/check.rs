@@ -1,7 +1,15 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+use crate::constants::PROGRAM_UP_TO_DATE_ERR;
+use crate::{
+    constants::ARB_WASM_ADDRESS,
+    deploy::activation_calldata,
+    project::{self, BuildConfig},
+    wallet, CheckConfig,
+};
 use bytesize::ByteSize;
+use cargo_stylus_util::{color::Color, sys};
 use ethers::prelude::*;
 use ethers::utils::get_contract_address;
 use ethers::{
@@ -17,16 +25,6 @@ use ethers::{
     providers::{Provider, RawCall},
 };
 use eyre::{bail, eyre};
-
-use crate::constants::PROGRAM_UP_TO_DATE_ERR;
-use crate::util;
-use crate::{
-    color::Color,
-    constants::ARB_WASM_ADDRESS,
-    deploy::activation_calldata,
-    project::{self, BuildConfig},
-    wallet, CheckConfig,
-};
 
 /// Implements a custom wrapper for byte size that can be formatted with color
 /// depending on the byte size. For example, file sizes that are greater than 24Kb
@@ -86,7 +84,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
         &cfg.endpoint.mint()
     );
 
-    let provider = util::new_provider(&cfg.endpoint)?;
+    let provider = sys::new_provider(&cfg.endpoint)?;
 
     let mut expected_program_addr = cfg.clone().expected_program_address;
 

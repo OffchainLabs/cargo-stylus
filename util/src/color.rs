@@ -1,5 +1,6 @@
-// Copyright 2020-2023, Offchain Labs, Inc.
+// Copyright 2020-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
 #![allow(dead_code)]
 
 use std::fmt::{Debug, Display};

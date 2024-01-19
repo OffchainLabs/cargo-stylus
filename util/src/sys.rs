@@ -1,14 +1,13 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+use ethers::{prelude::*, providers::Provider};
+use eyre::{eyre, Context, Result};
 use std::{
     ffi::OsStr,
     process::{Command, Stdio},
     time::Duration,
 };
-
-use ethers::{prelude::*, providers::Provider};
-use eyre::{eyre, Context, Result};
 
 pub fn new_provider(url: &str) -> Result<Provider<Http>> {
     let mut provider =

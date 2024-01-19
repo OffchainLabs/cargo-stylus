@@ -3,18 +3,17 @@
 
 #![allow(clippy::println_empty_string)]
 
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-
+use crate::{
+    check, constants, project, project::BuildConfig, tx, wallet, DeployConfig, DeployMode,
+};
+use cargo_stylus_util::{color::Color, sys};
 use ethers::types::{Eip1559TransactionRequest, H160, U256};
 use ethers::utils::{get_contract_address, to_checksum};
 use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
 use eyre::{bail, eyre};
-
-use crate::project::BuildConfig;
-use crate::util;
-use crate::{check, color::Color, constants, project, tx, wallet, DeployConfig, DeployMode};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 /// The transaction kind for using the Cargo stylus tool with Stylus programs.
 /// Stylus programs can be deployed and activated onchain, and this enum represents
@@ -44,7 +43,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
     let wallet = wallet::load(&cfg.check_cfg).map_err(|e| eyre!("could not load wallet: {e}"))?;
 
-    let provider = util::new_provider(&cfg.check_cfg.endpoint)?;
+    let provider = sys::new_provider(&cfg.check_cfg.endpoint)?;
 
     let chain_id = provider
         .get_chainid()
