@@ -19,7 +19,7 @@ pub enum TxError {
     NoBaseFee,
     #[error("no receipt found for tx hash ({tx_hash})")]
     NoReceiptFound { tx_hash: H256 },
-    #[error("({tx_kind}) got reverted with has ({tx_hash})")]
+    #[error("({tx_kind}) got reverted with hash ({tx_hash})")]
     Reverted { tx_kind: String, tx_hash: H256 },
 }
 
