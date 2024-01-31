@@ -67,13 +67,15 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
             opt_level: project::OptLevel::default(),
             nightly: cfg.nightly,
             rebuild: true,
+            skip_contract_size_check: cfg.skip_contract_size_check,
         })
         .map_err(|e| eyre!("failed to build project to WASM: {e}"))?,
     };
     println!("Reading WASM file at {}", wasm_file_path.display().grey());
 
-    let (precompressed_bytes, init_code) = project::compress_wasm(&wasm_file_path)
-        .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
+    let (precompressed_bytes, init_code) =
+        project::compress_wasm(&wasm_file_path, cfg.skip_contract_size_check)
+            .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
 
     let precompressed_size = FileByteSize::new(precompressed_bytes.len() as u64);
     println!("Uncompressed WASM size: {precompressed_size}");

@@ -23,6 +23,7 @@ pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub nightly: bool,
     pub rebuild: bool,
+    pub skip_contract_size_check: bool,
 }
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]
@@ -111,7 +112,7 @@ pub fn build_project_dylib(cfg: BuildConfig) -> Result<PathBuf> {
         })
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
-    if let Err(e) = compress_wasm(&wasm_file_path) {
+    if let Err(e) = compress_wasm(&wasm_file_path, cfg.skip_contract_size_check) {
         if let Some(BuildError::MaxCompressedSizeExceeded { got, .. }) = e.downcast_ref() {
             match cfg.opt_level {
                 OptLevel::S => {
@@ -127,6 +128,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                         opt_level: OptLevel::Z,
                         nightly: cfg.nightly,
                         rebuild: true,
+                        skip_contract_size_check: cfg.skip_contract_size_check,
                     });
                 }
                 OptLevel::Z => {
@@ -141,6 +143,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                             opt_level: OptLevel::Z,
                             nightly: true,
                             rebuild: true,
+                            skip_contract_size_check: cfg.skip_contract_size_check,
                         });
                     }
                     return Err(BuildError::ExceedsMaxDespiteBestEffort {
@@ -157,7 +160,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
 }
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
-pub fn compress_wasm(wasm_path: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
+pub fn compress_wasm(wasm_path: &PathBuf, skip_size_check: bool) -> Result<(Vec<u8>, Vec<u8>)> {
     let wasm_file_bytes = std::fs::read(wasm_path).map_err(|e| {
         eyre!(
             "could not read WASM file at target path {}: {e}",
@@ -176,6 +179,10 @@ pub fn compress_wasm(wasm_path: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
 
     let mut deploy_ready_code = hex::decode(EOF_PREFIX).unwrap();
     deploy_ready_code.extend(compressed_bytes);
+
+    if skip_size_check {
+        return Ok((wasm_bytes.to_vec(), deploy_ready_code));
+    }
 
     let precompressed_size = ByteSize::b(wasm_bytes.len() as u64);
     if precompressed_size > MAX_PRECOMPRESSED_WASM_SIZE {
