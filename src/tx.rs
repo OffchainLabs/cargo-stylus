@@ -50,20 +50,47 @@ where
     let base_fee_gwei = format_units(base_fee, "gwei")
         .map_err(|e| eyre!("could not format base fee as gwei: {e}"))?;
     println!("Base fee: {} gwei", base_fee_gwei.grey());
-    if !(estimate_only) {
+    if !estimate_only {
         tx_request.max_fee_per_gas = Some(base_fee);
         tx_request.max_priority_fee_per_gas = Some(base_fee);
     }
 
-    let typed = TypedTransaction::Eip1559(tx_request.clone());
-    let estimated = client
-        .estimate_gas(&typed, None)
+    let address = &tx_request
+        .from
+        .ok_or(eyre!("no sender address specified for tx"))?;
+    let balance = client
+        .get_balance(*address, None)
         .await
-        .map_err(|e| eyre!("could not estimate gas {e}"))?;
+        .map_err(|e| eyre!("could not get sender balance: {e}"))?;
+
+    let typed = TypedTransaction::Eip1559(tx_request.clone());
+    let estimated = client.estimate_gas(&typed, None).await.map_err(|e| {
+        if e.to_string().contains("gas required exceeds allowance") {
+            return eyre!(
+                "not enough funds to transact, only had ETH balance of {}",
+                format_ether(balance)
+            );
+        }
+        eyre!("could not estimate gas: {e}")
+    })?;
+
+    let estimate_gas_price = client
+        .get_gas_price()
+        .await
+        .map_err(|e| eyre!("could not estimate gas price for tx: {e}"))?;
+
+    let total_estimated_cost = estimated
+        .checked_mul(estimate_gas_price)
+        .ok_or(eyre!("could not multiply estimated gas cost by gas price"))?;
+
+    let estimate_gas_price = format_units(estimate_gas_price, "gwei")
+        .map_err(|e| eyre!("could not format gas price to gwei: {e}"))?;
 
     println!(
-        "Estimated gas for {tx_kind}: {} gas units",
-        estimated.mint()
+        "Estimations for {tx_kind}: gas price (gwei): {}, gas units: {}, total ETH cost: {}",
+        estimate_gas_price.mint(),
+        estimated.mint(),
+        format_ether(total_estimated_cost).mint(),
     );
 
     if estimate_only {

@@ -114,6 +114,10 @@ pub struct CheckConfig {
     /// Whether to use Rust nightly.
     #[arg(long)]
     nightly: bool,
+    /// Whether to skip the contract size check. In case the contract size is exceeded, a warning
+    /// will be emitted, but the overall cargo stylus check command will not fail.
+    #[arg(long)]
+    skip_contract_size_check: bool,
 }
 
 #[derive(Args, Clone, Debug)]

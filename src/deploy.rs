@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use ethers::types::{Eip1559TransactionRequest, H160, U256};
-use ethers::utils::{get_contract_address, to_checksum};
+use ethers::utils::{format_ether, get_contract_address, to_checksum};
 use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
 use eyre::{bail, eyre};
 
@@ -99,6 +99,7 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
                 to_checksum(&addr, None),
             );
         }
+        println!("Address has ETH Balance: {}", format_ether(balance).mint());
     }
 
     // The folder at which to output the transaction data bytes.
@@ -117,10 +118,12 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
                 opt_level: project::OptLevel::default(),
                 nightly: cfg.check_cfg.nightly,
                 rebuild: false, // The check step at the start of this command rebuilt.
+                skip_contract_size_check: cfg.check_cfg.skip_contract_size_check,
             })
             .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
         };
-        let (_, init_code) = project::compress_wasm(&wasm_file_path)?;
+        let (_, init_code) =
+            project::compress_wasm(&wasm_file_path, cfg.check_cfg.skip_contract_size_check)?;
         println!("");
         println!("{}", "====DEPLOYMENT====".grey());
         println!(
