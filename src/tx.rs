@@ -61,9 +61,20 @@ where
         .await
         .map_err(|e| eyre!("could not estimate gas {e}"))?;
 
+    let estimate_gas_price = client
+        .get_gas_price()
+        .await
+        .map_err(|e| eyre!("could not estimate gas price for tx {e}"))?;
+
+    let total_estimated_cost = estimated
+        .checked_mul(estimate_gas_price)
+        .ok_or(eyre!("could not multiply estimated gas cost by gas price"))?;
+
     println!(
-        "Estimated gas for {tx_kind}: {} gas units",
-        estimated.mint()
+        "Estimations for {tx_kind}: gas price: {}, gas units: {}, total ETH cost : {}",
+        estimate_gas_price.mint(),
+        estimated.mint(),
+        format_ether(total_estimated_cost).mint(),
     );
 
     if estimate_only {
