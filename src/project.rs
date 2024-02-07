@@ -9,16 +9,25 @@ use crate::{
 };
 use brotli2::read::BrotliEncoder;
 use bytesize::ByteSize;
+use ethers::types::U256;
 use eyre::{bail, eyre, Result};
-use std::{env::current_dir, io::Read, path::PathBuf};
+use std::process::Command;
+use std::str::FromStr as _;
+use std::{
+    env::current_dir,
+    io::Read,
+    path::{Path, PathBuf},
+};
+use tiny_keccak::{Hasher, Keccak};
 
-#[derive(Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub enum OptLevel {
     #[default]
     S,
     Z,
 }
 
+#[derive(Clone, Copy)]
 pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub nightly: bool,
@@ -47,6 +56,105 @@ We are actively working to reduce WASM program sizes that use the Stylus SDK.
 To see all available optimization options, see more in:
 https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#)]
     MaxPrecompressedSizeExceeded { got: ByteSize, want: ByteSize },
+}
+
+fn all_paths() -> Result<Vec<PathBuf>> {
+    let mut files = Vec::<PathBuf>::new();
+    let mut directories = Vec::<PathBuf>::new();
+    directories.push(PathBuf::from_str(".").unwrap());
+    while let Some(dir) = directories.pop() {
+        for f in std::fs::read_dir(&dir)
+            .map_err(|e| eyre!("Unable to read directory {}: {e}", dir.display()))?
+        {
+            let f = f.map_err(|e| eyre!("Error finding file in {}: {e}", dir.display()))?;
+            let mut pathbuf = dir.clone();
+            pathbuf.push(f.file_name());
+            let bytes = dir.as_os_str().as_encoded_bytes();
+            if bytes == b"./target" || bytes == b"./.git" || bytes == b"./.gitignore" {
+                continue;
+            }
+            if pathbuf.is_dir() {
+                directories.push(pathbuf);
+            } else {
+                files.push(pathbuf);
+            }
+        }
+    }
+    Ok(files)
+}
+
+pub fn hash_files(cfg: BuildConfig) -> Result<[u8; 32]> {
+    let mut keccak = Keccak::v256();
+    let mut cmd = Command::new("cargo");
+    if cfg.nightly {
+        cmd.arg("+nightly");
+    }
+    cmd.arg("--version");
+    let output = cmd
+        .output()
+        .map_err(|e| eyre!("failed to execute cargo command: {e}"))?;
+    if !output.status.success() {
+        bail!("cargo version command failed");
+    }
+    keccak.update(&output.stdout);
+    if cfg.opt_level == OptLevel::Z {
+        keccak.update(&[0]);
+    } else {
+        keccak.update(&[1]);
+    }
+
+    let mut buf = vec![0u8; 0x100000];
+
+    let mut hash_file = |filename: &Path| -> Result<()> {
+        keccak.update(&(filename.as_os_str().len() as u64).to_be_bytes());
+        keccak.update(filename.as_os_str().as_encoded_bytes());
+        let mut file = std::fs::File::open(filename)
+            .map_err(|e| eyre!("failed to open file {}: {e}", filename.display()))?;
+        keccak.update(&file.metadata().unwrap().len().to_be_bytes());
+        loop {
+            let bytes_read = file
+                .read(&mut buf)
+                .map_err(|e| eyre!("Unable to read file {}: {e}", filename.display()))?;
+            if bytes_read == 0 {
+                break;
+            }
+            keccak.update(&buf[..bytes_read]);
+        }
+        Ok(())
+    };
+
+    let mut paths = all_paths()?;
+    paths.sort();
+
+    for filename in paths.iter() {
+        hash_file(filename)?;
+    }
+
+    let mut hash = [0u8; 32];
+    keccak.finalize(&mut hash);
+    Ok(hash)
+}
+
+/// Prepares an EVM bytecode prelude for contract creation.
+pub fn program_deployment_calldata(code: &[u8], hash: &[u8; 32]) -> Vec<u8> {
+    let mut code_len = [0u8; 32];
+    U256::from(code.len()).to_big_endian(&mut code_len);
+    let mut deploy: Vec<u8> = vec![];
+    deploy.push(0x7f); // PUSH32
+    deploy.extend(code_len);
+    deploy.push(0x80); // DUP1
+    deploy.push(0x60); // PUSH1
+    deploy.push(42 + 1 + 32); // prelude + version + hash
+    deploy.push(0x60); // PUSH1
+    deploy.push(0x00);
+    deploy.push(0x39); // CODECOPY
+    deploy.push(0x60); // PUSH1
+    deploy.push(0x00);
+    deploy.push(0xf3); // RETURN
+    deploy.push(0x00); // version
+    deploy.extend(hash);
+    deploy.extend(code);
+    deploy
 }
 
 /// Build a Rust project to WASM and return the path to the compiled WASM file.

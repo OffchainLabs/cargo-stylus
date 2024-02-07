@@ -44,7 +44,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
         .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
     let wallet = wallet::load(&cfg.check_cfg).map_err(|e| eyre!("could not load wallet: {e}"))?;
 
-    let provider = util::new_provider(&cfg.check_cfg.endpoint)?;
+    let provider = util::new_provider(&cfg.check_cfg.common_cfg.endpoint)?;
 
     let chain_id = provider
         .get_chainid()
@@ -112,25 +112,29 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
     }
 
     if deploy {
+        let build_cfg = BuildConfig {
+            opt_level: project::OptLevel::default(),
+            nightly: cfg.check_cfg.common_cfg.nightly,
+            rebuild: false, // The check step at the start of this command rebuilt.
+            skip_contract_size_check: cfg.check_cfg.common_cfg.skip_contract_size_check,
+        };
         let wasm_file_path: PathBuf = match &cfg.check_cfg.wasm_file_path {
             Some(path) => PathBuf::from_str(path).unwrap(),
-            None => project::build_project_dylib(BuildConfig {
-                opt_level: project::OptLevel::default(),
-                nightly: cfg.check_cfg.nightly,
-                rebuild: false, // The check step at the start of this command rebuilt.
-                skip_contract_size_check: cfg.check_cfg.skip_contract_size_check,
-            })
-            .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
+            None => project::build_project_dylib(build_cfg)
+                .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
         };
-        let (_, init_code) =
-            project::compress_wasm(&wasm_file_path, cfg.check_cfg.skip_contract_size_check)?;
+        let hash = project::hash_files(build_cfg)?;
+        let (_, init_code) = project::compress_wasm(
+            &wasm_file_path,
+            cfg.check_cfg.common_cfg.skip_contract_size_check,
+        )?;
         println!("");
         println!("{}", "====DEPLOYMENT====".grey());
         println!(
             "Deploying program to address {}",
             to_checksum(&expected_program_addr, None).mint(),
         );
-        let deployment_calldata = program_deployment_calldata(&init_code);
+        let deployment_calldata = project::program_deployment_calldata(&init_code, &hash);
 
         // Output the tx data to a user's specified directory if desired.
         if let Some(tx_data_output_dir) = output_dir {
@@ -203,26 +207,6 @@ pub fn activation_calldata(program_addr: &H160) -> Vec<u8> {
     extension[12..32].copy_from_slice(program_addr.as_bytes());
     activate_calldata.extend(extension);
     activate_calldata
-}
-
-/// Prepares an EVM bytecode prelude for contract creation.
-pub fn program_deployment_calldata(code: &[u8]) -> Vec<u8> {
-    let mut code_len = [0u8; 32];
-    U256::from(code.len()).to_big_endian(&mut code_len);
-    let mut deploy: Vec<u8> = vec![];
-    deploy.push(0x7f); // PUSH32
-    deploy.extend(code_len);
-    deploy.push(0x80); // DUP1
-    deploy.push(0x60); // PUSH1
-    deploy.push(0x2a); // 42 the prelude length
-    deploy.push(0x60); // PUSH1
-    deploy.push(0x00);
-    deploy.push(0x39); // CODECOPY
-    deploy.push(0x60); // PUSH1
-    deploy.push(0x00);
-    deploy.push(0xf3); // RETURN
-    deploy.extend(code);
-    deploy
 }
 
 fn write_tx_data(tx_kind: TxKind, path: &Path, data: &[u8]) -> eyre::Result<()> {

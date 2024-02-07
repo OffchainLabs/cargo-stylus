@@ -6,17 +6,17 @@ use std::str::FromStr;
 use ethers::signers::LocalWallet;
 use eyre::{bail, eyre};
 
-use crate::CheckConfig;
+use crate::{CheckConfig, CommonConfig};
 
 /// Loads a wallet for signing transactions either from a private key file path.
 /// or a keystore along with a keystore password file.
 pub fn load(cfg: &CheckConfig) -> eyre::Result<LocalWallet> {
-    let CheckConfig {
+    let CommonConfig {
         private_key_path,
         keystore_opts,
         private_key,
         ..
-    } = cfg;
+    } = &cfg.common_cfg;
     if private_key.is_some() && private_key_path.is_some() {
         bail!("cannot provide both --private-key and --private-key-path");
     }
