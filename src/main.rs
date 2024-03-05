@@ -18,6 +18,7 @@ mod new;
 mod project;
 mod replay;
 mod tx;
+mod script;
 mod util;
 mod wallet;
 
@@ -85,6 +86,9 @@ enum Subcommands {
     /// Trace a transaction.
     #[command(alias = "t")]
     Trace(TraceConfig),
+    /// Work with scripts.
+    #[command(subcommand, alias = "s")]
+    Script(ScriptArgs),
 }
 
 #[derive(Args, Clone, Debug)]
@@ -169,6 +173,18 @@ pub struct TraceConfig {
     /// Project path.
     #[arg(short, long, default_value = ".")]
     project: PathBuf,
+}
+
+#[derive(Parser, Clone, Debug)]
+pub enum ScriptArgs {
+    /// Create a new script
+    #[command(alias = "a")]
+    New(ScriptNewConfig),
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct ScriptNewConfig {
+    path: PathBuf,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -259,6 +275,13 @@ async fn main_impl(args: StylusArgs) -> Result<()> {
         }
         Subcommands::Trace(config) => {
             run!(replay::trace(config).await, "failed to trace");
+        }
+        Subcommands::Script(script_args) => {
+            match script_args {
+                ScriptArgs::New(config) => {
+                    run!(script::new(config).await, "failed to add script")
+                }
+            }
         }
     }
     Ok(())
