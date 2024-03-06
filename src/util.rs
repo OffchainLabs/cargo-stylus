@@ -38,15 +38,15 @@ pub fn command_exists<S: AsRef<OsStr>>(program: S) -> bool {
 
 /// Climb each parent directory from a given starting directory until we find Cargo.toml
 pub fn discover_project_root_from_path(start_from: impl AsRef<Path>) -> Result<Option<PathBuf>> {
-    discover_file_up_from_path(start_from, |path| {
-        if path
-            .file_name().and_then(std::ffi::OsStr::to_str)
+    discover_file_up_from_path(start_from, |path| -> Option<PathBuf> {
+        path.file_name()
+            .and_then(std::ffi::OsStr::to_str)
             .is_some_and(|name| name == "Cargo.toml")
-        {
-            path.parent().map(PathBuf::from)
-        } else {
-            None
-        }
+            .then(|| {
+                path.parent()
+                    .expect("Cargo.toml is sure to have a parent directory")
+                    .into()
+            })
     })
 }
 
