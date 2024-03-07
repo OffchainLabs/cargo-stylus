@@ -3,7 +3,7 @@
 
 use std::{
     ffi::OsStr,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     time::Duration,
@@ -50,8 +50,7 @@ pub fn discover_project_root_from_path(start_from: impl AsRef<Path>) -> Result<O
     })
 }
 
-/// Climb each parent directory from a given starting directory until we find a file, matching the
-/// given predicate
+/// Climb each parent directory from a given starting directory until we find a file, matching the given predicate
 pub fn discover_file_up_from_path<T>(
     start_from: impl AsRef<Path>,
     predicate: impl Fn(PathBuf) -> Option<T>,
@@ -63,7 +62,9 @@ pub fn discover_file_up_from_path<T>(
             .with_context(|| format!("Error reading the directory with path: {}", cwd.display()))?;
 
         let result = paths
-            .filter_map(|entry| entry.ok())
+            .collect::<Result<Vec<_>, io::Error>>()
+            .wrap_err(format!("Could not read entries in {}", cwd.display()))?
+            .into_iter()
             .map(|entry| entry.path())
             .find_map(&predicate);
 
