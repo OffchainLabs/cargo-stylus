@@ -1,12 +1,13 @@
 use std::{
     env, fs,
     path::Path,
-    process::{Command, Stdio},
 };
 
-use eyre::{bail, eyre, OptionExt, Result};
+use eyre::{OptionExt, Result};
 
 use crate::{util, ScriptNewConfig};
+
+mod templates;
 
 pub async fn new(config: ScriptNewConfig) -> Result<()> {
     println!("Adding new script: {:?}", config);
@@ -16,7 +17,7 @@ pub async fn new(config: ScriptNewConfig) -> Result<()> {
         &util::discover_project_root_from_path(cwd)?.ok_or_eyre("Could not find Cargo.toml")?;
     println!("Found to project root: {}", project_root.display());
 
-    let script_dir: &Path = &project_root.join("scripts");
+    let script_dir: &Path = &project_root.join("scripts").join(&config.path);
 
     fs::create_dir_all(script_dir)?;
     env::set_current_dir(script_dir)?;
@@ -26,20 +27,15 @@ pub async fn new(config: ScriptNewConfig) -> Result<()> {
         script_dir.display()
     );
 
-    let mut cmd = Command::new("cargo");
-    cmd.stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .arg("new")
-        .arg("--bin")
-        .arg(config.path);
-
-    let output = cmd
-        .output()
-        .map_err(|e| eyre!("failed to execute cargo new command: {e}"))?;
-
-    if !output.status.success() {
-        bail!("Create new script failed: {:?}", output);
-    }
+    let template = templates::rust::basic_template(
+        config
+            .path
+            .to_str()
+            .ok_or_eyre("Could not convert path to string")?
+            .to_string(),
+        script_dir,
+    )?;
+    templates::realise(template)?;
 
     Ok(())
 }
