@@ -59,7 +59,7 @@ pub fn discover_file_up_from_path<T>(
 
     while let Some(cwd) = cwd_opt {
         let paths = fs::read_dir(cwd)
-            .with_context(|| format!("Error reading the directory with path: {}", cwd.display()))?;
+            .wrap_err(format!("Error reading the directory with path: {}", cwd.display()))?;
 
         let result = paths
             .collect::<Result<Vec<_>, io::Error>>()
