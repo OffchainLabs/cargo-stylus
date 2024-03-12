@@ -3,6 +3,7 @@
 use eyre::{bail, eyre, Result};
 use std::{
     fs::File,
+    io::{stdout, BufRead, BufReader, Write},
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -86,30 +87,41 @@ Please see https://docs.soliditylang.org/en/latest/installing-solidity.html on h
     let mut cmd = Command::new("solc");
 
     cmd.stdin(Stdio::from(child_proc.stdout.unwrap()))
+        .stdout(Stdio::piped())
         .stderr(Stdio::inherit());
-
-    match output_file.as_ref() {
-        Some(output_file_path) => {
-            let output_file = File::create(output_file_path).map_err(|e| {
-                eyre!(
-                    "could not create output file to write ABI at path {}: {e}",
-                    output_file_path.as_os_str().to_string_lossy()
-                )
-            })?;
-            cmd.stdout(output_file);
-        }
-        None => {
-            cmd.stdout(Stdio::inherit());
-        }
-    }
 
     let solcout = cmd
         .arg("--abi")
         .arg("-")
         .output()
         .map_err(|e| eyre!("failed to execute solc command: {e}"))?;
+
     if !solcout.status.success() {
-        bail!("Export ABI JSON command using solc failed: {:?}", solcout);
+        bail!("Export ABI JSON command usin solc failed: {:?}", solcout);
     }
+
+    let mut output_file: Box<dyn Write> = match output_file.as_ref() {
+        Some(output_file_path) => Box::new(File::create(output_file_path).map_err(|e| {
+            eyre!(
+                "could not create output file to write ABI at path {}: {e}",
+                output_file_path.as_os_str().to_string_lossy()
+            )
+        })?),
+        None => Box::new(stdout()),
+    };
+
+    // NOTE: filter out first three lines of output
+    //
+    // ```
+    // 
+    // ======= <stdin>:IName =======
+    // Contract JSON ABI
+    // ```
+    let solcstdout = BufReader::new(&solcout.stdout[..]);
+    solcstdout
+        .lines()
+        .skip(3)
+        .try_for_each(|line| writeln!(output_file, "{}", line?))?;
+
     Ok(())
 }
