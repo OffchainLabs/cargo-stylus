@@ -179,6 +179,9 @@ pub enum ScriptArgs {
     /// Create a new script
     #[command(alias = "a")]
     New(ScriptNewConfig),
+    /// Run an existing script
+    #[command(alias = "r")]
+    Run(ScriptRunConfig),
 }
 
 #[derive(Args, Clone, Debug)]
@@ -186,6 +189,11 @@ pub struct ScriptNewConfig {
     // language: Language,
     pub name: String,
     pub path: PathBuf,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct ScriptRunConfig {
+    pub name: String,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -262,6 +270,9 @@ pub async fn main_impl(args: StylusArgs) -> Result<()> {
         Subcommands::Script(script_args) => match script_args {
             ScriptArgs::New(config) => {
                 run!(script::new(config).await, "failed to add script")
+            }
+            ScriptArgs::Run(config) => {
+                run!(script::run(config).await, "failed to run script")
             }
         },
     }
