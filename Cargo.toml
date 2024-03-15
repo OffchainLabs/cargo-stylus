@@ -9,6 +9,14 @@ repository = "https://github.com/OffchainLabs/cargo-stylus"
 keywords = ["arbitrum", "ethereum", "stylus", "alloy", "cargo"]
 description = "CLI tool for deploying Stylus contracts on Arbitrum chains"
 
+[[bin]]
+name = "cargo-stylus"
+path = "src/main.rs"
+
+[lib]
+name = "cargo_stylus"
+path = "src/lib.rs"
+
 [dependencies]
 alloy-primitives = "0.4.0"
 rustc-host = "0.1.7"
