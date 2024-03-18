@@ -36,15 +36,15 @@ pub fn command_exists<S: AsRef<OsStr>>(program: S) -> bool {
         .unwrap_or_default()
 }
 
-/// Climb each parent directory from a given starting directory until we find Cargo.toml
+/// Climb each parent directory from a given starting directory until we find `.git`
 pub fn discover_project_root_from_path(start_from: impl AsRef<Path>) -> Result<Option<PathBuf>> {
     discover_file_up_from_path(start_from, |path| -> Option<PathBuf> {
         path.file_name()
             .and_then(std::ffi::OsStr::to_str)
-            .is_some_and(|name| name == "Cargo.toml")
+            .is_some_and(|name| name == ".git")
             .then(|| {
                 path.parent()
-                    .expect("Cargo.toml is sure to have a parent directory")
+                    .expect(".git is sure to be inside another directory")
                     .into()
             })
     })
@@ -58,6 +58,7 @@ pub fn discover_file_up_from_path<T>(
     let mut cwd_opt = Some(start_from.as_ref());
 
     while let Some(cwd) = cwd_opt {
+        #[rustfmt::skip]
         let paths = fs::read_dir(cwd)
             .wrap_err(format!("Error reading the directory with path: {}", cwd.display()))?;
 
