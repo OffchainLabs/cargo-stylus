@@ -278,4 +278,3 @@ pub async fn main_impl(args: StylusArgs) -> Result<()> {
     }
     Ok(())
 }
-
