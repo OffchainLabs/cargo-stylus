@@ -97,7 +97,7 @@ Please see https://docs.soliditylang.org/en/latest/installing-solidity.html on h
         .map_err(|e| eyre!("failed to execute solc command: {e}"))?;
 
     if !solcout.status.success() {
-        bail!("Export ABI JSON command usin solc failed: {:?}", solcout);
+        bail!("Export ABI JSON command using solc failed: {:?}", solcout);
     }
 
     let mut output_file: Box<dyn Write> = match output_file.as_ref() {
