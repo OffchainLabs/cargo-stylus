@@ -2,15 +2,19 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use std::{
+    env,
     ffi::OsStr,
     fs, io,
+    io::{BufRead, BufReader},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     time::Duration,
 };
 
 use ethers::{prelude::*, providers::Provider};
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Context, OptionExt, Result};
+
+pub mod scripts;
 
 pub fn new_provider(url: &str) -> Result<Provider<Http>> {
     let mut provider =
@@ -77,4 +81,50 @@ pub fn discover_file_up_from_path<T>(
     }
 
     Ok(None)
+}
+
+/// Reads and trims a line from a filepath
+pub fn read_and_trim_line_from_file(fpath: impl AsRef<Path>) -> eyre::Result<String> {
+    let f = std::fs::File::open(fpath)?;
+    let mut buf_reader = BufReader::new(f);
+    let mut secret = String::new();
+    buf_reader.read_line(&mut secret)?;
+    Ok(secret.trim().to_string())
+}
+
+/// Find and return the Stylus project root (characterized by `.git`),
+/// relative to cwd or a given directory
+pub fn find_parent_project_root(start_from: Option<PathBuf>) -> Result<PathBuf> {
+    let start_from = start_from.unwrap_or(env::current_dir()?);
+
+    //  NOTE: search upwards for `.git`
+    crate::util::discover_project_root_from_path(start_from)?
+        .ok_or_eyre("Could not find project root")
+}
+
+/// Set cwd to the current Stylus project root
+pub fn move_to_parent_project_root() -> Result<()> {
+    let parent_project_root = &find_parent_project_root(None)?;
+
+    env::set_current_dir(parent_project_root)?;
+    println!("Set cwd to {}", parent_project_root.display());
+
+    Ok(())
+}
+
+/// Convert (maybe) relative paths to absolute ones,
+/// relative to another path
+pub fn make_absolute_relative_to(
+    path: impl AsRef<Path>,
+    relative_to: impl AsRef<Path>,
+) -> Result<PathBuf> {
+    let mut path: PathBuf = path.as_ref().to_path_buf();
+    let relative_to = relative_to.as_ref();
+
+    if !path.is_absolute() {
+        path = relative_to.join(path);
+    }
+
+    path.canonicalize()
+        .wrap_err(format!("Could not canonicalize {}", path.display()))
 }

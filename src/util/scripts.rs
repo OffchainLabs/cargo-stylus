@@ -5,18 +5,18 @@ use ethers::{
     signers::{LocalWallet, Signer, Wallet},
     types::Address,
 };
-use eyre::{bail, eyre, Context, OptionExt, Result};
+use eyre::{bail, eyre, OptionExt, Result};
 
+use crate::util::{
+    find_parent_project_root, make_absolute_relative_to, move_to_parent_project_root,
+    read_and_trim_line_from_file,
+};
 use crate::{CheckConfig, DeployConfig, KeystoreOpts, TxSendingOpts};
 use serde::Deserialize;
 use tokio::fs;
 
 use std::{
     collections::BTreeMap,
-    env,
-    io::{BufRead, BufReader},
-    path::Path,
-    path::PathBuf,
     str::FromStr,
     sync::Arc,
 };
@@ -127,52 +127,6 @@ pub async fn load_config_for(network: &str) -> Result<Config> {
     })
 }
 
-/// Reads and trims a line from a filepath
-pub fn read_and_trim_line_from_file(fpath: impl AsRef<Path>) -> eyre::Result<String> {
-    let f = std::fs::File::open(fpath)?;
-    let mut buf_reader = BufReader::new(f);
-    let mut secret = String::new();
-    buf_reader.read_line(&mut secret)?;
-    Ok(secret.trim().to_string())
-}
-
-/// Find and return the Stylus project root (characterized by `.git`),
-/// relative to cwd or a given directory
-pub fn find_parent_project_root(start_from: Option<PathBuf>) -> Result<PathBuf> {
-    let start_from = start_from.unwrap_or(env::current_dir()?);
-
-    //  NOTE: search upwards for `.git`
-    crate::util::discover_project_root_from_path(start_from)?
-        .ok_or_eyre("Could not find project root")
-}
-
-/// Set cwd to the current Stylus project root
-pub fn move_to_parent_project_root() -> Result<()> {
-    let parent_project_root = &find_parent_project_root(None)?;
-
-    env::set_current_dir(parent_project_root)?;
-    println!("Set cwd to {}", parent_project_root.display());
-
-    Ok(())
-}
-
-/// Convert (maybe) relative paths to absolute ones,
-/// relative to another path
-pub fn make_absolute_relative_to(
-    path: impl AsRef<Path>,
-    relative_to: impl AsRef<Path>,
-) -> Result<PathBuf> {
-    let mut path: PathBuf = path.as_ref().to_path_buf();
-    let relative_to = relative_to.as_ref();
-
-    if !path.is_absolute() {
-        path = relative_to.join(path);
-    }
-
-    path.canonicalize()
-        .wrap_err(format!("Could not canonicalize {}", path.display()))
-}
-
 /// Helper function, wrapping `cargo_stylus::deploy::deploy`,
 /// used to deploy the main contract of the current Stylus project
 pub async fn deploy(network: &str) -> Result<Address> {
@@ -231,15 +185,4 @@ pub async fn deploy(network: &str) -> Result<Address> {
     crate::deploy::deploy(cfg).await?;
 
     Ok(expected_program_address)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn testnet_env_loads() {
-        let config = load_config_for("testnet").await.unwrap();
-        println!("{:?}", config);
-    }
 }

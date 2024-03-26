@@ -10,7 +10,6 @@ use std::path::PathBuf;
 pub mod c;
 pub mod check;
 pub mod color;
-pub mod common;
 pub mod constants;
 pub mod deploy;
 pub mod export_abi;
