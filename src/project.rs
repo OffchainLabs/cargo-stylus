@@ -1,16 +1,19 @@
 // Copyright 2023, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+use std::{env::current_dir, io::Read, path::PathBuf};
+
+use brotli2::read::BrotliEncoder;
+use bytesize::ByteSize;
+use eyre::{bail, eyre, Result};
+use indoc::indoc;
+
 use crate::constants::{MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE};
 use crate::util;
 use crate::{
     color::Color,
     constants::{BROTLI_COMPRESSION_LEVEL, EOF_PREFIX, RUST_TARGET},
 };
-use brotli2::read::BrotliEncoder;
-use bytesize::ByteSize;
-use eyre::{bail, eyre, Result};
-use std::{env::current_dir, io::Read, path::PathBuf};
 
 #[derive(Default, PartialEq)]
 pub enum OptLevel {
@@ -117,10 +120,12 @@ pub fn build_project_dylib(cfg: BuildConfig) -> Result<PathBuf> {
             match cfg.opt_level {
                 OptLevel::S => {
                     println!(
-                        r#"Compressed program built with defaults had program size {} > max of 24Kb, 
-rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
-using the Stylus SDK. To see all available optimization options, see more in:
-https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
+                        indoc!(r#"
+                            Compressed program built with defaults had program size {} > max of 24Kb,
+                            rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
+                            using the Stylus SDK. To see all available optimization options, see more in:
+                            https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md
+                        "#),
                         got.red(),
                     );
                     // Attempt to build again with a bumped-up optimization level.
