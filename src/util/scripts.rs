@@ -15,11 +15,7 @@ use crate::{CheckConfig, DeployConfig, KeystoreOpts, TxSendingOpts};
 use serde::Deserialize;
 use tokio::fs;
 
-use std::{
-    collections::BTreeMap,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
 const STYLUS_CONFIG_FILENAME: &str = "Stylus.toml";
 
@@ -97,7 +93,7 @@ pub async fn load_network_config_for(network: &str) -> Result<NetworkConfig> {
 
     stylus_config
         .networks
-        // NOTE: `.remove`-ing instead of `.get`-ing to avoid `.clone()`-ing later
+        // NOTE: `.remove`-ing instead of `.get`-ing to avoid `.clone()`-ing
         .remove(&network.to_lowercase())
         .ok_or_eyre(format!("No configuration for network {}", network))
 }
