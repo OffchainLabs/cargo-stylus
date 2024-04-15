@@ -65,6 +65,7 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<bool> {
         Some(path) => PathBuf::from_str(path).unwrap(),
         None => project::build_project_dylib(BuildConfig {
             opt_level: project::OptLevel::default(),
+            features: cfg.features.clone(),
             nightly: cfg.nightly,
             rebuild: true,
             skip_contract_size_check: cfg.skip_contract_size_check,
