@@ -433,8 +433,8 @@ pub unsafe extern "C" fn evm_ink_left() -> u64 {
 /// Calls made voluntarily will unproductively consume gas.
 #[named]
 #[no_mangle]
-pub unsafe extern "C" fn memory_grow(new_pages: u16) {
-    frame!(MemoryGrow { pages });
+pub unsafe extern "C" fn pay_for_memory_grow(new_pages: u16) {
+    frame!(PayForMemoryGrow { pages });
     assert_eq!(new_pages, pages);
 }
 

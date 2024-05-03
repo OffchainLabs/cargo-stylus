@@ -293,7 +293,7 @@ impl TraceFrame {
                 "tx_origin" => TxOrigin {
                     origin: read_address!(outs),
                 },
-                "memory_grow" => MemoryGrow {
+                "memory_grow" => PayForMemoryGrow {
                     pages: read_u16!(args),
                 },
                 "call_contract" => CallContract {
@@ -432,7 +432,7 @@ pub enum HostioKind {
     EvmInkLeft {
         ink_left: u64,
     },
-    MemoryGrow {
+    PayForMemoryGrow {
         pages: u16,
     },
     MsgReentrant {

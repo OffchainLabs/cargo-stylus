@@ -33,7 +33,7 @@ pub trait Color {
 impl<T> Color for T where T: Display {
 
     fn color(&self, color: &str) -> String {
-        format!("{}{}{}", color, self, CLEAR)
+        format!("{color}{}{CLEAR}", self)
     }
 
     fn blue(&self)   -> String { self.color(BLUE)   }
@@ -72,7 +72,7 @@ pub trait DebugColor {
 impl<T> DebugColor for T where T: Debug {
 
     fn debug_color(&self, color: &str) -> String {
-        format!("{}{:?}{}", color, self, CLEAR)
+        format!("{color}{:?}{CLEAR}", self)
     }
 
     fn debug_blue(&self)   -> String { self.debug_color(BLUE)   }

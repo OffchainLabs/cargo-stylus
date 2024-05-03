@@ -40,7 +40,7 @@ enum Subcommands {
 #[derive(Args, Clone, Debug)]
 struct ReplayArgs {
     /// RPC endpoint.
-    #[arg(short, long, default_value = "http://localhost:8545")]
+    #[arg(short, long, default_value = "http://localhost:8547")]
     endpoint: String,
     /// Tx to replay.
     #[arg(short, long)]
@@ -59,7 +59,7 @@ struct ReplayArgs {
 #[derive(Args, Clone, Debug)]
 struct TraceArgs {
     /// RPC endpoint.
-    #[arg(short, long, default_value = "http://localhost:8545")]
+    #[arg(short, long, default_value = "http://localhost:8547")]
     endpoint: String,
     /// Tx to replay.
     #[arg(short, long)]
