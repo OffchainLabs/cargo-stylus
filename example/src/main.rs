@@ -44,7 +44,7 @@ enum Apis {
 
 fn main() {
     let args = Opts::parse();
-    let Apis::Example { my_file, my_flag} = args.command;
+    let Apis::Example { my_file, my_flag } = args.command;
 
     // do something with your args
     println!("example: {} {}", my_file.to_string_lossy(), my_flag);
