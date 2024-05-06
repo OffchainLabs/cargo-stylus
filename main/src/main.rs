@@ -4,7 +4,13 @@
 use cargo_stylus_util::{color::Color, sys};
 use clap::Parser;
 use eyre::{bail, Result};
-use std::{env, os::unix::process::CommandExt};
+use std::env;
+
+#[cfg(target_os = "windows")]
+const CARGO_COMMAND: &str = "cargo.exe";
+
+#[cfg(not(target_os = "windows"))]
+const CARGO_COMMAND: &str = "cargo";
 
 #[derive(Parser, Debug)]
 #[command(name = "stylus")]
@@ -79,8 +85,8 @@ fn exit_with_help_msg() -> ! {
 
 fn main() -> Result<()> {
     // skip the starting arguments passed from the OS and/or cargo.
-    let mut args =
-        env::args().skip_while(|x| x == "cargo" || x == "stylus" || x.contains("cargo-stylus"));
+    let mut args = env::args()
+        .skip_while(|x| x == CARGO_COMMAND || x == "stylus" || x.contains("cargo-stylus"));
 
     let Some(arg) = args.next() else {
         exit_with_help_msg();
@@ -94,8 +100,13 @@ fn main() -> Result<()> {
         // see if custom extension exists
         let custom = format!("cargo-stylus-{arg}");
         if sys::command_exists(&custom) {
-            let err = sys::new_command(&custom).arg(arg).args(args).exec();
-            bail!("failed to invoke {}: {err}", custom.red());
+            if let Err(err) = sys::new_command(&custom)
+                .arg(arg.clone())
+                .args(args)
+                .status()
+            {
+                bail!("failed to invoke {}: {err}", custom.red());
+            };
         }
 
         eprintln!("Unknown subcommand {}.", arg.red());
@@ -108,7 +119,7 @@ fn main() -> Result<()> {
     // not all subcommands are shipped with `cargo-stylus`.
     if !sys::command_exists(name) {
         let flags = bin.rust_flags.map(|x| format!("{x} ")).unwrap_or_default();
-        let install = format!("    {flags}cargo install --force {name}");
+        let install = format!("    {flags}{CARGO_COMMAND} install --force {name}");
 
         eprintln!("{} {}{}", "missing".grey(), name.red(), ".".grey());
         eprintln!();
@@ -118,6 +129,8 @@ fn main() -> Result<()> {
     }
 
     // should never return
-    let err = sys::new_command(name).arg(arg).args(args).exec();
-    bail!("failed to invoke {}: {err}", name.red());
+    if let Err(err) = sys::new_command(name).arg(arg).args(args).status() {
+        bail!("failed to invoke {}: {err}", name.red());
+    };
+    Ok(())
 }
