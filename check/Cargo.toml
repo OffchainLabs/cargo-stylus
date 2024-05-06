@@ -2,7 +2,6 @@
 name = "cargo-stylus-check"
 keywords = ["arbitrum", "ethereum", "stylus", "alloy", "cargo"]
 description = "CLI tool for deploying Stylus contracts on Arbitrum chains"
-build = "build.rs"
 
 authors.workspace = true
 edition.workspace = true
