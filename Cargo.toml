@@ -11,7 +11,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/OffchainLabs/cargo-stylus"
 
 [workspace.dependencies]
-alloy-primitives = "0.7.2"
+alloy-primitives = { version = "0.7.2", default-features = false }
 alloy-json-abi = "0.7.2"
 clap = { version = "4.5.4", features = [ "derive", "color" ] }
 ethers = "2.0.10"

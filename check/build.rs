@@ -19,5 +19,13 @@ fn main() {
         println!("cargo:rustc-cfg=feature=\"allocative\"");
     } else {
         println!("cargo:rustc-cfg=feature=\"native-keccak\"");
+        println!("cargo:rustc-cfg=feature=\"postgres\"");
+        println!("cargo:rustc-cfg=feature=\"getrandom\"");
+        println!("cargo:rustc-cfg=feature=\"rand\"");
+        println!("cargo:rustc-cfg=feature=\"rlp\"");
+        println!("cargo:rustc-cfg=feature=\"serde\"");
+        println!("cargo:rustc-cfg=feature=\"arbitrary\"");
+        println!("cargo:rustc-cfg=feature=\"k256\"");
+        println!("cargo:rustc-cfg=feature=\"allocative\"");
     }
 }
