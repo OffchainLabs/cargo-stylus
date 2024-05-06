@@ -11,7 +11,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/OffchainLabs/cargo-stylus"
 
 [workspace.dependencies]
-alloy-primitives = { version = "0.7.2", default-features = false }
+alloy-primitives = "0.7.2"
 alloy-json-abi = "0.7.2"
 clap = { version = "4.5.4", features = [ "derive", "color" ] }
 ethers = "2.0.10"
@@ -32,9 +32,3 @@ sneks = "0.1.2"
 
 # members
 cargo-stylus-util = { path = "util", version = "0.2.1" }
-
-[target.'cfg(windows)'.dependencies]
-alloy-primitives = { version = "0.7.2", features = ["tiny-keccak", "asm-keccak", "postgres", "getrandom", "rand", "rlp", "serde", "ssz", "arbitrary", "k256", "allocative"] } 
-
-[target.'cfg(unix)'.dependencies]
-alloy-primitives = "0.7.2"
