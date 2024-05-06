@@ -6,18 +6,21 @@ use alloy_primitives::TxHash;
 use cargo_stylus_util::{color::Color, sys};
 use clap::{Args, Parser};
 use eyre::{bail, eyre, Context, Result};
-use std::{
-    os::unix::process::CommandExt,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use tokio::runtime::Builder;
 
 mod hostio;
 mod trace;
 
+#[cfg(target_os = "windows")]
+const CARGO_COMMAND: &str = "cargo.exe";
+
+#[cfg(not(target_os = "windows"))]
+const CARGO_COMMAND: &str = "cargo";
+
 #[derive(Parser, Clone, Debug)]
 #[command(name = "cargo-stylus-replay")]
-#[command(bin_name = "cargo stylus replay")]
+#[command(bin_name = format!("{CARGO_COMMAND} stylus replay"))]
 #[command(author = "Offchain Labs, Inc.")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Cargo command for replaying Arbitrum Stylus transactions", long_about = None)]
@@ -127,9 +130,9 @@ async fn replay(args: ReplayArgs) -> Result<()> {
             cmd.arg(arg);
         }
         cmd.arg("--child");
-        let err = cmd.exec();
-
-        bail!("failed to exec gdb {}", err);
+        if let Err(err) = cmd.status() {
+            bail!("failed to exec gdb {}", err);
+        };
     }
 
     let provider = sys::new_provider(&args.endpoint)?;
@@ -158,7 +161,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
 }
 
 pub fn build_so(path: &Path, stable: bool) -> Result<()> {
-    let mut cargo = sys::new_command("cargo");
+    let mut cargo = sys::new_command(CARGO_COMMAND);
 
     if !stable {
         cargo.arg("+nightly");
