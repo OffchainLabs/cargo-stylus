@@ -87,28 +87,39 @@ pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(bool, Option<U256>)> 
 
     let provider = sys::new_provider(&cfg.endpoint)?;
 
-    let mut expected_program_addr = cfg.clone().expected_program_address;
-
-    // If there is no expected program address specified, compute it from the user's wallet.
-    if !expected_program_addr.is_zero() {
-        let wallet = wallet::load(&cfg)?;
-        let chain_id = provider
-            .get_chainid()
-            .await
-            .map_err(|e| eyre!("could not get chain id {e}"))?
-            .as_u64();
-        let client =
-            SignerMiddleware::new(provider.clone(), wallet.clone().with_chain_id(chain_id));
-
-        let addr = wallet.address();
-        let nonce = client
-            .get_transaction_count(addr, None)
-            .await
-            .map_err(|e| eyre!("could not get nonce {addr}: {e}"))?;
-
-        expected_program_addr = get_contract_address(wallet.address(), nonce);
-    }
+    let expected_program_addr = get_expected_program_addr(cfg.clone(), provider.clone())
+        .await
+        .map_err(|e| eyre!("could not get expected program address: {e}"))?;
     check_can_activate(provider, &expected_program_addr, init_code).await
+}
+
+async fn get_expected_program_addr<T>(
+    cfg: CheckConfig,
+    provider: Provider<T>,
+) -> eyre::Result<Address>
+where
+    T: JsonRpcClient + Clone,
+{
+    let expected_program_addr = cfg.expected_program_address;
+    if !expected_program_addr.is_zero() {
+        return Ok(expected_program_addr);
+    }
+    // If there is no expected program address specified, compute it from the user's wallet.
+    let wallet = wallet::load(&cfg)?;
+    let chain_id = provider
+        .get_chainid()
+        .await
+        .map_err(|e| eyre!("could not get chain id {e}"))?
+        .as_u64();
+    let client = SignerMiddleware::new(provider.clone(), wallet.clone().with_chain_id(chain_id));
+
+    let addr = wallet.address();
+    let nonce = client
+        .get_transaction_count(addr, None)
+        .await
+        .map_err(|e| eyre!("could not get nonce {addr}: {e}"))?;
+
+    Ok(get_contract_address(wallet.address(), nonce))
 }
 
 /// Checks if a program can be successfully activated onchain before it is deployed
@@ -177,4 +188,51 @@ where
 
     println!("Program succeeded Stylus onchain activation checks with Stylus version: {version}");
     Ok((false, Some(data_fee)))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::KeystoreOpts;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_expected_program_addr() {
+        let (provider, mock) = Provider::mocked();
+        let chain_id = U64::from(1);
+        let nonce = U256::from(1);
+        mock.push(U64::from(chain_id)).unwrap();
+        mock.push(U256::from(nonce)).unwrap();
+
+        let wallet_address = Address::from_str("A72efc67beCA9786C46c01788B0303520614809c").unwrap();
+
+        // We check that if we specify an expected program addr, that we get the same result back.
+        let want = Address::from_str("e444E89f4A0CcC659b727e15F1f388DbBdCf4550").unwrap();
+        let mut cfg = CheckConfig {
+            expected_program_address: want,
+            endpoint: "http://localhost:8545".to_string(),
+            nightly: false,
+            wasm_file_path: None,
+            private_key: Some(
+                "ff99561e3edc649a575b8706667f9acc500e818df97b78c29b54b522be7c89ac".to_string(),
+            ),
+            private_key_path: None,
+            keystore_opts: KeystoreOpts {
+                keystore_path: None,
+                keystore_password_path: None,
+            },
+        };
+        let got = get_expected_program_addr(cfg.clone(), provider.clone())
+            .await
+            .unwrap();
+        assert_eq!(want, got);
+
+        // Otherwise, if we specify the zero address, we should be computing the expected
+        // from the account and nonce.
+        cfg.expected_program_address = Address::zero();
+        let got = get_expected_program_addr(cfg.clone(), provider)
+            .await
+            .unwrap();
+        assert_eq!(get_contract_address(wallet_address, nonce), got);
+    }
 }
