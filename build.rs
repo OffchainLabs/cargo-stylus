@@ -8,7 +8,6 @@ fn main() {
     // Enable or disable features based on the platform
     if is_windows {
         println!("cargo:rustc-cfg=feature=\"tiny-keccak\"");
-        println!("cargo:rustc-cfg=feature=\"asm-keccak\"");
         println!("cargo:rustc-cfg=feature=\"postgres\"");
         println!("cargo:rustc-cfg=feature=\"getrandom\"");
         println!("cargo:rustc-cfg=feature=\"rand\"");
