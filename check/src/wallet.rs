@@ -1,12 +1,14 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
-use std::io::{BufRead, BufReader};
-use std::str::FromStr;
-
-use ethers::signers::LocalWallet;
-use eyre::{bail, eyre};
 
 use crate::CheckConfig;
+use ethers::signers::LocalWallet;
+use eyre::{bail, eyre};
+use std::{
+    io::{BufRead, BufReader},
+    path::Path,
+    str::FromStr,
+};
 
 /// Loads a wallet for signing transactions either from a private key file path.
 /// or a keystore along with a keystore password file.
@@ -53,13 +55,16 @@ pub fn load(cfg: &CheckConfig) -> eyre::Result<LocalWallet> {
         .map_err(|e| eyre!("could not decrypt keystore: {e}"))
 }
 
-fn read_secret_from_file(fpath: &str) -> eyre::Result<String> {
+fn read_secret_from_file(fpath: &Path) -> eyre::Result<String> {
     let f = std::fs::File::open(fpath)
-        .map_err(|e| eyre!("could not open file at path: {fpath}: {e}"))?;
+        .map_err(|e| eyre!("could not open file {}: {e}", fpath.to_string_lossy()))?;
     let mut buf_reader = BufReader::new(f);
     let mut secret = String::new();
-    buf_reader
-        .read_line(&mut secret)
-        .map_err(|e| eyre!("could not read secret from file at path {fpath}: {e}"))?;
+    buf_reader.read_line(&mut secret).map_err(|e| {
+        eyre!(
+            "could not read secret from file {}: {e}",
+            fpath.to_string_lossy()
+        )
+    })?;
     Ok(secret.trim().to_string())
 }

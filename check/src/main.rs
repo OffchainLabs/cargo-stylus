@@ -40,14 +40,10 @@ enum Apis {
     },
     /// Export a Solidity ABI.
     ExportAbi {
-        /// Build in release mode.
-        #[arg(long)]
-        release: bool,
-        /// The Output file (defaults to stdout).
+        /// The output file (defaults to stdout).
         #[arg(long)]
         output: Option<PathBuf>,
-        /// Output a JSON ABI instead using solc. Requires solc.
-        /// See https://docs.soliditylang.org/en/latest/installing-solidity.html
+        /// Write a JSON ABI instead using solc. Requires solc.
         #[arg(long)]
         json: bool,
     },
@@ -61,31 +57,32 @@ enum Apis {
 
 #[derive(Args, Clone, Debug)]
 struct CheckConfig {
-    /// RPC endpoint of the Stylus node to connect to.
-    #[arg(short, long, default_value = "https://stylus-testnet.arbitrum.io/rpc")]
+    /// Arbitrum RPC endpoint.
+    #[arg(short, long, default_value = "https://localhost:8545")]
     endpoint: String,
-    /// Specifies a WASM file instead of looking for one in the current directory.
+    /// The WASM to check (defaults to any found in the current directory).
     #[arg(long)]
-    wasm_file_path: Option<String>,
-    /// Specify the program address we want to check activation for. If unspecified, it will
-    /// compute the next program address from the user's wallet address and nonce, which will require
-    /// wallet-related flags to be specified.
-    #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
-    expected_program_address: H160,
+    wasm_file: Option<PathBuf>,
+    /// Where to deploy and activate the program (defaults to a random address).
+    #[arg(long)]
+    program_address: Option<H160>,
     /// File path to a text file containing a private key.
     #[arg(long)]
-    private_key_path: Option<String>,
+    private_key_path: Option<PathBuf>,
     /// Private key 0x-prefixed hex string to use with the cargo stylus plugin. Warning: this exposes
     /// your private key secret in plaintext in your CLI history. We instead recommend using the
     /// --private-key-path flag or account keystore options.
     #[arg(long)]
     private_key: Option<String>,
-    /// Wallet source to use with the cargo stylus plugin.
+    /// Wallet source to use.
     #[command(flatten)]
     keystore_opts: KeystoreOpts,
-    /// Whether to use Rust nightly.
+    /// Whether to use stable Rust.
     #[arg(long)]
-    nightly: bool,
+    rust_stable: bool,
+    /// Whether to print debug info.
+    #[arg(long)]
+    verbose: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -121,7 +118,7 @@ pub struct KeystoreOpts {
     keystore_path: Option<String>,
     /// Path to a text file containing a password to the specified wallet keystore file.
     #[arg(long)]
-    keystore_password_path: Option<String>,
+    keystore_password_path: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Args)]
@@ -153,27 +150,13 @@ async fn main_impl(args: Opts) -> Result<()> {
 
     match args.command {
         Apis::New { name, minimal } => {
-            run!(
-                new::new_stylus_project(&name, minimal),
-                "failed to create project"
-            );
+            run!(new::new(&name, minimal), "failed to open new project");
         }
-        Apis::ExportAbi {
-            release,
-            json,
-            output,
-        } => match json {
-            true => run!(
-                export_abi::export_json_abi(release, output),
-                "failed to export json"
-            ),
-            false => run!(
-                export_abi::export_solidity_abi(release, output),
-                "failed to export abi"
-            ),
-        },
+        Apis::ExportAbi { json, output } => {
+            run!(export_abi::export_abi(output, json), "failed to export abi");
+        }
         Apis::Check(config) => {
-            run!(check::run_checks(config).await, "stylus checks failed");
+            run!(check::check(config).await, "stylus checks failed");
         }
         Apis::Deploy(config) => {
             run!(deploy::deploy(config).await, "failed to deploy");

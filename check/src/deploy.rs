@@ -4,16 +4,24 @@
 #![allow(clippy::println_empty_string)]
 
 use crate::{
-    check, constants, project, project::BuildConfig, tx, wallet, DeployConfig, DeployMode,
+    check::{self, ProgramCheck},
+    constants,
+    project::{self, BuildConfig},
+    tx, wallet, DeployConfig, DeployMode,
 };
 use cargo_stylus_util::{color::Color, sys};
-use ethers::types::{Eip1559TransactionRequest, H160, U256};
-use ethers::utils::{get_contract_address, to_checksum};
-use ethers::{middleware::SignerMiddleware, providers::Middleware, signers::Signer};
-use eyre::{bail, eyre};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use ethers::{
+    middleware::SignerMiddleware,
+    providers::Middleware,
+    signers::Signer,
+    types::{Eip1559TransactionRequest, H160, U256},
+    utils::{get_contract_address, to_checksum},
+};
+use eyre::{bail, eyre, Result, WrapErr};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 /// The transaction kind for using the Cargo stylus tool with Stylus programs.
 /// Stylus programs can be deployed and activated onchain, and this enum represents
@@ -36,21 +44,21 @@ impl std::fmt::Display for TxKind {
 /// DeployOnly: Sends a signed tx to deploy a Stylus program to a new address.
 /// ActivateOnly: Sends a signed tx to activate a Stylus program at a specified address.
 /// DeployAndActivate (default): Sends both transactions above.
-pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
+pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     // Run stylus checks before deployment.
-    let (up_to_date, data_fee) = check::run_checks(cfg.check_cfg.clone())
+    let status = check::check(cfg.check_cfg.clone())
         .await
-        .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
-    let wallet = wallet::load(&cfg.check_cfg).map_err(|e| eyre!("could not load wallet: {e}"))?;
+        .wrap_err("Stylus checks failed")?;
+    let wallet = wallet::load(&cfg.check_cfg).wrap_err("could not load wallet")?;
 
     let provider = sys::new_provider(&cfg.check_cfg.endpoint)?;
 
     let chain_id = provider
         .get_chainid()
         .await
-        .map_err(|e| eyre!("could not get chain id: {e}"))?
+        .wrap_err("could not get chain id")?
         .as_u64();
-    let client = SignerMiddleware::new(&provider, wallet.clone().with_chain_id(chain_id));
+    let client = SignerMiddleware::new(provider.clone(), wallet.clone().with_chain_id(chain_id));
 
     let addr = wallet.address();
 
@@ -59,7 +67,7 @@ pub async fn deploy(cfg: DeployConfig) -> eyre::Result<()> {
     let nonce = client
         .get_transaction_count(addr, None)
         .await
-        .map_err(|e| eyre!("could not get nonce for address {addr}: {e}"))?;
+        .wrap_err_with(|| eyre!("could not get nonce for address {addr}"))?;
 
     let expected_program_addr = get_contract_address(wallet.address(), nonce);
 
@@ -91,7 +99,7 @@ on the --mode flag under cargo stylus deploy --help"#
     // our quickstart on ways to do so on testnet.
     if !dry_run {
         let balance = provider.get_balance(addr, None).await?;
-        if balance == U256::zero() {
+        if balance.is_zero() {
             bail!(
                 r#"address {} has 0 balance onchain – please refer to our Quickstart guide for deploying 
 programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart"#,
@@ -110,11 +118,11 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
     }
 
     if deploy {
-        let wasm_file_path: PathBuf = match &cfg.check_cfg.wasm_file_path {
-            Some(path) => PathBuf::from_str(path).unwrap(),
-            None => project::build_project_dylib(BuildConfig {
+        let wasm_file_path: PathBuf = match &cfg.check_cfg.wasm_file {
+            Some(path) => path.clone(),
+            None => project::build_dylib(BuildConfig {
                 opt_level: project::OptLevel::default(),
-                nightly: cfg.check_cfg.nightly,
+                stable: cfg.check_cfg.rust_stable,
                 rebuild: false, // The check step at the start of this command rebuilt.
             })
             .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
@@ -149,10 +157,9 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
         println!("");
     }
     if activate {
-        // If program is up-to-date, there is no need for an activation transaction.
-        if up_to_date {
-            return Ok(());
-        }
+        let ProgramCheck::Ready(data_fee) = status else {
+            return Ok(()); // no need to activate
+        };
         let program_addr = cfg
             .activate_program_address
             .unwrap_or(expected_program_addr);
@@ -172,11 +179,13 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
         }
 
         if !dry_run {
+            let data_fee = data_fee.saturating_mul(alloy_primitives::U256::from(2)); // pad 2x
+
             let mut tx_request = Eip1559TransactionRequest::new()
                 .from(wallet.address())
                 .to(to)
                 .data(activate_calldata)
-                .value(data_fee.unwrap().saturating_mul(2.into())); // pad 2x
+                .value(data_fee.to_be_bytes());
 
             tx::submit_signed_tx(
                 &client,

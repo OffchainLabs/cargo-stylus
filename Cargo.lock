@@ -103,12 +103,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-sol-macro"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89c80a2cb97e7aa48611cbb63950336f9824a174cdf670527cc6465078a26ea1"
+dependencies = [
+ "alloy-sol-macro-input",
+ "const-hex",
+ "heck 0.4.1",
+ "indexmap 2.1.0",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
+ "syn-solidity",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "alloy-sol-macro-input"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c58894b58ac50979eeac6249661991ac40b9d541830d9a725f7714cc9ef08c23"
+dependencies = [
+ "const-hex",
+ "dunce",
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
+ "syn-solidity",
+]
+
+[[package]]
 name = "alloy-sol-type-parser"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8e71ea68e780cc203919e03f69f59e7afe92d2696fb1dcb6662f61e4031b6"
 dependencies = [
  "winnow 0.6.7",
+]
+
+[[package]]
+name = "alloy-sol-types"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "399287f68d1081ed8b1f4903c49687658b95b142207d7cb4ae2f4813915343ef"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-macro",
+ "const-hex",
+ "serde",
 ]
 
 [[package]]
@@ -581,6 +626,8 @@ version = "0.2.1"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
+ "alloy-sol-macro",
+ "alloy-sol-types",
  "brotli2",
  "bytes",
  "bytesize",
@@ -588,16 +635,10 @@ dependencies = [
  "clap",
  "ethers",
  "eyre",
- "function_name",
  "hex",
  "lazy_static",
- "libc",
- "libloading",
- "parking_lot",
- "rustc-host",
  "serde",
  "serde_json",
- "sneks",
  "thiserror",
  "tiny-keccak",
  "tokio",
@@ -636,6 +677,8 @@ version = "0.2.1"
 dependencies = [
  "ethers",
  "eyre",
+ "hex",
+ "rustc-host",
 ]
 
 [[package]]
@@ -3867,6 +3910,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "syn-solidity"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5aa0cefd02f532035d83cfec82647c6eb53140b0485220760e669f4bad489e36"
+dependencies = [
+ "paste",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
 ]
 
 [[package]]

@@ -1,180 +1,220 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use crate::constants::{ONE_ETH, PROGRAM_UP_TO_DATE_ERR};
+use crate::check::ArbWasm::ArbWasmErrors;
+use crate::constants::ONE_ETH;
 use crate::{
-    constants::ARB_WASM_ADDRESS,
-    deploy::activation_calldata,
+    constants::ARB_WASM_H160,
     project::{self, BuildConfig},
-    wallet, CheckConfig,
+    CheckConfig,
 };
+use alloy_primitives::{Address, B256, U256};
+use alloy_sol_macro::sol;
+use alloy_sol_types::{SolCall, SolInterface};
 use bytesize::ByteSize;
-use cargo_stylus_util::{color::Color, sys};
-use ethers::prelude::*;
-use ethers::utils::get_contract_address;
-use ethers::{
-    providers::JsonRpcClient,
-    types::{transaction::eip2718::TypedTransaction, Address},
-};
-use std::path::PathBuf;
-use std::str::FromStr;
-
-use ethers::types::Eip1559TransactionRequest;
+use cargo_stylus_util::{color::Color, sys, text};
 use ethers::{
     core::types::spoof,
-    providers::{Provider, RawCall},
+    prelude::*,
+    providers::RawCall,
+    types::{spoof::State, transaction::eip2718::TypedTransaction, Eip1559TransactionRequest},
 };
-use eyre::{bail, eyre};
+use eyre::{bail, eyre, ErrReport, Result, WrapErr};
+use serde_json::Value;
+use std::path::PathBuf;
 
-/// Implements a custom wrapper for byte size that can be formatted with color
-/// depending on the byte size. For example, file sizes that are greater than 24Kb
-/// get formatted in pink as they are large, yellow for less than 24Kb, and mint for
-/// WASMS less than 8Kb.
-pub struct FileByteSize(ByteSize);
+macro_rules! greyln {
+    ($($msg:expr),*) => {{
+        let msg = format!($($msg),*);
+        println!("{}", msg.grey())
+    }};
+}
 
-impl FileByteSize {
-    fn new(len: u64) -> Self {
-        Self(ByteSize::b(len))
+sol! {
+    interface ArbWasm {
+        function activateProgram(address program)
+            external
+            payable
+            returns (uint16 version, uint256 dataFee);
+
+        function stylusVersion() external view returns (uint16 version);
+
+        function codehashVersion(bytes32 codehash) external view returns (uint16 version);
+
+        error ProgramNotWasm();
+        error ProgramNotActivated();
+        error ProgramNeedsUpgrade(uint16 version, uint16 stylusVersion);
+        error ProgramExpired(uint64 ageInSeconds);
+        error ProgramUpToDate();
+        error ProgramKeepaliveTooSoon(uint64 ageInSeconds);
+        error ProgramInsufficientValue(uint256 have, uint256 want);
     }
 }
 
-impl std::fmt::Display for FileByteSize {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
-            n if n <= ByteSize::kb(16) => {
-                write!(f, "{}", n.mint())
-            }
-            n if n > ByteSize::kb(16) && n <= ByteSize::kb(24) => {
-                write!(f, "{}", n.yellow())
-            }
-            n => {
-                write!(f, "{}", n.pink())
-            }
-        }
-    }
+/// Whether a program is active, or needs activation.
+#[derive(PartialEq)]
+pub enum ProgramCheck {
+    /// Program already exists onchain.
+    Active,
+    /// Program can be activated with the given data fee.
+    Ready(U256),
 }
 
-/// Runs a series of checks on the WASM program to ensure it is valid for compilation
-/// and code size before being deployed and activated onchain. An optional list of checks
-/// to disable can be specified.
-///
+/// Checks that a program is valid and can be deployed onchain.
 /// Returns whether the WASM is already up-to-date and activated onchain, and the data fee.
-pub async fn run_checks(cfg: CheckConfig) -> eyre::Result<(bool, Option<U256>)> {
-    let wasm_file_path: PathBuf = match &cfg.wasm_file_path {
-        Some(path) => PathBuf::from_str(path).unwrap(),
-        None => project::build_project_dylib(BuildConfig {
-            opt_level: project::OptLevel::default(),
-            nightly: cfg.nightly,
-            rebuild: true,
-        })
-        .map_err(|e| eyre!("failed to build project to WASM: {e}"))?,
-    };
-    println!("Reading WASM file at {}", wasm_file_path.display().grey());
+pub async fn check(cfg: CheckConfig) -> Result<ProgramCheck> {
+    let verbose = cfg.verbose;
+    let wasm = cfg.build_wasm()?;
 
-    let (precompressed_bytes, init_code) = project::compress_wasm(&wasm_file_path)
-        .map_err(|e| eyre!("failed to get compressed WASM bytes: {e}"))?;
-
-    let precompressed_size = FileByteSize::new(precompressed_bytes.len() as u64);
-    println!("Uncompressed WASM size: {precompressed_size}");
-
-    let compressed_size = FileByteSize::new(init_code.len() as u64);
-    println!("Compressed WASM size to be deployed onchain: {compressed_size}");
-
-    println!(
-        "Connecting to Stylus RPC endpoint: {}",
-        &cfg.endpoint.mint()
-    );
-
-    let provider = sys::new_provider(&cfg.endpoint)?;
-
-    let mut expected_program_addr = cfg.clone().expected_program_address;
-
-    // If there is no expected program address specified, compute it from the user's wallet.
-    if !expected_program_addr.is_zero() {
-        let wallet = wallet::load(&cfg)?;
-        let chain_id = provider
-            .get_chainid()
-            .await
-            .map_err(|e| eyre!("could not get chain id {e}"))?
-            .as_u64();
-        let client =
-            SignerMiddleware::new(provider.clone(), wallet.clone().with_chain_id(chain_id));
-
-        let addr = wallet.address();
-        let nonce = client
-            .get_transaction_count(addr, None)
-            .await
-            .map_err(|e| eyre!("could not get nonce {addr}: {e}"))?;
-
-        expected_program_addr = get_contract_address(wallet.address(), nonce);
+    if verbose {
+        greyln!("reading wasm file at {}", wasm.to_string_lossy().lavender());
     }
-    check_can_activate(provider, &expected_program_addr, init_code).await
+
+    let (wasm, code) = project::compress_wasm(&wasm).wrap_err("failed to compress WASM")?;
+
+    greyln!("contract size: {}", format_file_size(code.len(), 16, 24));
+
+    if verbose {
+        greyln!("wasm size: {}", format_file_size(wasm.len(), 96, 128));
+        greyln!("connecting to RPC: {}", &cfg.endpoint.lavender());
+    }
+
+    // check if the program already exists
+    let provider = sys::new_provider(&cfg.endpoint)?;
+    let codehash = alloy_primitives::keccak256(&code);
+
+    if program_exists(codehash, &provider).await? {
+        return Ok(ProgramCheck::Active);
+    }
+
+    let address = cfg.program_address.unwrap_or(H160::random());
+    let fee = check_activate(code.into(), address, &provider).await?;
+    let visual_fee = format_data_fee(fee).unwrap_or("???".red());
+    greyln!("wasm data fee: {visual_fee}");
+    Ok(ProgramCheck::Ready(fee))
 }
 
-/// Checks if a program can be successfully activated onchain before it is deployed
-/// by using an eth_call override that injects the program's code at a specified address.
-/// This ensures an activation call is correct and will succeed if sent as a transaction with the
-/// appropriate gas.
-///
-/// Returns whether the program's code is up-to-date and activated onchain, and the data fee.
-pub async fn check_can_activate<T>(
-    client: Provider<T>,
-    expected_program_address: &Address,
-    compressed_wasm: Vec<u8>,
-) -> eyre::Result<(bool, Option<U256>)>
-where
-    T: JsonRpcClient,
-{
-    let calldata = activation_calldata(expected_program_address);
-    let to = hex::decode(ARB_WASM_ADDRESS).unwrap();
-    let to = Address::from_slice(&to);
+impl CheckConfig {
+    fn build_wasm(&self) -> Result<PathBuf> {
+        if let Some(wasm) = self.wasm_file.clone() {
+            return Ok(wasm);
+        }
+        project::build_dylib(BuildConfig::new(self.rust_stable))
+    }
+}
 
-    let tx = Eip1559TransactionRequest::new()
-        .to(to)
-        .data(calldata)
-        .value(ONE_ETH);
-    let tx = TypedTransaction::Eip1559(tx);
+/// Pretty-prints a file size based on its limits.
+fn format_file_size(len: usize, mid: u64, max: u64) -> String {
+    let len = ByteSize::b(len as u64);
+    let mid = ByteSize::kib(mid);
+    let max = ByteSize::kib(max);
+    if len <= mid {
+        len.mint()
+    } else if len <= max {
+        len.yellow()
+    } else {
+        len.red()
+    }
+}
 
-    // pretend the program already exists at the specified address via an eth_call override
-    let mut state = spoof::code(
-        Address::from_slice(expected_program_address.as_bytes()),
-        compressed_wasm.into(),
-    );
+/// Pretty-prints a data fee.
+fn format_data_fee(fee: U256) -> Result<String> {
+    let fee: u64 = (fee / U256::from(1e9)).try_into()?;
+    let fee: f64 = fee as f64 / 1e9;
+    let text = format!("Ξ{fee:.6}");
+    Ok(if fee <= 5e14 {
+        text.mint()
+    } else if fee <= 5e15 {
+        text.yellow()
+    } else {
+        text.red()
+    })
+}
 
-    // spoof the deployer's balance
-    state.account(Default::default()).balance = Some(U256::MAX);
+struct EthCallError {
+    data: Vec<u8>,
+    msg: String,
+}
 
-    let (response, program_up_to_date) = match client.call_raw(&tx).state(&state).await {
-        Ok(response) => (response, false),
-        Err(e) => {
-            // TODO: Improve this check by instead calling ArbWasm to check if a program is up to date
-            // once the feature is available and exposed onchain.
-            if e.to_string().contains(PROGRAM_UP_TO_DATE_ERR) {
-                (Bytes::new(), true)
-            } else {
-                bail!(
-                    "program predeployment check failed when checking against ARB_WASM_ADDRESS {ARB_WASM_ADDRESS}: {e}"
-                );
+impl From<EthCallError> for ErrReport {
+    fn from(value: EthCallError) -> Self {
+        eyre!(value.msg)
+    }
+}
+
+/// A funded eth_call to ArbWasm.
+async fn eth_call(
+    tx: Eip1559TransactionRequest,
+    mut state: State,
+    provider: &Provider<Http>,
+) -> Result<Result<Vec<u8>, EthCallError>> {
+    let tx = TypedTransaction::Eip1559(tx.to(*ARB_WASM_H160));
+    state.account(Default::default()).balance = Some(ethers::types::U256::MAX); // infinite balance
+
+    match provider.call_raw(&tx).state(&state).await {
+        Ok(bytes) => Ok(Ok(bytes.to_vec())),
+        Err(ProviderError::JsonRpcClientError(error)) => {
+            let error = error
+                .as_error_response()
+                .ok_or_else(|| eyre!("json RPC failure: {error}"))?;
+
+            let msg = error.message.clone();
+            let data = match &error.data {
+                Some(Value::String(data)) => text::decode0x(data)?.to_vec(),
+                Some(value) => bail!("failed to decode RPC failure: {value}"),
+                None => vec![],
+            };
+            Ok(Err(EthCallError { data, msg }))
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Checks whether a program has already been activated with the most recent version of Stylus.
+async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<bool> {
+    let data = ArbWasm::codehashVersionCall { codehash }.abi_encode();
+    let tx = Eip1559TransactionRequest::new().data(data);
+    let outs = eth_call(tx, State::default(), provider).await?;
+
+    let program_version = match outs {
+        Ok(outs) => {
+            let ArbWasm::codehashVersionReturn { version } =
+                ArbWasm::codehashVersionCall::abi_decode_returns(&outs, true)?;
+            version
+        }
+        Err(EthCallError { data, msg }) => {
+            let Ok(error) = ArbWasmErrors::abi_decode(&data, true) else {
+                bail!("unknown ArbWasm error: {msg}");
+            };
+            use ArbWasmErrors as A;
+            match error {
+                A::ProgramNotWasm(_) => bail!("not a Stylus program"),
+                A::ProgramNotActivated(_) | A::ProgramNeedsUpgrade(_) | A::ProgramExpired(_) => {
+                    return Ok(false);
+                }
+                _ => bail!("unexpected ArbWasm error: {msg}"),
             }
         }
     };
 
-    if program_up_to_date {
-        let msg = "already activated";
-        println!(
-            "Stylus program with same WASM code is {} onchain",
-            msg.mint()
-        );
-        return Ok((true, None));
-    }
+    let data = ArbWasm::stylusVersionCall {}.abi_encode();
+    let tx = Eip1559TransactionRequest::new().data(data);
+    let outs = eth_call(tx, State::default(), provider).await??;
+    let ArbWasm::stylusVersionReturn { version } =
+        ArbWasm::stylusVersionCall::abi_decode_returns(&outs, true)?;
 
-    // TODO: switch to alloy
-    if response.len() != 64 {
-        bail!("unexpected ArbWasm result: {}", hex::encode(&response));
-    }
-    let version = u16::from_be_bytes(response[30..32].try_into().unwrap());
-    let data_fee = U256::from_big_endian(&response[32..]);
+    Ok(program_version == version)
+}
 
-    println!("Program succeeded Stylus onchain activation checks with Stylus version: {version}");
-    Ok((false, Some(data_fee)))
+/// Checks program activation, returning the data fee.
+async fn check_activate(code: Bytes, address: H160, provider: &Provider<Http>) -> Result<U256> {
+    let program = Address::from(address.to_fixed_bytes());
+    let data = ArbWasm::activateProgramCall { program }.abi_encode();
+    let tx = Eip1559TransactionRequest::new().data(data).value(ONE_ETH);
+    let state = spoof::code(address, code);
+    let outs = eth_call(tx, state, provider).await??;
+    let ArbWasm::activateProgramReturn { dataFee, .. } =
+        ArbWasm::activateProgramCall::abi_decode_returns(&outs, true)?;
+
+    Ok(dataFee)
 }

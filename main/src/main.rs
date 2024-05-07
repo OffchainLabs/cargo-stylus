@@ -77,6 +77,11 @@ fn exit_with_help_msg() -> ! {
     unreachable!()
 }
 
+fn exit_with_version() -> ! {
+    Opts::parse_from(["--version"]);
+    unreachable!()
+}
+
 fn main() -> Result<()> {
     // skip the starting arguments passed from the OS and/or cargo.
     let mut args =
@@ -86,9 +91,12 @@ fn main() -> Result<()> {
         exit_with_help_msg();
     };
 
-    if arg == "--help" {
-        exit_with_help_msg();
-    }
+    // perform any builtins
+    match arg.as_str() {
+        "--help" | "-h" => exit_with_help_msg(),
+        "--version" | "-V" => exit_with_version(),
+        _ => {}
+    };
 
     let Some(bin) = COMMANDS.iter().find(|x| x.apis.contains(&arg.as_str())) else {
         // see if custom extension exists

@@ -3,3 +3,4 @@
 
 pub mod color;
 pub mod sys;
+pub mod text;
