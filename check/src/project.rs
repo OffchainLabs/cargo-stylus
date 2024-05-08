@@ -1,15 +1,18 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use crate::constants::{
-    BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, MAX_PRECOMPRESSED_WASM_SIZE, MAX_PROGRAM_SIZE,
-    RUST_TARGET,
+use crate::{
+    constants::{
+        BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, MAX_PRECOMPRESSED_WASM_SIZE,
+        MAX_PROGRAM_SIZE, RUST_TARGET,
+    },
+    macros::*,
 };
 use brotli2::read::BrotliEncoder;
 use bytesize::ByteSize;
 use cargo_stylus_util::{color::Color, sys};
 use eyre::{bail, eyre, Result, WrapErr};
-use std::{env::current_dir, io::Read, path::PathBuf};
+use std::{env::current_dir, fs, io::Read, path::PathBuf, process};
 
 #[derive(Default, PartialEq)]
 pub enum OptLevel {
@@ -64,37 +67,37 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#)
 pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let cwd: PathBuf = current_dir().map_err(|e| eyre!("could not get current dir: {e}"))?;
 
-    if cfg.rebuild {
-        let mut cmd = sys::new_command("cargo");
+    //if cfg.rebuild {
+    let mut cmd = sys::new_command("cargo");
 
-        if !cfg.stable {
-            cmd.arg("+nightly");
-        }
+    if !cfg.stable {
+        cmd.arg("+nightly");
+    }
 
-        cmd.arg("build");
-        cmd.arg("--lib");
+    cmd.arg("build");
+    cmd.arg("--lib");
 
-        if !cfg.stable {
-            cmd.arg("-Z");
-            cmd.arg("build-std=std,panic_abort");
-            cmd.arg("-Z");
-            cmd.arg("build-std-features=panic_immediate_abort");
-        }
+    if !cfg.stable {
+        cmd.arg("-Z");
+        cmd.arg("build-std=std,panic_abort");
+        cmd.arg("-Z");
+        cmd.arg("build-std-features=panic_immediate_abort");
+    }
 
-        if cfg.opt_level == OptLevel::Z {
-            cmd.arg("--config");
-            cmd.arg("profile.release.opt-level='z'");
-        }
+    if cfg.opt_level == OptLevel::Z {
+        cmd.arg("--config");
+        cmd.arg("profile.release.opt-level='z'");
+    }
 
-        let output = cmd
-            .arg("--release")
-            .arg(format!("--target={RUST_TARGET}"))
-            .output()
-            .wrap_err("failed to execute cargo build")?;
+    let output = cmd
+        .arg("--release")
+        .arg(format!("--target={RUST_TARGET}"))
+        .output()
+        .wrap_err("failed to execute cargo build")?;
 
-        if !output.status.success() {
-            bail!("cargo build command failed");
-        }
+    if !output.status.success() {
+        egreyln!("cargo build command failed");
+        process::exit(1);
     }
 
     let release_path = cwd
@@ -104,7 +107,7 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
         .join("deps");
 
     // Gets the files in the release folder.
-    let release_files: Vec<PathBuf> = std::fs::read_dir(&release_path)
+    let release_files: Vec<PathBuf> = fs::read_dir(&release_path)
         .map_err(|e| eyre!("could not read deps dir: {e}"))?
         .filter_map(|r| r.ok())
         .map(|r| r.path())
@@ -171,40 +174,19 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
 pub fn compress_wasm(wasm: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
-    let wasm = std::fs::read(wasm).wrap_err_with(|| {
-        eyre!(
-            "could not read WASM file at target path {}",
-            wasm.to_string_lossy(),
-        )
-    })?;
+    let wasm =
+        fs::read(wasm).wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
 
-    let wasm = wasmer::wat2wasm(&wasm).wrap_err("could not parse wasm file bytes")?;
+    let wasm = wasmer::wat2wasm(&wasm).wrap_err("failed to parse Wasm")?;
 
     let mut compressor = BrotliEncoder::new(&*wasm, BROTLI_COMPRESSION_LEVEL);
     let mut compressed_bytes = vec![];
     compressor
         .read_to_end(&mut compressed_bytes)
-        .wrap_err("could not Brotli compress WASM bytes")?;
+        .wrap_err("failed to compress WASM bytes")?;
 
-    let mut deploy_ready_code = hex::decode(EOF_PREFIX_NO_DICT).unwrap();
-    deploy_ready_code.extend(compressed_bytes);
+    let mut contract_code = hex::decode(EOF_PREFIX_NO_DICT).unwrap();
+    contract_code.extend(compressed_bytes);
 
-    let precompressed_size = ByteSize::b(wasm.len() as u64);
-    if precompressed_size > MAX_PRECOMPRESSED_WASM_SIZE {
-        return Err(BuildError::MaxPrecompressedSizeExceeded {
-            got: precompressed_size,
-            want: MAX_PRECOMPRESSED_WASM_SIZE,
-        }
-        .into());
-    }
-
-    let compressed_size = ByteSize::b(deploy_ready_code.len() as u64);
-    if compressed_size > MAX_PROGRAM_SIZE {
-        return Err(BuildError::MaxCompressedSizeExceeded {
-            got: compressed_size,
-            want: MAX_PROGRAM_SIZE,
-        }
-        .into());
-    }
-    Ok((wasm.to_vec(), deploy_ready_code))
+    Ok((wasm.to_vec(), contract_code))
 }

@@ -59,15 +59,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-ethers-typecast"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec4b243dba5902d17bdcf1bcd5e2cc5baae08e3a4361e4063568b0b227c7eb34"
+dependencies = [
+ "alloy-primitives 0.5.4",
+ "ethers",
+]
+
+[[package]]
 name = "alloy-json-abi"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "786689872ec4e7d354810ab0dffd48bb40b838c047522eb031cbd47d15634849"
 dependencies = [
- "alloy-primitives",
+ "alloy-primitives 0.7.2",
  "alloy-sol-type-parser",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "alloy-primitives"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c234f92024707f224510ff82419b2be0e1d8e1fd911defcac5a085cd7f83898"
+dependencies = [
+ "alloy-rlp",
+ "bytes",
+ "cfg-if",
+ "const-hex",
+ "derive_more",
+ "getrandom",
+ "hex-literal",
+ "itoa",
+ "keccak-asm",
+ "proptest",
+ "rand",
+ "ruint",
+ "serde",
+ "tiny-keccak",
 ]
 
 [[package]]
@@ -150,7 +182,7 @@ version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "399287f68d1081ed8b1f4903c49687658b95b142207d7cb4ae2f4813915343ef"
 dependencies = [
- "alloy-primitives",
+ "alloy-primitives 0.7.2",
  "alloy-sol-macro",
  "const-hex",
  "serde",
@@ -624,8 +656,9 @@ dependencies = [
 name = "cargo-stylus-check"
 version = "0.2.1"
 dependencies = [
+ "alloy-ethers-typecast",
  "alloy-json-abi",
- "alloy-primitives",
+ "alloy-primitives 0.7.2",
  "alloy-sol-macro",
  "alloy-sol-types",
  "brotli2",
@@ -656,7 +689,7 @@ dependencies = [
 name = "cargo-stylus-replay"
 version = "0.2.1"
 dependencies = [
- "alloy-primitives",
+ "alloy-primitives 0.7.2",
  "cargo-stylus-util",
  "clap",
  "ethers",

@@ -1,248 +1,224 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 #![allow(clippy::println_empty_string)]
 
 use crate::{
     check::{self, ProgramCheck},
-    constants,
-    project::{self, BuildConfig},
-    tx, wallet, DeployConfig, DeployMode,
+    constants::ARB_WASM_H160,
+    macros::*,
+    DeployConfig,
 };
-use cargo_stylus_util::{color::Color, sys};
+use alloy_primitives::{Address, U256 as AU256};
+use alloy_sol_macro::sol;
+use alloy_sol_types::SolCall;
+use cargo_stylus_util::{
+    color::{Color, DebugColor},
+    sys,
+};
 use ethers::{
+    core::k256::ecdsa::SigningKey,
     middleware::SignerMiddleware,
-    providers::Middleware,
+    prelude::*,
+    providers::{Middleware, Provider},
     signers::Signer,
-    types::{Eip1559TransactionRequest, H160, U256},
-    utils::{get_contract_address, to_checksum},
+    types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, H160, U256, U64},
 };
 use eyre::{bail, eyre, Result, WrapErr};
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-};
 
-/// The transaction kind for using the Cargo stylus tool with Stylus programs.
-/// Stylus programs can be deployed and activated onchain, and this enum represents
-/// these two variants.
-pub enum TxKind {
-    Deployment,
-    Activation,
-}
-
-impl std::fmt::Display for TxKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            TxKind::Deployment => write!(f, "deployment"),
-            TxKind::Activation => write!(f, "activation"),
-        }
+sol! {
+    interface ArbWasm {
+        function activateProgram(address program)
+            external
+            payable
+            returns (uint16 version, uint256 dataFee);
     }
+
+
 }
 
-/// Performs one of three different modes for a Stylus program:
-/// DeployOnly: Sends a signed tx to deploy a Stylus program to a new address.
-/// ActivateOnly: Sends a signed tx to activate a Stylus program at a specified address.
-/// DeployAndActivate (default): Sends both transactions above.
+type SignerClient = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
+
+/// Deploys a stylus program, activating if needed.
 pub async fn deploy(cfg: DeployConfig) -> Result<()> {
-    // Run stylus checks before deployment.
-    let status = check::check(cfg.check_cfg.clone())
-        .await
-        .wrap_err("Stylus checks failed")?;
-    let wallet = wallet::load(&cfg.check_cfg).wrap_err("could not load wallet")?;
+    macro_rules! run {
+        ($expr:expr) => {
+            $expr.await?
+        };
+        ($expr:expr, $($msg:expr),+) => {
+            $expr.await.wrap_err_with(|| eyre!($($msg),+))?
+        };
+    }
 
-    let provider = sys::new_provider(&cfg.check_cfg.endpoint)?;
+    let program = run!(check::check(&cfg.check_config), "cargo stylus check failed");
+    let verbose = cfg.check_config.verbose;
 
-    let chain_id = provider
-        .get_chainid()
-        .await
-        .wrap_err("could not get chain id")?
-        .as_u64();
-    let client = SignerMiddleware::new(provider.clone(), wallet.clone().with_chain_id(chain_id));
+    let client = sys::new_provider(&cfg.check_config.endpoint)?;
+    let chain_id = run!(client.get_chainid(), "failed to get chain id");
 
-    let addr = wallet.address();
+    let wallet = cfg.auth.wallet().wrap_err("failed to load wallet")?;
+    let wallet = wallet.with_chain_id(chain_id.as_u64());
+    let sender = wallet.address();
+    let client = SignerMiddleware::new(client, wallet);
 
-    println!("Deployer address: {}", to_checksum(&addr, None).grey(),);
+    if verbose {
+        greyln!("sender address: {}", sender.debug_lavender());
+    }
 
-    let nonce = client
-        .get_transaction_count(addr, None)
-        .await
-        .wrap_err_with(|| eyre!("could not get nonce for address {addr}"))?;
+    let data_fee = program.suggest_fee();
 
-    let expected_program_addr = get_contract_address(wallet.address(), nonce);
+    if let ProgramCheck::Ready(..) = &program {
+        // check balance early
+        let balance = run!(client.get_balance(sender, None), "failed to get balance");
+        let balance = alloy_ethers_typecast::ethers_u256_to_alloy(balance);
 
-    let (deploy, activate) = match cfg.mode {
-        Some(DeployMode::DeployOnly) => (true, false),
-        Some(DeployMode::ActivateOnly) => (false, true),
-        // Default mode is to deploy and activate
-        None => {
-            if cfg.estimate_gas_only && cfg.activate_program_address.is_none() {
-                // cannot activate if not really deploying
-                println!(
-                    r#"Only estimating gas for deployment tx. To estimate gas for activation, 
-run with --mode=activate-only and specify --activate-program-address. The program must have been deployed
-already for estimating activation gas to work. To send individual txs for deployment and activation, see more
-on the --mode flag under cargo stylus deploy --help"#
-                );
-                (true, false)
-            } else {
-                (true, true)
-            }
-        }
-    };
-
-    // Whether to send the transactions to the endpoint.
-    let dry_run = cfg.tx_sending_opts.dry_run;
-
-    // If we are attempting to send a real transaction, we check if the deployer has any funds
-    // and we return an error, letting the user know they need funds to send the tx and linking to
-    // our quickstart on ways to do so on testnet.
-    if !dry_run {
-        let balance = provider.get_balance(addr, None).await?;
-        if balance.is_zero() {
+        if balance < data_fee {
             bail!(
-                r#"address {} has 0 balance onchain – please refer to our Quickstart guide for deploying 
-programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart"#,
-                to_checksum(&addr, None),
+                "not enough funds in account {} to pay for data fee\n\
+                 balance {} < {}\n\
+                 please see the Quickstart guide for funding new accounts:\n{}",
+                sender.red(),
+                balance.red(),
+                format!("{data_fee} wei").red(),
+                "https://docs.arbitrum.io/stylus/stylus-quickstart".yellow(),
             );
         }
     }
 
-    // The folder at which to output the transaction data bytes.
-    let output_dir = cfg.tx_sending_opts.output_tx_data_to_dir.as_ref();
+    let contract = cfg.deploy_contract(program.code(), sender, &client).await?;
 
-    if dry_run && output_dir.is_none() {
-        bail!(
-            "using the --dry-run flag requires specifying the --output-tx-data-to-dir flag as well"
-        );
-    }
-
-    if deploy {
-        let wasm_file_path: PathBuf = match &cfg.check_cfg.wasm_file {
-            Some(path) => path.clone(),
-            None => project::build_dylib(BuildConfig {
-                opt_level: project::OptLevel::default(),
-                stable: cfg.check_cfg.rust_stable,
-                rebuild: false, // The check step at the start of this command rebuilt.
-            })
-            .map_err(|e| eyre!("could not build project to WASM: {e}"))?,
-        };
-        let (_, init_code) = project::compress_wasm(&wasm_file_path)?;
-        println!("");
-        println!("{}", "====DEPLOYMENT====".grey());
-        println!(
-            "Deploying program to address {}",
-            to_checksum(&expected_program_addr, None).mint(),
-        );
-        let deployment_calldata = program_deployment_calldata(&init_code);
-
-        // Output the tx data to a user's specified directory if desired.
-        if let Some(tx_data_output_dir) = output_dir {
-            write_tx_data(TxKind::Deployment, tx_data_output_dir, &deployment_calldata)?;
-        }
-
-        if !dry_run {
-            let mut tx_request = Eip1559TransactionRequest::new()
-                .from(wallet.address())
-                .data(deployment_calldata);
-            tx::submit_signed_tx(
-                &client,
-                TxKind::Deployment,
-                cfg.estimate_gas_only,
-                &mut tx_request,
-            )
-            .await
-            .map_err(|e| eyre!("could not submit signed deployment tx: {e}"))?;
-        }
-        println!("");
-    }
-    if activate {
-        let ProgramCheck::Ready(data_fee) = status else {
-            return Ok(()); // no need to activate
-        };
-        let program_addr = cfg
-            .activate_program_address
-            .unwrap_or(expected_program_addr);
-        println!("{}", "====ACTIVATION====".grey());
-        println!(
-            "Activating program at address {}",
-            to_checksum(&program_addr, None).mint(),
-        );
-        let activate_calldata = activation_calldata(&program_addr);
-
-        let to = hex::decode(constants::ARB_WASM_ADDRESS).unwrap();
-        let to = H160::from_slice(&to);
-
-        // Output the tx data to a user's specified directory if desired.
-        if let Some(tx_data_output_dir) = output_dir {
-            write_tx_data(TxKind::Activation, tx_data_output_dir, &activate_calldata)?;
-        }
-
-        if !dry_run {
-            let data_fee = data_fee.saturating_mul(alloy_primitives::U256::from(2)); // pad 2x
-
-            let mut tx_request = Eip1559TransactionRequest::new()
-                .from(wallet.address())
-                .to(to)
-                .data(activate_calldata)
-                .value(data_fee.to_be_bytes());
-
-            tx::submit_signed_tx(
-                &client,
-                TxKind::Activation,
-                cfg.estimate_gas_only,
-                &mut tx_request,
-            )
-            .await
-            .map_err(|e| eyre!("could not submit signed activation tx: {e}"))?;
-        }
-        println!();
+    match program {
+        ProgramCheck::Ready(..) => cfg.activate(sender, contract, data_fee, &client).await?,
+        ProgramCheck::Active(_) => greyln!("wasm already activated!"),
     }
     Ok(())
 }
 
-pub fn activation_calldata(program_addr: &H160) -> Vec<u8> {
-    let mut activate_calldata = vec![];
-    let activate_method_hash = hex::decode(constants::ARBWASM_ACTIVATE_METHOD_HASH).unwrap();
-    activate_calldata.extend(activate_method_hash);
-    let mut extension = [0u8; 32];
-    // Next, we add the address to the last 20 bytes of extension
-    extension[12..32].copy_from_slice(program_addr.as_bytes());
-    activate_calldata.extend(extension);
-    activate_calldata
+impl DeployConfig {
+    async fn deploy_contract(
+        &self,
+        code: &[u8],
+        sender: H160,
+        client: &SignerClient,
+    ) -> Result<H160> {
+        let mut init_code = Vec::with_capacity(42 + code.len());
+        init_code.push(0x7f); // PUSH32
+        init_code.extend(AU256::from(code.len()).to_be_bytes::<32>());
+        init_code.push(0x80); // DUP1
+        init_code.push(0x60); // PUSH1
+        init_code.push(0x2a); // 42 the prelude length
+        init_code.push(0x60); // PUSH1
+        init_code.push(0x00);
+        init_code.push(0x39); // CODECOPY
+        init_code.push(0x60); // PUSH1
+        init_code.push(0x00);
+        init_code.push(0xf3); // RETURN
+        init_code.extend(code);
+
+        let tx = Eip1559TransactionRequest::new()
+            .from(sender)
+            .data(init_code);
+
+        let verbose = self.check_config.verbose;
+        let gas = client
+            .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
+            .await?;
+
+        if self.check_config.verbose || self.estimate_gas {
+            greyln!("deploy gas estimate: {}", format_gas(gas));
+        }
+        if self.estimate_gas {
+            let nonce = client.get_transaction_count(sender, None).await?;
+            return Ok(ethers::utils::get_contract_address(sender, nonce));
+        }
+
+        let receipt = self.run_tx("deploy", tx, Some(gas), client).await?;
+        let contract = receipt.contract_address.ok_or(eyre!("missing address"))?;
+        let address = contract.debug_lavender();
+
+        if verbose {
+            let gas = format_gas(receipt.gas_used.unwrap_or_default());
+            greyln!("deployed code: {address} {} {gas}", "with".grey());
+        } else {
+            greyln!("deployed code: {address}");
+        }
+        Ok(contract)
+    }
+
+    async fn activate(
+        &self,
+        sender: H160,
+        contract: H160,
+        data_fee: AU256,
+        client: &SignerClient,
+    ) -> Result<()> {
+        if self.estimate_gas {
+            bail!("estimation for activate coming later today");
+        }
+
+        let verbose = self.check_config.verbose;
+        let data_fee = alloy_ethers_typecast::alloy_u256_to_ethers(data_fee);
+        let program: Address = contract.to_fixed_bytes().into();
+
+        let data = ArbWasm::activateProgramCall { program }.abi_encode();
+
+        let tx = Eip1559TransactionRequest::new()
+            .from(sender)
+            .to(*ARB_WASM_H160)
+            .data(data)
+            .value(data_fee);
+
+        let gas = None;
+        let receipt = self.run_tx("activate", tx, gas, client).await?;
+
+        if verbose {
+            let gas = format_gas(receipt.gas_used.unwrap_or_default());
+            greyln!("activated with {gas}");
+        }
+        greyln!(
+            "ready onchain: {}",
+            receipt.transaction_hash.debug_lavender()
+        );
+        Ok(())
+    }
+
+    async fn run_tx(
+        &self,
+        name: &str,
+        tx: Eip1559TransactionRequest,
+        gas: Option<U256>,
+        client: &SignerClient,
+    ) -> Result<TransactionReceipt> {
+        let mut tx = TypedTransaction::Eip1559(tx);
+        if let Some(gas) = gas {
+            tx.set_gas(gas);
+        }
+
+        let tx = client.send_transaction(tx, None).await?;
+        let tx_hash = tx.tx_hash();
+        let verbose = self.check_config.verbose;
+
+        if verbose {
+            greyln!("sent {name} tx: {}", tx_hash.debug_lavender());
+        }
+        let Some(receipt) = tx.await.wrap_err("tx failed to complete")? else {
+            bail!("failed to get receipt for tx {}", tx_hash.lavender());
+        };
+        if receipt.status != Some(U64::from(1)) {
+            bail!("{name} tx reverted {}", tx_hash.debug_red());
+        }
+        Ok(receipt)
+    }
 }
 
-/// Prepares an EVM bytecode prelude for contract creation.
-pub fn program_deployment_calldata(code: &[u8]) -> Vec<u8> {
-    let mut code_len = [0u8; 32];
-    U256::from(code.len()).to_big_endian(&mut code_len);
-    let mut deploy: Vec<u8> = vec![];
-    deploy.push(0x7f); // PUSH32
-    deploy.extend(code_len);
-    deploy.push(0x80); // DUP1
-    deploy.push(0x60); // PUSH1
-    deploy.push(0x2a); // 42 the prelude length
-    deploy.push(0x60); // PUSH1
-    deploy.push(0x00);
-    deploy.push(0x39); // CODECOPY
-    deploy.push(0x60); // PUSH1
-    deploy.push(0x00);
-    deploy.push(0xf3); // RETURN
-    deploy.extend(code);
-    deploy
-}
-
-fn write_tx_data(tx_kind: TxKind, path: &Path, data: &[u8]) -> eyre::Result<()> {
-    let file_name = format!("{tx_kind}_tx_data");
-    let path = path.join(file_name);
-    let path_str = path.as_os_str().to_string_lossy();
-    println!(
-        "Writing {tx_kind} tx data bytes of size {} to path {}",
-        data.len().mint(),
-        path_str.grey(),
-    );
-    let mut f = std::fs::File::create(&path)
-        .map_err(|e| eyre!("could not create file to write tx data to path {path_str}: {e}",))?;
-    f.write_all(data)
-        .map_err(|e| eyre!("could not write tx data as bytes to file to path {path_str}: {e}"))
+fn format_gas(gas: U256) -> String {
+    let gas: u64 = gas.try_into().unwrap_or(u64::MAX);
+    let text = format!("{gas} gas");
+    if gas <= 3_000_000 {
+        text.mint()
+    } else if gas <= 7_000_000 {
+        text.yellow()
+    } else {
+        text.pink()
+    }
 }

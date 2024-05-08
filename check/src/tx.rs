@@ -2,7 +2,7 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 #![allow(clippy::println_empty_string)]
 
-use crate::deploy::TxKind;
+/*use crate::{deploy::TxKind, macros::*};
 use cargo_stylus_util::color::Color;
 use ethers::{
     middleware::SignerMiddleware,
@@ -11,7 +11,7 @@ use ethers::{
     types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, H256, U256},
     utils::{format_ether, format_units},
 };
-use eyre::eyre;
+use eyre::{eyre, WrapErr};
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone)]
 pub enum TxError {
@@ -21,11 +21,11 @@ pub enum TxError {
     NoBaseFee,
     #[error("no receipt found for tx hash ({tx_hash})")]
     NoReceiptFound { tx_hash: H256 },
-    #[error("({tx_kind}) got reverted with has ({tx_hash})")]
+    #[error("({tx_kind}) got reverted with hash ({tx_hash})")]
     Reverted { tx_kind: String, tx_hash: H256 },
-}
+}*/
 
-/// Submits a tx to a client given a data payload and a
+/*/// Submits a tx to a client given a data payload and a
 /// transaction request to sign and send. If estimate_only is true, only a call to
 /// estimate gas will occur and the actual tx will not be submitted.
 pub async fn submit_signed_tx<M, S>(
@@ -41,7 +41,8 @@ where
     let block_num = client
         .get_block_number()
         .await
-        .map_err(|e| eyre!("could not get block number: {e}"))?;
+        .wrap_err("could not get block number")?;
+
     let block = client
         .get_block(block_num)
         .await
@@ -51,8 +52,10 @@ where
 
     let base_fee_gwei = format_units(base_fee, "gwei")
         .map_err(|e| eyre!("could not format base fee as gwei: {e}"))?;
-    println!("Base fee: {} gwei", base_fee_gwei.grey());
-    if !(estimate_only) {
+
+    greyln!("base fee: {} gwei", base_fee_gwei.mint());
+
+    if !estimate_only {
         tx_request.max_fee_per_gas = Some(base_fee);
         tx_request.max_priority_fee_per_gas = Some(base_fee);
     }
@@ -63,8 +66,8 @@ where
         .await
         .map_err(|e| eyre!("could not estimate gas {e}"))?;
 
-    println!(
-        "Estimated gas for {tx_kind}: {} gas units",
+    greyln!(
+        "estimated gas for {tx_kind}: {} gas",
         estimated.mint()
     );
 
@@ -98,21 +101,22 @@ where
             let effective_price = receipt.effective_gas_price.unwrap_or(U256::zero());
             let effective_price_gwei = format_units(effective_price, "gwei")
                 .map_err(|e| eyre!("could not format effective gas price: {e}"))?;
-            println!(
-                "Confirmed {tx_kind} tx {}{}",
+            greyln!(
+                "confirmed {tx_kind} tx {}{}",
                 "0x".mint(),
-                hex::encode(tx_hash.as_bytes()).mint(),
+                hex::encode(tx_hash.as_bytes()).mint()
             );
-            println!(
-                "Gas units used {}, effective gas price {} gwei",
+            greyln!(
+                "gas units used {}, effective gas price {} gwei",
                 gas_used.mint(),
-                effective_price_gwei.grey(),
+                effective_price_gwei.grey()
             );
-            println!(
-                "Transaction fee: {} ETH",
+            greyln!(
+                "transaction fee: {} ETH",
                 format_ether(gas_used * effective_price).mint()
             );
             Ok(())
         }
     }
 }
+*/

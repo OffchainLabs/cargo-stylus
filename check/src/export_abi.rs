@@ -1,12 +1,13 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+use crate::macros::*;
 use cargo_stylus_util::{color::Color, sys};
 use eyre::{bail, Result, WrapErr};
 use std::{
     io::Write,
     path::PathBuf,
-    process::{Command, Stdio},
+    process::{self, Command, Stdio},
 };
 
 /// Exports Solidity ABIs by running the program natively.
@@ -26,7 +27,11 @@ pub fn export_abi(file: Option<PathBuf>, json: bool) -> Result<()> {
 
     if !output.status.success() {
         let out = String::from_utf8_lossy(&output.stdout);
-        bail!("failed to run program: {out}");
+        let out = (out != "")
+            .then_some(format!(": {out}"))
+            .unwrap_or_default();
+        egreyln!("failed to run program{out}");
+        process::exit(1);
     }
 
     // convert the ABI to a JSON file via solc

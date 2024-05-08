@@ -15,6 +15,7 @@ alloy-primitives.workspace = true
 alloy-json-abi.workspace = true
 alloy-sol-macro.workspace = true
 alloy-sol-types.workspace = true
+alloy-ethers-typecast.workspace = true
 brotli2 = "0.3.2"
 bytes = "1.4.0"
 bytesize = "1.2.0"

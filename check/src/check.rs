@@ -1,10 +1,10 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use crate::check::ArbWasm::ArbWasmErrors;
-use crate::constants::ONE_ETH;
 use crate::{
-    constants::ARB_WASM_H160,
+    check::ArbWasm::ArbWasmErrors,
+    constants::{ARB_WASM_H160, ONE_ETH},
+    macros::*,
     project::{self, BuildConfig},
     CheckConfig,
 };
@@ -22,13 +22,6 @@ use ethers::{
 use eyre::{bail, eyre, ErrReport, Result, WrapErr};
 use serde_json::Value;
 use std::path::PathBuf;
-
-macro_rules! greyln {
-    ($($msg:expr),*) => {{
-        let msg = format!($($msg),*);
-        println!("{}", msg.grey())
-    }};
-}
 
 sol! {
     interface ArbWasm {
@@ -51,20 +44,16 @@ sol! {
     }
 }
 
-/// Whether a program is active, or needs activation.
-#[derive(PartialEq)]
-pub enum ProgramCheck {
-    /// Program already exists onchain.
-    Active,
-    /// Program can be activated with the given data fee.
-    Ready(U256),
-}
-
 /// Checks that a program is valid and can be deployed onchain.
 /// Returns whether the WASM is already up-to-date and activated onchain, and the data fee.
-pub async fn check(cfg: CheckConfig) -> Result<ProgramCheck> {
+pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
+    if cfg.endpoint == "https://stylus-testnet.arbitrum.io/rpc" {
+        let version = format!("cargo stylus version 0.2.1").red();
+        bail!("The old Stylus testnet is no longer supported.\nPlease downgrade to {version}",);
+    }
+
     let verbose = cfg.verbose;
-    let wasm = cfg.build_wasm()?;
+    let wasm = cfg.build_wasm().wrap_err("failed to build wasm")?;
 
     if verbose {
         greyln!("reading wasm file at {}", wasm.to_string_lossy().lavender());
@@ -84,14 +73,39 @@ pub async fn check(cfg: CheckConfig) -> Result<ProgramCheck> {
     let codehash = alloy_primitives::keccak256(&code);
 
     if program_exists(codehash, &provider).await? {
-        return Ok(ProgramCheck::Active);
+        return Ok(ProgramCheck::Active(code));
     }
 
     let address = cfg.program_address.unwrap_or(H160::random());
-    let fee = check_activate(code.into(), address, &provider).await?;
+    let fee = check_activate(code.clone().into(), address, &provider).await?;
     let visual_fee = format_data_fee(fee).unwrap_or("???".red());
     greyln!("wasm data fee: {visual_fee}");
-    Ok(ProgramCheck::Ready(fee))
+    Ok(ProgramCheck::Ready(code, fee))
+}
+
+/// Whether a program is active, or needs activation.
+#[derive(PartialEq)]
+pub enum ProgramCheck {
+    /// Program already exists onchain.
+    Active(Vec<u8>),
+    /// Program can be activated with the given data fee.
+    Ready(Vec<u8>, U256),
+}
+
+impl ProgramCheck {
+    pub fn code(&self) -> &[u8] {
+        match self {
+            Self::Active(code) => code,
+            Self::Ready(code, _) => code,
+        }
+    }
+
+    pub fn suggest_fee(&self) -> U256 {
+        match self {
+            Self::Active(_) => U256::default(),
+            Self::Ready(_, data_fee) => data_fee * U256::from(120) / U256::from(100),
+        }
+    }
 }
 
 impl CheckConfig {
@@ -113,7 +127,7 @@ fn format_file_size(len: usize, mid: u64, max: u64) -> String {
     } else if len <= max {
         len.yellow()
     } else {
-        len.red()
+        len.pink()
     }
 }
 
@@ -127,7 +141,7 @@ fn format_data_fee(fee: U256) -> Result<String> {
     } else if fee <= 5e15 {
         text.yellow()
     } else {
-        text.red()
+        text.pink()
     })
 }
 
