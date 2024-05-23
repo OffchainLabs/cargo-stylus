@@ -95,6 +95,9 @@ pub struct CheckConfig {
     /// Specifies a WASM file instead of looking for one in the current directory.
     #[arg(long)]
     wasm_file_path: Option<String>,
+    /// Specifies the features to use when building the Stylus binary.
+    #[arg(long)]
+    features: Option<String>,
     /// Specify the program address we want to check activation for. If unspecified, it will
     /// compute the next program address from the user's wallet address and nonce, which will require
     /// wallet-related flags to be specified.

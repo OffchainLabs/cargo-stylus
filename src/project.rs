@@ -21,6 +21,7 @@ pub enum OptLevel {
 
 pub struct BuildConfig {
     pub opt_level: OptLevel,
+    pub features: Option<String>,
     pub nightly: bool,
     pub rebuild: bool,
     pub skip_contract_size_check: bool,
@@ -64,6 +65,10 @@ pub fn build_project_dylib(cfg: BuildConfig) -> Result<PathBuf> {
 
         cmd.arg("build");
         cmd.arg("--lib");
+
+        if cfg.features != None {
+            cmd.arg(format!("--features={}", cfg.features.clone().unwrap()));
+        }
 
         if cfg.nightly {
             cmd.arg("-Z");
@@ -126,6 +131,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                     // Attempt to build again with a bumped-up optimization level.
                     return build_project_dylib(BuildConfig {
                         opt_level: OptLevel::Z,
+                        features: cfg.features,
                         nightly: cfg.nightly,
                         rebuild: true,
                         skip_contract_size_check: cfg.skip_contract_size_check,
@@ -141,6 +147,7 @@ https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
                         // only available with nightly compilation.
                         return build_project_dylib(BuildConfig {
                             opt_level: OptLevel::Z,
+                            features: cfg.features,
                             nightly: true,
                             rebuild: true,
                             skip_contract_size_check: cfg.skip_contract_size_check,

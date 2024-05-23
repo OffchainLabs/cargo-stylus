@@ -116,6 +116,7 @@ programs to Stylus chains here https://docs.arbitrum.io/stylus/stylus-quickstart
             Some(path) => PathBuf::from_str(path).unwrap(),
             None => project::build_project_dylib(BuildConfig {
                 opt_level: project::OptLevel::default(),
+                features: cfg.check_cfg.features,
                 nightly: cfg.check_cfg.nightly,
                 rebuild: false, // The check step at the start of this command rebuilt.
                 skip_contract_size_check: cfg.check_cfg.skip_contract_size_check,
