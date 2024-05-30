@@ -70,7 +70,7 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         let balance = run!(client.get_balance(sender, None), "failed to get balance");
         let balance = alloy_ethers_typecast::ethers_u256_to_alloy(balance);
 
-        if balance < data_fee {
+        if balance < data_fee && !cfg.estimate_gas {
             bail!(
                 "not enough funds in account {} to pay for data fee\n\
                  balance {} < {}\n\
@@ -150,10 +150,6 @@ impl DeployConfig {
         data_fee: AU256,
         client: &SignerClient,
     ) -> Result<()> {
-        if self.estimate_gas {
-            bail!("estimation for activate coming later today");
-        }
-
         let verbose = self.check_config.verbose;
         let data_fee = alloy_ethers_typecast::alloy_u256_to_ethers(data_fee);
         let program: Address = contract.to_fixed_bytes().into();
@@ -166,8 +162,19 @@ impl DeployConfig {
             .data(data)
             .value(data_fee);
 
-        let gas = None;
-        let receipt = self.run_tx("activate", tx, gas, client).await?;
+        let gas = client
+            .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
+            .await
+            .map_err(|e| eyre!("did not estimate correctly: {e}"))?;
+
+        if self.check_config.verbose || self.estimate_gas {
+            greyln!("activation gas estimate: {}", format_gas(gas));
+        }
+        if self.estimate_gas {
+            return Ok(());
+        }
+
+        let receipt = self.run_tx("activate", tx, Some(gas), client).await?;
 
         if verbose {
             let gas = format_gas(receipt.gas_used.unwrap_or_default());
