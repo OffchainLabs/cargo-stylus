@@ -14,14 +14,12 @@ mod export_abi;
 mod macros;
 mod new;
 mod project;
-mod tx;
 mod wallet;
 
 #[derive(Parser, Debug)]
 #[command(name = "check")]
 #[command(bin_name = "cargo stylus")]
 #[command(author = "Offchain Labs, Inc.")]
-#[command(about = "Generate C code for Stylus ABI bindings.", long_about = None)]
 #[command(propagate_version = true)]
 #[command(version)]
 struct Opts {

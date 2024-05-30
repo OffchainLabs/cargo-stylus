@@ -118,7 +118,7 @@ impl CheckConfig {
 }
 
 /// Pretty-prints a file size based on its limits.
-fn format_file_size(len: usize, mid: u64, max: u64) -> String {
+pub fn format_file_size(len: usize, mid: u64, max: u64) -> String {
     let len = ByteSize::b(len as u64);
     let mid = ByteSize::kib(mid);
     let max = ByteSize::kib(max);

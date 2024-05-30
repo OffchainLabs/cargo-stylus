@@ -33,8 +33,6 @@ sol! {
             payable
             returns (uint16 version, uint256 dataFee);
     }
-
-
 }
 
 type SignerClient = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;

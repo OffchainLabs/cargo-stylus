@@ -2,16 +2,12 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use crate::{
-    constants::{
-        BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, MAX_PRECOMPRESSED_WASM_SIZE,
-        MAX_PROGRAM_SIZE, RUST_TARGET,
-    },
+    constants::{BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, RUST_TARGET},
     macros::*,
 };
 use brotli2::read::BrotliEncoder;
-use bytesize::ByteSize;
 use cargo_stylus_util::{color::Color, sys};
-use eyre::{bail, eyre, Result, WrapErr};
+use eyre::{eyre, Result, WrapErr};
 use std::{env::current_dir, fs, io::Read, path::PathBuf, process};
 
 #[derive(Default, PartialEq)]
@@ -41,33 +37,12 @@ impl BuildConfig {
 pub enum BuildError {
     #[error("could not find WASM in release dir ({path}).")]
     NoWasmFound { path: PathBuf },
-    #[error(
-        r#"compressed program size ({got}) exceeds max ({want}) despite --nightly flag. We recommend splitting up your program. 
-We are actively working to reduce WASM program sizes that use the Stylus SDK.
-To see all available optimization options, see more in:
-https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
-    )]
-    ExceedsMaxDespiteBestEffort { got: ByteSize, want: ByteSize },
-    #[error(
-        r#"Brotli-compressed WASM program size ({got}) is bigger than program size limit: ({want}). We recommend splitting up your program. 
-We are actively working to reduce WASM program sizes that use the Stylus SDK.
-To see all available optimization options, see more in:
-https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#
-    )]
-    MaxCompressedSizeExceeded { got: ByteSize, want: ByteSize },
-    #[error(
-        r#"uncompressed WASM program size ({got}) is bigger than size limit: ({want}). We recommend splitting up your program. 
-We are actively working to reduce WASM program sizes that use the Stylus SDK.
-To see all available optimization options, see more in:
-https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#)]
-    MaxPrecompressedSizeExceeded { got: ByteSize, want: ByteSize },
 }
 
 /// Build a Rust project to WASM and return the path to the compiled WASM file.
 pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let cwd: PathBuf = current_dir().map_err(|e| eyre!("could not get current dir: {e}"))?;
 
-    //if cfg.rebuild {
     let mut cmd = sys::new_command("cargo");
 
     if !cfg.stable {
@@ -124,51 +99,16 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
         })
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
-    if let Err(e) = compress_wasm(&wasm_file_path) {
-        if let Some(BuildError::MaxCompressedSizeExceeded { got, .. }) = e.downcast_ref() {
-            match cfg.opt_level {
-                OptLevel::S => {
-                    println!(
-                        r#"Compressed program built with defaults had program size {} > max of 24Kb, 
-rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
-using the Stylus SDK. To see all available optimization options, see more in:
-https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
-                        got.red(),
-                    );
-                    // Attempt to build again with a bumped-up optimization level.
-                    return build_dylib(BuildConfig {
-                        opt_level: OptLevel::Z,
-                        stable: cfg.stable,
-                        rebuild: true,
-                    });
-                }
-                OptLevel::Z => {
-                    if !cfg.stable {
-                        println!(
-                            r#"Compressed program still exceeding max program size {} > max of 24Kb, 
-rebuilding with optimizations. We are actively working to reduce WASM program sizes that are
-using the Stylus SDK. To see all available optimization options, see more in:
-https://github.com/OffchainLabs/cargo-stylus/blob/main/OPTIMIZING_BINARIES.md"#,
-                            got.red(),
-                        );
-                        // Attempt to build again with the nightly flag enabled and extra optimizations
-                        // only available with nightly compilation.
-                        return build_dylib(BuildConfig {
-                            opt_level: OptLevel::Z,
-                            stable: false,
-                            rebuild: true,
-                        });
-                    }
-                    return Err(BuildError::ExceedsMaxDespiteBestEffort {
-                        got: *got,
-                        want: MAX_PROGRAM_SIZE,
-                    }
-                    .into());
-                }
-            }
-        }
-        return Err(e);
-    }
+    let (wasm, code) = compress_wasm(&wasm_file_path).wrap_err("failed to compress WASM")?;
+
+    greyln!(
+        "contract size: {}",
+        crate::check::format_file_size(code.len(), 16, 24)
+    );
+    greyln!(
+        "wasm size: {}",
+        crate::check::format_file_size(wasm.len(), 96, 128)
+    );
     Ok(wasm_file_path)
 }
 
