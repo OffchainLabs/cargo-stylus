@@ -13,7 +13,7 @@ A cargo subcommand for building, verifying, and deploying Arbitrum Stylus WASM p
 Install [Rust](https://www.rust-lang.org/tools/install), and then install the plugin using the Cargo tool:
 
 ```
-RUSTFLAGS="-C link-args=-rdynamic" cargo install --force cargo-stylus
+cargo install --force cargo-stylus cargo-stylus-check
 ```
 
 Add the `wasm32-unknown-unknown` build target to your Rust compiler:
