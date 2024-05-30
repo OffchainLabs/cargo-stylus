@@ -48,7 +48,7 @@ sol! {
 /// Returns whether the WASM is already up-to-date and activated onchain, and the data fee.
 pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
     if cfg.endpoint == "https://stylus-testnet.arbitrum.io/rpc" {
-        let version = format!("cargo stylus version 0.2.1").red();
+        let version = "cargo stylus version 0.2.1".to_string().red();
         bail!("The old Stylus testnet is no longer supported.\nPlease downgrade to {version}",);
     }
 
