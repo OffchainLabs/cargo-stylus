@@ -86,6 +86,20 @@ pub unsafe extern "C" fn storage_store_bytes32(key_ptr: *const u8, value_ptr: *c
     assert_eq!(read_fixed(value_ptr), value);
 }
 
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn storage_cache_bytes32(key_ptr: *const u8, value_ptr: *const u8) {
+    frame!(StorageCacheBytes32 { key, value });
+    assert_eq!(read_fixed(key_ptr), key);
+    assert_eq!(read_fixed(value_ptr), value);
+}
+
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn storage_flush_cache(clear: u32) {
+    frame!(StorageFlushCache { clear });
+}
+
 /// Gets the ETH balance in wei of the account at the given address.
 /// The semantics are equivalent to that of the EVM's [`BALANCE`] opcode.
 ///
