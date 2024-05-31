@@ -3,7 +3,7 @@
 
 #![allow(clippy::redundant_closure_call)]
 
-use alloy_primitives::{Address, TxHash, B256, U256};
+use alloy_primitives::{Address, FixedBytes, TxHash, B256, U256};
 use cargo_stylus_util::color::{Color, DebugColor};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
@@ -236,6 +236,13 @@ impl TraceFrame {
                     key: read_b256!(args),
                     value: read_b256!(args),
                 },
+                "storage_cache_bytes32" => StorageCacheBytes32 {
+                    key: read_b256!(args),
+                    value: read_b256!(args),
+                },
+                "storage_flush_cache" => StorageFlushCache {
+                    clear: read_u8!(args),
+                },
                 "account_balance" => AccountBalance {
                     address: read_address!(args),
                     balance: read_u256!(outs),
@@ -352,7 +359,7 @@ impl TraceFrame {
                 "console_log" => ConsoleLog {
                     text: read_string!(args),
                 },
-                x => todo!("Missing hostio {x}"),
+                x => todo!("Missing hostio details {x}"),
             };
 
             assert!(args.is_empty(), "{name}");
@@ -396,6 +403,13 @@ pub enum HostioKind {
     StorageStoreBytes32 {
         key: B256,
         value: B256,
+    },
+    StorageCacheBytes32 {
+        key: FixedBytes<32>,
+        value: FixedBytes<32>,
+    },
+    StorageFlushCache {
+        clear: u8,
     },
     AccountBalance {
         address: Address,

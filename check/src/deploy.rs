@@ -136,9 +136,12 @@ impl DeployConfig {
 
         if verbose {
             let gas = format_gas(receipt.gas_used.unwrap_or_default());
-            greyln!("deployed code: {address} {} {gas}", "with".grey());
+            greyln!(
+                "deployed code at address: {address} {} {gas}",
+                "with".grey()
+            );
         } else {
-            greyln!("deployed code: {address}");
+            greyln!("deployed code at address: {address}");
         }
         Ok(contract)
     }
@@ -181,7 +184,7 @@ impl DeployConfig {
             greyln!("activated with {gas}");
         }
         greyln!(
-            "ready onchain: {}",
+            "program activated and ready onchain with tx hash: {}",
             receipt.transaction_hash.debug_lavender()
         );
         Ok(())
