@@ -1,0 +1,26 @@
+[package]
+name = "cargo-stylus-replay"
+keywords = ["arbitrum", "ethereum", "stylus", "alloy", "gdb"]
+description = "CLI tool for replaying Stylus transactions on Arbitrum chains"
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+version.workspace = true
+repository.workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+cargo-stylus-util.workspace = true
+clap.workspace = true
+ethers.workspace = true
+eyre.workspace = true
+function_name.workspace = true
+lazy_static.workspace = true
+libc.workspace = true
+libloading.workspace = true
+parking_lot.workspace = true
+rustc-host.workspace = true
+sneks.workspace = true
+tokio.workspace = true

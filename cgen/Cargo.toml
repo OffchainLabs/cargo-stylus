@@ -1,0 +1,15 @@
+[package]
+name = "cargo-stylus-cgen"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+alloy-json-abi.workspace = true
+clap.workspace = true
+eyre.workspace = true
+serde_json.workspace = true
+tiny-keccak.workspace = true

@@ -1,0 +1,33 @@
+[package]
+name = "cargo-stylus-check"
+keywords = ["arbitrum", "ethereum", "stylus", "alloy", "cargo"]
+description = "CLI tool for deploying Stylus contracts on Arbitrum chains"
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+version.workspace = true
+repository.workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-json-abi.workspace = true
+alloy-sol-macro.workspace = true
+alloy-sol-types.workspace = true
+alloy-ethers-typecast.workspace = true
+brotli2 = "0.3.2"
+bytes = "1.4.0"
+bytesize = "1.2.0"
+cargo-stylus-util.workspace = true
+clap.workspace = true
+eyre.workspace = true
+hex.workspace = true
+lazy_static.workspace = true
+serde = { version = "1.0.188", features = ["derive"] }
+ethers.workspace = true
+serde_json = "1.0.103"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+thiserror = "1.0.47"
+tokio.workspace = true
+wasmer = "3.1.0"

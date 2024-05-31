@@ -1,12 +1,10 @@
-// Copyright 2023, Offchain Labs, Inc.
+// Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use alloy_json_abi::{Function, JsonAbi, StateMutability};
-use eyre::bail;
+use eyre::{bail, Result};
 use serde_json::Value;
-use std::fs;
-use std::io::BufReader;
-use std::{collections::HashMap, fmt::Write};
+use std::{collections::HashMap, fmt::Write, fs, io::BufReader, path::Path};
 use tiny_keccak::{Hasher, Keccak};
 
 fn c_bytearray_initializer(val: &[u8]) -> String {
@@ -14,13 +12,16 @@ fn c_bytearray_initializer(val: &[u8]) -> String {
     format!("{{{}}}", inner.join(", "))
 }
 
-pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
-    let f = fs::File::open(&in_path)?;
+pub fn c_gen(in_path: &Path, out_path: &Path) -> Result<()> {
+    let f = fs::File::open(in_path)?;
 
     let input: Value = serde_json::from_reader(BufReader::new(f))?;
 
     let Some(input_contracts) = input["contracts"].as_object() else {
-        bail!("did not find top-level contracts object in {}", in_path)
+        bail!(
+            "did not find top-level contracts object in {}",
+            in_path.to_string_lossy()
+        )
     };
 
     let mut pathbuf = std::path::PathBuf::new();
@@ -70,7 +71,7 @@ pub fn c_gen(in_path: String, out_path: String) -> eyre::Result<()> {
                         0 => simple_name.clone(),
                         x => format!("{simple_name}_{x}"),
                     };
-                    let selector = u32::from_be_bytes(overload.selector());
+                    let selector = u32::from_be_bytes(*overload.selector());
 
                     let (hdr_params, call_params, payable) = match overload.state_mutability {
                         StateMutability::Pure => {

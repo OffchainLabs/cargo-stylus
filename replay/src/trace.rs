@@ -3,8 +3,8 @@
 
 #![allow(clippy::redundant_closure_call)]
 
-use crate::color::{Color, DebugColor};
-use alloy_primitives::{Address, TxHash, B256, U256};
+use alloy_primitives::{Address, FixedBytes, TxHash, B256, U256};
+use cargo_stylus_util::color::{Color, DebugColor};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
     types::{
@@ -18,7 +18,7 @@ use std::{collections::VecDeque, mem};
 
 #[derive(Debug)]
 pub struct Trace {
-    top_frame: TraceFrame,
+    pub top_frame: TraceFrame,
     pub receipt: TransactionReceipt,
     pub tx: Transaction,
     pub json: Value,
@@ -236,6 +236,13 @@ impl TraceFrame {
                     key: read_b256!(args),
                     value: read_b256!(args),
                 },
+                "storage_cache_bytes32" => StorageCacheBytes32 {
+                    key: read_b256!(args),
+                    value: read_b256!(args),
+                },
+                "storage_flush_cache" => StorageFlushCache {
+                    clear: read_u8!(args),
+                },
                 "account_balance" => AccountBalance {
                     address: read_address!(args),
                     balance: read_u256!(outs),
@@ -293,7 +300,7 @@ impl TraceFrame {
                 "tx_origin" => TxOrigin {
                     origin: read_address!(outs),
                 },
-                "memory_grow" => MemoryGrow {
+                "memory_grow" => PayForMemoryGrow {
                     pages: read_u16!(args),
                 },
                 "call_contract" => CallContract {
@@ -339,8 +346,8 @@ impl TraceFrame {
                     data: read_data!(args),
                 },
                 "read_return_data" => ReadReturnData {
-                    offset: read_usize!(args),
-                    size: read_usize!(args),
+                    offset: read_u32!(args),
+                    size: read_u32!(args),
                     data: read_data!(outs),
                 },
                 "return_data_size" => ReturnDataSize {
@@ -352,7 +359,7 @@ impl TraceFrame {
                 "console_log" => ConsoleLog {
                     text: read_string!(args),
                 },
-                x => todo!("Missing hostio {x}"),
+                x => todo!("Missing hostio details {x}"),
             };
 
             assert!(args.is_empty(), "{name}");
@@ -397,6 +404,13 @@ pub enum HostioKind {
         key: B256,
         value: B256,
     },
+    StorageCacheBytes32 {
+        key: FixedBytes<32>,
+        value: FixedBytes<32>,
+    },
+    StorageFlushCache {
+        clear: u8,
+    },
     AccountBalance {
         address: Address,
         balance: U256,
@@ -432,7 +446,7 @@ pub enum HostioKind {
     EvmInkLeft {
         ink_left: u64,
     },
-    MemoryGrow {
+    PayForMemoryGrow {
         pages: u16,
     },
     MsgReentrant {
@@ -506,8 +520,8 @@ pub enum HostioKind {
         topics: usize,
     },
     ReadReturnData {
-        offset: usize,
-        size: usize,
+        offset: u32,
+        size: u32,
         data: Box<[u8]>,
     },
     ReturnDataSize {

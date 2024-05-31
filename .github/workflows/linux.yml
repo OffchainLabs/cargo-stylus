@@ -30,4 +30,4 @@ jobs:
         rustup target add ${{ matrix.target }}
 
     - name: Build and Test
-      run: ./ci/build_and_test.sh
+      run: ./.ci/build_and_test.sh

@@ -1,0 +1,16 @@
+[package]
+name = "cargo-stylus"
+keywords = ["arbitrum", "ethereum", "stylus", "alloy", "cargo"]
+description = "CLI tool for building Stylus contracts on Arbitrum chains"
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+version.workspace = true
+repository.workspace = true
+
+[dependencies]
+cargo-stylus-util.workspace = true
+clap.workspace = true
+eyre.workspace = true

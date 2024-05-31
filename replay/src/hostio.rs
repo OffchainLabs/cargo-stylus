@@ -1,4 +1,4 @@
-// Copyright 2022-2023, Offchain Labs, Inc.
+// Copyright 2022-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/stylus-sdk-rs/blob/stylus/licenses/COPYRIGHT.md
 
 #![allow(unused)]
@@ -84,6 +84,20 @@ pub unsafe extern "C" fn storage_store_bytes32(key_ptr: *const u8, value_ptr: *c
     frame!(StorageStoreBytes32 { key, value });
     assert_eq!(read_fixed(key_ptr), key);
     assert_eq!(read_fixed(value_ptr), value);
+}
+
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn storage_cache_bytes32(key_ptr: *const u8, value_ptr: *const u8) {
+    frame!(StorageCacheBytes32 { key, value });
+    assert_eq!(read_fixed(key_ptr), key);
+    assert_eq!(read_fixed(value_ptr), value);
+}
+
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn storage_flush_cache(clear: u32) {
+    frame!(StorageFlushCache { clear });
 }
 
 /// Gets the ETH balance in wei of the account at the given address.
@@ -433,8 +447,8 @@ pub unsafe extern "C" fn evm_ink_left() -> u64 {
 /// Calls made voluntarily will unproductively consume gas.
 #[named]
 #[no_mangle]
-pub unsafe extern "C" fn memory_grow(new_pages: u16) {
-    frame!(MemoryGrow { pages });
+pub unsafe extern "C" fn pay_for_memory_grow(new_pages: u16) {
+    frame!(PayForMemoryGrow { pages });
     assert_eq!(new_pages, pages);
 }
 
@@ -500,8 +514,8 @@ pub unsafe extern "C" fn read_return_data(
     size_value: usize,
 ) -> usize {
     frame!(ReadReturnData { offset, size, data });
-    assert_eq!(offset_value, offset);
-    assert_eq!(size_value, size);
+    assert_eq!(offset_value, offset as usize);
+    assert_eq!(size_value, size as usize);
     copy!(data, dest, data.len());
     data.len()
 }
