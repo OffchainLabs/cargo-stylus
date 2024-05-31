@@ -228,6 +228,9 @@ impl TraceFrame {
                 "write_result" => WriteResult {
                     result: read_data!(args),
                 },
+                "exit_early" => ExitEarly {
+                    status: read_u32!(args),
+                },
                 "storage_load_bytes32" => StorageLoadBytes32 {
                     key: read_b256!(args),
                     value: read_b256!(outs),
@@ -300,7 +303,7 @@ impl TraceFrame {
                 "tx_origin" => TxOrigin {
                     origin: read_address!(outs),
                 },
-                "memory_grow" => PayForMemoryGrow {
+                "pay_for_memory_grow" => PayForMemoryGrow {
                     pages: read_u16!(args),
                 },
                 "call_contract" => CallContract {
@@ -395,6 +398,9 @@ pub enum HostioKind {
     },
     WriteResult {
         result: Box<[u8]>,
+    },
+    ExitEarly {
+        status: u32,
     },
     StorageLoadBytes32 {
         key: B256,
