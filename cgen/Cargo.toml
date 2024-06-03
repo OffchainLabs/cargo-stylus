@@ -1,5 +1,8 @@
 [package]
 name = "cargo-stylus-cgen"
+keywords = ["arbitrum", "ethereum", "stylus", "alloy", "gdb"]
+description = "CLI tool generating C bindings for Arbitrum Stylus ABIs"
+
 authors.workspace = true
 version.workspace = true
 edition.workspace = true
