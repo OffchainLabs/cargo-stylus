@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 authors = ["Offchain Labs"]
-version = "0.2.1"
+version = "0.3.1"
 edition = "2021"
 homepage = "https://arbitrum.io"
 license = "MIT OR Apache-2.0"
@@ -34,4 +34,4 @@ parking_lot = "0.12.1"
 sneks = "0.1.2"
 
 # members
-cargo-stylus-util = { path = "util", version = "0.2.1" }
+cargo-stylus-util = { path = "util", version = "0.3.1" }
