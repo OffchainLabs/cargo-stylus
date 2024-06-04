@@ -164,14 +164,19 @@ For example:
 
 ```js
 (module
+    (memory 0 0)
+    (export "memory" (memory 0))
     (type $t0 (func (param i32) (result i32)))
     (func $add_one (export "add_one") (type $t0) (param $p0 i32) (result i32)
-        get_local $p0
+        local.get $p0
         i32.const 1
-        i32.add))
+        i32.add)
+    (func (export "user_entrypoint") (param $args_len i32) (result i32)
+        (i32.const 0)
+    ))
 ```
 
-can be saved as `add.wat` and used as `cargo stylus check --wasm-file-path=add.wat` or `cargo stylus deploy --wasm-file-path=add.wat`.
+can be saved as `add.wat` and used as `cargo stylus check --wasm-file=add.wat` or `cargo stylus deploy --wasm-file=add.wat`.
 
 ## Exporting Solidity ABIs
 
