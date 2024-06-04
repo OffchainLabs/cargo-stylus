@@ -156,7 +156,7 @@ See `--help` for all available flags and default values.
 
 ## Deploying Non-Rust WASM Projects
 
-The Stylus tool can also be used to deploy non-Rust, WASM projects to Stylus by specifying the WASM file directly with the `--wasm-file-path` flag to any of the cargo stylus commands. 
+The Stylus tool can also be used to deploy non-Rust, WASM projects to Stylus by specifying the WASM file directly with the `--wasm-file` flag to any of the cargo stylus commands. 
 
 Even WebAssembly Text [(WAT)](https://www.webassemblyman.com/wat_webassembly_text_format.html) files are supported. This means projects that are just individual WASM files can be deployed onchain without needing to have been compiled by Rust. WASMs produced by other languages, such as C, can be used with the tool this way.
 
