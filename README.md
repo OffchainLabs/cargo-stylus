@@ -156,7 +156,7 @@ See `--help` for all available flags and default values.
 
 ## Deploying Non-Rust WASM Projects
 
-The Stylus tool can also be used to deploy non-Rust, WASM projects to Stylus by specifying the WASM file directly with the `--wasm-file-path` flag to any of the cargo stylus commands. 
+The Stylus tool can also be used to deploy non-Rust, WASM projects to Stylus by specifying the WASM file directly with the `--wasm-file` flag to any of the cargo stylus commands. 
 
 Even WebAssembly Text [(WAT)](https://www.webassemblyman.com/wat_webassembly_text_format.html) files are supported. This means projects that are just individual WASM files can be deployed onchain without needing to have been compiled by Rust. WASMs produced by other languages, such as C, can be used with the tool this way.
 
@@ -164,14 +164,19 @@ For example:
 
 ```js
 (module
+    (memory 0 0)
+    (export "memory" (memory 0))
     (type $t0 (func (param i32) (result i32)))
     (func $add_one (export "add_one") (type $t0) (param $p0 i32) (result i32)
-        get_local $p0
+        local.get $p0
         i32.const 1
-        i32.add))
+        i32.add)
+    (func (export "user_entrypoint") (param $args_len i32) (result i32)
+        (i32.const 0)
+    ))
 ```
 
-can be saved as `add.wat` and used as `cargo stylus check --wasm-file-path=add.wat` or `cargo stylus deploy --wasm-file-path=add.wat`.
+can be saved as `add.wat` and used as `cargo stylus check --wasm-file=add.wat` or `cargo stylus deploy --wasm-file=add.wat`.
 
 ## Exporting Solidity ABIs
 
