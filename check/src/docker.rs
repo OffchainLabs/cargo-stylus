@@ -15,7 +15,7 @@ fn image_exists(name: &str) -> Result<bool> {
         .arg("images")
         .arg(name)
         .output()
-        .map_err(|e| eyre!("failed to execure Docker command: {e}"))?;
+        .map_err(|e| eyre!("failed to execute Docker command: {e}"))?;
     Ok(output.stdout.iter().filter(|c| **c == b'\n').count() > 1)
 }
 
@@ -39,7 +39,6 @@ fn create_image(version: &str) -> Result<()> {
             FROM rust:{} as builder\n\
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
-            RUN rustup target add nightly-aarch64-unknown-linux-gnu
             RUN rustup target add aarch64-unknown-linux-gnu
             RUN cargo install cargo-stylus
             RUN cargo install --force cargo-stylus-check

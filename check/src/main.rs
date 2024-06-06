@@ -77,7 +77,6 @@ struct CommonConfig {
     /// Arbitrum RPC endpoint.
     #[arg(short, long, default_value = "https://stylusv2.arbitrum.io/rpc")]
     endpoint: String,
-    /// The WASM to check (defaults to any found in the current directory).
     /// Whether to use stable Rust.
     #[arg(long)]
     rust_stable: bool,
