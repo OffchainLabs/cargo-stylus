@@ -39,6 +39,8 @@ fn create_image(version: &str) -> Result<()> {
             FROM rust:{} as builder\n\
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
+            RUN rustup target add nightly-aarch64-unknown-linux-gnu
+            RUN rustup target add aarch64-unknown-linux-gnu
             RUN cargo install cargo-stylus
             RUN cargo install --force cargo-stylus-check
             RUN cargo install --force cargo-stylus-replay
