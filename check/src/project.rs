@@ -7,7 +7,7 @@ use crate::{
 };
 use brotli2::read::BrotliEncoder;
 use cargo_stylus_util::{color::Color, sys};
-use eyre::{eyre, Result, WrapErr};
+use eyre::{bail, eyre, Result, WrapErr};
 use std::process::Command;
 use std::str::FromStr as _;
 use std::{
@@ -19,14 +19,14 @@ use std::{
 };
 use tiny_keccak::{Hasher, Keccak};
 
-#[derive(Default, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 pub enum OptLevel {
     #[default]
     S,
     Z,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub stable: bool,
@@ -149,7 +149,7 @@ fn all_paths() -> Result<Vec<PathBuf>> {
 pub fn hash_files(cfg: BuildConfig) -> Result<[u8; 32]> {
     let mut keccak = Keccak::v256();
     let mut cmd = Command::new("cargo");
-    if cfg.nightly {
+    if !cfg.stable {
         cmd.arg("+nightly");
     }
     cmd.arg("--version");

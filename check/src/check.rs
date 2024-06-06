@@ -47,13 +47,13 @@ sol! {
 /// Checks that a program is valid and can be deployed onchain.
 /// Returns whether the WASM is already up-to-date and activated onchain, and the data fee.
 pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
-    if cfg.endpoint == "https://stylus-testnet.arbitrum.io/rpc" {
+    if cfg.common_cfg.endpoint == "https://stylus-testnet.arbitrum.io/rpc" {
         let version = "cargo stylus version 0.2.1".to_string().red();
         bail!("The old Stylus testnet is no longer supported.\nPlease downgrade to {version}",);
     }
 
-    let verbose = cfg.verbose;
-    let wasm = cfg.build_wasm().wrap_err("failed to build wasm")?;
+    let verbose = cfg.common_cfg.verbose;
+    let (wasm, project_hash) = cfg.build_wasm().wrap_err("failed to build wasm")?;
 
     if verbose {
         greyln!("reading wasm file at {}", wasm.to_string_lossy().lavender());
@@ -65,55 +65,76 @@ pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
 
     if verbose {
         greyln!("wasm size: {}", format_file_size(wasm.len(), 96, 128));
-        greyln!("connecting to RPC: {}", &cfg.endpoint.lavender());
+        greyln!("connecting to RPC: {}", &cfg.common_cfg.endpoint.lavender());
     }
 
     // check if the program already exists
-    let provider = sys::new_provider(&cfg.endpoint)?;
+    let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
     let codehash = alloy_primitives::keccak256(&code);
 
     if program_exists(codehash, &provider).await? {
-        return Ok(ProgramCheck::Active(code));
+        return Ok(ProgramCheck::Active { code, project_hash });
     }
 
     let address = cfg.program_address.unwrap_or(H160::random());
     let fee = check_activate(code.clone().into(), address, &provider).await?;
     let visual_fee = format_data_fee(fee).unwrap_or("???".red());
     greyln!("wasm data fee: {visual_fee}");
-    Ok(ProgramCheck::Ready(code, fee))
+    Ok(ProgramCheck::Ready {
+        code,
+        fee,
+        project_hash,
+    })
 }
 
 /// Whether a program is active, or needs activation.
 #[derive(PartialEq)]
 pub enum ProgramCheck {
     /// Program already exists onchain.
-    Active(Vec<u8>),
+    Active {
+        code: Vec<u8>,
+        project_hash: [u8; 32],
+    },
     /// Program can be activated with the given data fee.
-    Ready(Vec<u8>, U256),
+    Ready {
+        code: Vec<u8>,
+        fee: U256,
+        project_hash: [u8; 32],
+    },
 }
 
 impl ProgramCheck {
     pub fn code(&self) -> &[u8] {
         match self {
-            Self::Active(code) => code,
-            Self::Ready(code, _) => code,
+            Self::Active { code, .. } => code,
+            Self::Ready { code, .. } => code,
+        }
+    }
+
+    pub fn project_hash(&self) -> &[u8; 32] {
+        match self {
+            Self::Active { project_hash, .. } => project_hash,
+            Self::Ready { project_hash, .. } => project_hash,
         }
     }
 
     pub fn suggest_fee(&self) -> U256 {
         match self {
-            Self::Active(_) => U256::default(),
-            Self::Ready(_, data_fee) => data_fee * U256::from(120) / U256::from(100),
+            Self::Active { .. } => U256::default(),
+            Self::Ready { fee, .. } => fee * U256::from(120) / U256::from(100),
         }
     }
 }
 
 impl CheckConfig {
-    fn build_wasm(&self) -> Result<PathBuf> {
+    fn build_wasm(&self) -> Result<(PathBuf, [u8; 32])> {
         if let Some(wasm) = self.wasm_file.clone() {
-            return Ok(wasm);
+            return Ok((wasm, [0u8; 32]));
         }
-        project::build_dylib(BuildConfig::new(self.rust_stable))
+        let cfg = BuildConfig::new(self.common_cfg.rust_stable);
+        let project_hash = project::hash_files(cfg.clone())?;
+        let wasm = project::build_dylib(cfg)?;
+        Ok((wasm, project_hash))
     }
 }
 
