@@ -40,6 +40,9 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN cargo install cargo-stylus
+            RUN cargo install --force cargo-stylus-check
+            RUN cargo install --force cargo-stylus-replay
+            RUN cargo install --force cargo-stylus-cgen
         ",
         version
     )?;

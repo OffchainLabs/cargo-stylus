@@ -57,11 +57,11 @@ enum Apis {
     /// Build in a Docker container to ensure reproducibility.
     ///
     /// Specify the Rust version to use, followed by the cargo stylus subcommand.
-    /// Example: `cargo stylus reproducible 1.75 check`
+    /// Example: `cargo stylus reproducible 1.77 check`
     Reproducible {
         /// Rust version to use.
         #[arg()]
-        version: String,
+        rust_version: String,
 
         /// Stylus subcommand.
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -163,9 +163,12 @@ async fn main_impl(args: Opts) -> Result<()> {
         Apis::Deploy(config) => {
             run!(deploy::deploy(config).await, "failed to deploy");
         }
-        Apis::Reproducible { version, stylus } => {
+        Apis::Reproducible {
+            rust_version,
+            stylus,
+        } => {
             run!(
-                docker::run_reproducible(&version, &stylus),
+                docker::run_reproducible(&rust_version, &stylus),
                 "failed reproducible run"
             );
         }
