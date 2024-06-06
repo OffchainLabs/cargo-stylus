@@ -10,6 +10,7 @@ use tokio::runtime::Builder;
 mod check;
 mod constants;
 mod deploy;
+mod docker;
 mod export_abi;
 mod macros;
 mod new;
@@ -37,6 +38,19 @@ enum Apis {
         #[arg(long)]
         minimal: bool,
     },
+    // /// Build in a Docker container to ensure reproducibility.
+    // ///
+    // /// Specify the Rust version to use, followed by the cargo stylus subcommand.
+    // /// Example: `cargo stylus reproducible 1.75 check`
+    // Reproducible {
+    //     /// Rust version to use.
+    //     #[arg(long)]
+    //     version: String,
+
+    //     /// Stylus subcommand.
+    //     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    //     stylus: Vec<String>,
+    // },
     /// Export a Solidity ABI.
     ExportAbi {
         /// The output file (defaults to stdout).
@@ -83,6 +97,13 @@ struct DeployConfig {
     /// Only perform gas estimation.
     #[arg(long)]
     estimate_gas: bool,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct VerifyConfig {
+    /// Hash of the deployment transaction.
+    #[arg(long)]
+    deployment_tx: String,
 }
 
 #[derive(Clone, Debug, Args)]

@@ -715,6 +715,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo-stylus-verify"
+version = "0.3.1"
+dependencies = [
+ "alloy-primitives 0.7.2",
+ "cargo-stylus-util",
+ "clap",
+ "ethers",
+ "eyre",
+ "function_name",
+ "hex",
+ "lazy_static",
+ "libc",
+ "libloading",
+ "parking_lot",
+ "rustc-host",
+ "sneks",
+ "tokio",
+]
+
+[[package]]
 name = "cargo_metadata"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

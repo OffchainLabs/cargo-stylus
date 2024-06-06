@@ -8,7 +8,16 @@ use crate::{
 use brotli2::read::BrotliEncoder;
 use cargo_stylus_util::{color::Color, sys};
 use eyre::{eyre, Result, WrapErr};
-use std::{env::current_dir, fs, io::Read, path::PathBuf, process};
+use std::process::Command;
+use std::str::FromStr as _;
+use std::{
+    env::current_dir,
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+    process,
+};
+use tiny_keccak::{Hasher, Keccak};
 
 #[derive(Default, PartialEq)]
 pub enum OptLevel {
@@ -110,6 +119,83 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
         crate::check::format_file_size(wasm.len(), 96, 128)
     );
     Ok(wasm_file_path)
+}
+
+fn all_paths() -> Result<Vec<PathBuf>> {
+    let mut files = Vec::<PathBuf>::new();
+    let mut directories = Vec::<PathBuf>::new();
+    directories.push(PathBuf::from_str(".").unwrap());
+    while let Some(dir) = directories.pop() {
+        for f in std::fs::read_dir(&dir)
+            .map_err(|e| eyre!("Unable to read directory {}: {e}", dir.display()))?
+        {
+            let f = f.map_err(|e| eyre!("Error finding file in {}: {e}", dir.display()))?;
+            let mut pathbuf = dir.clone();
+            pathbuf.push(f.file_name());
+            let bytes = dir.as_os_str().as_encoded_bytes();
+            if bytes == b"./target" || bytes == b"./.git" || bytes == b"./.gitignore" {
+                continue;
+            }
+            if pathbuf.is_dir() {
+                directories.push(pathbuf);
+            } else {
+                files.push(pathbuf);
+            }
+        }
+    }
+    Ok(files)
+}
+
+pub fn hash_files(cfg: BuildConfig) -> Result<[u8; 32]> {
+    let mut keccak = Keccak::v256();
+    let mut cmd = Command::new("cargo");
+    if cfg.nightly {
+        cmd.arg("+nightly");
+    }
+    cmd.arg("--version");
+    let output = cmd
+        .output()
+        .map_err(|e| eyre!("failed to execute cargo command: {e}"))?;
+    if !output.status.success() {
+        bail!("cargo version command failed");
+    }
+    keccak.update(&output.stdout);
+    if cfg.opt_level == OptLevel::Z {
+        keccak.update(&[0]);
+    } else {
+        keccak.update(&[1]);
+    }
+
+    let mut buf = vec![0u8; 0x100000];
+
+    let mut hash_file = |filename: &Path| -> Result<()> {
+        keccak.update(&(filename.as_os_str().len() as u64).to_be_bytes());
+        keccak.update(filename.as_os_str().as_encoded_bytes());
+        let mut file = std::fs::File::open(filename)
+            .map_err(|e| eyre!("failed to open file {}: {e}", filename.display()))?;
+        keccak.update(&file.metadata().unwrap().len().to_be_bytes());
+        loop {
+            let bytes_read = file
+                .read(&mut buf)
+                .map_err(|e| eyre!("Unable to read file {}: {e}", filename.display()))?;
+            if bytes_read == 0 {
+                break;
+            }
+            keccak.update(&buf[..bytes_read]);
+        }
+        Ok(())
+    };
+
+    let mut paths = all_paths()?;
+    paths.sort();
+
+    for filename in paths.iter() {
+        hash_file(filename)?;
+    }
+
+    let mut hash = [0u8; 32];
+    keccak.finalize(&mut hash);
+    Ok(hash)
 }
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
