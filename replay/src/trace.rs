@@ -10,9 +10,10 @@ use ethers::{
     types::{
         GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction, TransactionReceipt,
     },
-    utils::__serde_json::Value,
+    utils::__serde_json::{from_value, Value},
 };
 use eyre::{bail, Result};
+use serde::{Deserialize, Serialize};
 use sneks::SimpleSnakeNames;
 use std::{collections::VecDeque, mem};
 
@@ -44,6 +45,17 @@ impl Trace {
             bail!("malformed tracing result")
         };
 
+        if let Value::Array(arr) = json.clone() {
+            if arr.is_empty() {
+                bail!("No trace frames found, perhaps you are attempting to trace the program deployment transaction");
+            }
+        }
+
+        let maybe_activation_trace: Result<Vec<ActivationTraceFrame>, _> = from_value(json.clone());
+        if maybe_activation_trace.is_ok() {
+            bail!("Your tx was a program activation transaction. It has no trace frames");
+        }
+
         let to = receipt.to.map(|x| Address::from(x.0));
         let top_frame = TraceFrame::parse_frame(to, json.clone())?;
 
@@ -61,6 +73,11 @@ impl Trace {
             frame: self.top_frame,
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ActivationTraceFrame {
+    address: Value,
 }
 
 #[derive(Clone, Debug)]
