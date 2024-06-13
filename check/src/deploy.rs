@@ -197,10 +197,12 @@ impl DeployConfig {
         gas: Option<U256>,
         client: &SignerClient,
     ) -> Result<TransactionReceipt> {
-        let mut tx = TypedTransaction::Eip1559(tx);
-        if let Some(gas) = gas {
-            tx.set_gas(gas);
+        let mut tx = tx;
+        tx.gas = gas;
+        if let Some(max_fee) = self.max_fee_per_gas_gwei {
+            tx.max_fee_per_gas = Some(gwei_to_wei(max_fee)?);
         }
+        let tx = TypedTransaction::Eip1559(tx);
 
         let tx = client.send_transaction(tx, None).await?;
         let tx_hash = tx.tx_hash();
@@ -228,5 +230,13 @@ fn format_gas(gas: U256) -> String {
         text.yellow()
     } else {
         text.pink()
+    }
+}
+
+fn gwei_to_wei(gwei: U256) -> Result<U256> {
+    let wei_per_gwei: U256 = U256::from(10u64.pow(9));
+    match gwei.checked_mul(wei_per_gwei) {
+        Some(wei) => Ok(wei),
+        None => bail!("overflow occurred while converting gwei to wei"),
     }
 }
