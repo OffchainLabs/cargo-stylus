@@ -143,13 +143,13 @@ fn all_paths(root_dir: &Path, source_file_patterns: Vec<String>) -> Result<Vec<P
             } else if path.file_name().map_or(false, |f| {
                 // If the user has has specified a list of source file patterns, check if the file
                 // matches the pattern.
-                if glob_paths.len() > 0 {
+                if !glob_paths.is_empty() {
                     for glob_path in glob_paths.iter() {
                         if glob_path == &path {
                             return true;
                         }
                     }
-                    return false;
+                    false
                 } else {
                     // Otherwise, by default include all rust files, Cargo.toml and Cargo.lock files.
                     f == "Cargo.toml" || f == "Cargo.lock" || f.to_string_lossy().ends_with(".rs")
