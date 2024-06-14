@@ -83,6 +83,13 @@ struct CommonConfig {
     /// Whether to print debug info.
     #[arg(long)]
     verbose: bool,
+    /// The path to source files to include in the project hash, which
+    /// is included in the contract deployment init code transaction
+    /// to be used for verification of deployment integrity.
+    /// If not provided, all .rs files and Cargo.toml and Cargo.lock files
+    /// in project's directory tree are included.
+    #[arg(long)]
+    source_files_for_project_hash: Vec<String>,
 }
 
 #[derive(Args, Clone, Debug)]

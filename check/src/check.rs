@@ -132,7 +132,10 @@ impl CheckConfig {
             return Ok((wasm, [0u8; 32]));
         }
         let cfg = BuildConfig::new(self.common_cfg.rust_stable);
-        let project_hash = project::hash_files(cfg.clone())?;
+        let project_hash = project::hash_files(
+            self.common_cfg.source_files_for_project_hash.clone(),
+            cfg.clone(),
+        )?;
         let wasm = project::build_dylib(cfg)?;
         Ok((wasm, project_hash))
     }
