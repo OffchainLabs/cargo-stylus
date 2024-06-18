@@ -57,7 +57,7 @@ enum Apis {
 #[derive(Args, Clone, Debug)]
 struct CheckConfig {
     /// Arbitrum RPC endpoint.
-    #[arg(short, long, default_value = "https://stylusv2.arbitrum.io/rpc")]
+    #[arg(short, long, default_value = "https://sepolia-rollup.arbitrum.io/rpc")]
     endpoint: String,
     /// The WASM to check (defaults to any found in the current directory).
     #[arg(long)]
