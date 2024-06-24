@@ -148,5 +148,5 @@ fn main() -> Result<()> {
     let err = command.exec(); // Unix-specific execution
     #[cfg(windows)]
     let err = command.status(); // Windows-specific execution
-    bail!("failed to invoke {}: {:?}", name.red(), err);
+    bail!("failed to invoke {:?}: {:?}", name.red(), err);
 }
