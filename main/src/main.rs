@@ -144,9 +144,9 @@ fn main() -> Result<()> {
     command.arg(arg).args(args);
 
     // Execute command conditionally based on the platform
-            #[cfg(unix)]
-            let err = command.exec(); // Unix-specific execution
-            #[cfg(windows)]
-            let err = command.status(); // Windows-specific execution
+    #[cfg(unix)]
+    let err = command.exec(); // Unix-specific execution
+    #[cfg(windows)]
+    let err = command.status(); // Windows-specific execution
     bail!("failed to invoke {}: {:?}", name.red(), err);
 }

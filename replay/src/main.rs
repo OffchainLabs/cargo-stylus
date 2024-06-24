@@ -15,7 +15,10 @@ use std::{
 
 // Conditional import for Windows
 #[cfg(windows)]
-use std::{ env, path::{Path, PathBuf}};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 use tokio::runtime::Builder;
 
 mod hostio;
