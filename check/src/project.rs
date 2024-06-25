@@ -206,11 +206,19 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
     paths.sort();
 
     for filename in paths.iter() {
+        println!(
+            "File used for deployment hash: {}",
+            filename.as_os_str().to_string_lossy()
+        );
         hash_file(filename)?;
     }
 
     let mut hash = [0u8; 32];
     keccak.finalize(&mut hash);
+    println!(
+        "Project hash computed on deployment: {:?}",
+        hex::encode(hash)
+    );
     Ok(hash)
 }
 
