@@ -1,5 +1,5 @@
 [workspace]
-members = ["cgen", "check", "example", "main", "replay", "util"]
+members = ["cache", "cgen", "check", "example", "main", "replay", "util"]
 resolver = "2"
 
 [workspace.package]
