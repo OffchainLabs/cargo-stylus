@@ -18,6 +18,9 @@ impl AuthOpts {
         }
 
         if let Some(key) = &self.private_key {
+            if key.is_empty() {
+                return Err(eyre!("empty private key"));
+            }
             return wallet!(key);
         }
 
