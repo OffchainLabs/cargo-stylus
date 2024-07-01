@@ -20,6 +20,7 @@ use std::{collections::VecDeque, mem};
 #[derive(Debug)]
 pub struct Trace {
     pub top_frame: TraceFrame,
+    pub receipt: TransactionReceipt,
     pub tx: Transaction,
     pub json: Value,
 }
@@ -60,6 +61,7 @@ impl Trace {
 
         Ok(Self {
             top_frame,
+            receipt,
             tx,
             json,
         })
@@ -399,8 +401,12 @@ pub struct Hostio {
 
 #[derive(Clone, Debug, SimpleSnakeNames)]
 pub enum HostioKind {
-    UserEntrypoint {},
-    UserReturned {},
+    UserEntrypoint {
+        args_len: u32,
+    },
+    UserReturned {
+        status: u32,
+    },
     ReadArgs {
         args: Box<[u8]>,
     },
