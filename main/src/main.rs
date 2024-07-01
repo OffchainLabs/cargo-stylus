@@ -38,6 +38,12 @@ enum Subcommands {
     /// Trace a transaction.
     #[command()]
     Trace,
+    /// Verify the deployment of a Stylus program against a local project.
+    #[command(alias = "v")]
+    Verify,
+    /// Run cargo stylus commands in a Docker container for reproducibility.
+    #[command()]
+    Reproducible,
     /// Generate C code.
     #[command()]
     CGen,
@@ -52,7 +58,19 @@ struct Binary<'a> {
 const COMMANDS: &[Binary] = &[
     Binary {
         name: "cargo-stylus-check",
-        apis: &["new", "export-abi", "check", "deploy", "n", "x", "c", "d"],
+        apis: &[
+            "new",
+            "export-abi",
+            "check",
+            "deploy",
+            "verify",
+            "reproducible",
+            "n",
+            "x",
+            "c",
+            "d",
+            "v",
+        ],
         rust_flags: None,
     },
     Binary {
