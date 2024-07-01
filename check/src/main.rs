@@ -75,7 +75,7 @@ enum Apis {
 #[derive(Args, Clone, Debug)]
 struct CommonConfig {
     /// Arbitrum RPC endpoint.
-    #[arg(short, long, default_value = "https://stylusv2.arbitrum.io/rpc")]
+    #[arg(short, long, default_value = "https://sepolia-rollup.arbitrum.io/rpc")]
     endpoint: String,
     /// Whether to use stable Rust.
     #[arg(long)]

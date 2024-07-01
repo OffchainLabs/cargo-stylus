@@ -80,7 +80,7 @@ Location:
     prover/src/binary.rs:493:9, data: None)
 ```
 
-To read more about what counts as valid vs. invalid user WASM programs, see [VALID_WASM](./VALID_WASM.md).
+To read more about what counts as valid vs. invalid user WASM programs, see [VALID_WASM](./check/VALID_WASM.md).
 
 If your program succeeds, you'll see the following message:
 
@@ -213,7 +213,7 @@ Brotli-compressed, Stylus program WASM binaries must fit within the **24Kb** [co
 
 We recommend optimizing your Stylus program's sizes to smaller sizes, but keep in mind the safety tradeoffs of using some of the more advanced optimizations. However, some small programs when compiled to much smaller sizes can suffer performance penalties.
 
-For a deep-dive into the different options for optimizing binary sizes using cargo stylus, see [OPTIMIZING_BINARIES.md](./OPTIMIZING_BINARIES.md).
+For a deep-dive into the different options for optimizing binary sizes using cargo stylus, see [OPTIMIZING_BINARIES.md](./check/OPTIMIZING_BINARIES.md).
 
 ## License
 
