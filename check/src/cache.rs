@@ -1,27 +1,20 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
-use std::str::FromStr;
-use std::sync::Arc;
-
 use alloy_primitives::FixedBytes;
 use alloy_sol_macro::sol;
 use alloy_sol_types::{SolCall, SolInterface};
 use cargo_stylus_util::color::{Color, DebugColor};
 use cargo_stylus_util::sys;
-use clap::{Args, Parser};
 use ethers::middleware::{Middleware, SignerMiddleware};
-use ethers::providers::{Http, Provider, ProviderError, RawCall};
-use ethers::signers::{LocalWallet, Signer};
+use ethers::signers::Signer;
 use ethers::types::spoof::State;
-use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{Address, Eip1559TransactionRequest, NameOrAddress, H160, U256};
+use ethers::types::{Eip1559TransactionRequest, U256};
 use ethers::utils::keccak256;
-use eyre::{bail, eyre, Context, ErrReport, Result};
-use serde_json::Value;
+use eyre::{bail, Context, Result};
 
 use crate::check::{eth_call, EthCallError};
-use crate::constants::{CACHE_MANAGER_ADDRESS, CACHE_MANAGER_H160, EOF_PREFIX_NO_DICT};
+use crate::constants::{CACHE_MANAGER_H160, EOF_PREFIX_NO_DICT};
 use crate::deploy::{format_gas, run_tx};
 use crate::macros::greyln;
 use crate::CacheConfig;
@@ -30,12 +23,10 @@ sol! {
     interface CacheManager {
         function placeBid(bytes32 codehash) external payable;
 
-        error NotChainOwner(address sender);
         error AsmTooLarge(uint256 asm, uint256 queueSize, uint256 cacheSize);
         error AlreadyCached(bytes32 codehash);
         error BidTooSmall(uint192 bid, uint192 min);
         error BidsArePaused();
-        error MakeSpaceTooLarge(uint64 size, uint64 limit);
     }
 }
 
@@ -55,11 +46,6 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
         .await
         .wrap_err("failed to fetch program code")?;
 
-    greyln!(
-        "Program code length at address {}: {}",
-        cfg.program_address.debug_lavender(),
-        program_code.len()
-    );
     if !program_code.starts_with(hex::decode(EOF_PREFIX_NO_DICT).unwrap().as_slice()) {
         bail!(
             "program code does not start with Stylus prefix {}",
@@ -94,7 +80,13 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
         use CacheManager::CacheManagerErrors as C;
         match error {
             C::AsmTooLarge(_) => bail!("program too large"),
-            _ => bail!("unexpected CacheManager error: {msg}"),
+            C::AlreadyCached(_) => bail!("program already cached"),
+            C::BidsArePaused(_) => {
+                bail!("bidding is currently paused for the Stylus cache manager")
+            }
+            C::BidTooSmall(_) => {
+                bail!("bid amount {} (wei) too small", cfg.bid.unwrap_or_default())
+            }
         }
     }
     let verbose = cfg.common_cfg.verbose;
@@ -105,11 +97,11 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
     if verbose {
         let gas = format_gas(receipt.gas_used.unwrap_or_default());
         greyln!(
-            "Deployed code at address: {address} {} {gas}",
+            "Successfully cached program at address: {address} {} {gas}",
             "with".grey()
         );
     } else {
-        greyln!("Deployed code at address: {address}");
+        greyln!("Successfully cached program at address: {address}");
     }
     let tx_hash = receipt.transaction_hash.debug_lavender();
     greyln!("Sent Stylus cache tx with hash: {tx_hash}");
