@@ -105,7 +105,7 @@ pub struct CacheConfig {
     /// Deployed and activated program address to cache.
     #[arg(long)]
     program_address: H160,
-    /// Bid, in wei, to place on the program cache.
+    /// Bid, in wei, to place on the desired program to cache
     #[arg(short, long, hide(true))]
     bid: Option<u64>,
 }
