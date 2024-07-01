@@ -35,7 +35,7 @@ sol! {
     }
 }
 
-type SignerClient = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
+pub type SignerClient = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
 /// Deploys a stylus program, activating if needed.
 pub async fn deploy(cfg: DeployConfig) -> Result<()> {
@@ -121,7 +121,14 @@ impl DeployConfig {
             return Ok(ethers::utils::get_contract_address(sender, nonce));
         }
 
-        let receipt = self.run_tx("deploy", tx, Some(gas), client).await?;
+        let receipt = run_tx(
+            "deploy",
+            tx,
+            Some(gas),
+            client,
+            self.check_config.common_cfg.verbose,
+        )
+        .await?;
         let contract = receipt.contract_address.ok_or(eyre!("missing address"))?;
         let address = contract.debug_lavender();
 
@@ -170,7 +177,14 @@ impl DeployConfig {
             return Ok(());
         }
 
-        let receipt = self.run_tx("activate", tx, Some(gas), client).await?;
+        let receipt = run_tx(
+            "activate",
+            tx,
+            Some(gas),
+            client,
+            self.check_config.common_cfg.verbose,
+        )
+        .await?;
 
         if verbose {
             let gas = format_gas(receipt.gas_used.unwrap_or_default());
@@ -182,34 +196,32 @@ impl DeployConfig {
         );
         Ok(())
     }
+}
 
-    async fn run_tx(
-        &self,
-        name: &str,
-        tx: Eip1559TransactionRequest,
-        gas: Option<U256>,
-        client: &SignerClient,
-    ) -> Result<TransactionReceipt> {
-        let mut tx = TypedTransaction::Eip1559(tx);
-        if let Some(gas) = gas {
-            tx.set_gas(gas);
-        }
-
-        let tx = client.send_transaction(tx, None).await?;
-        let tx_hash = tx.tx_hash();
-        let verbose = self.check_config.common_cfg.verbose;
-
-        if verbose {
-            greyln!("sent {name} tx: {}", tx_hash.debug_lavender());
-        }
-        let Some(receipt) = tx.await.wrap_err("tx failed to complete")? else {
-            bail!("failed to get receipt for tx {}", tx_hash.lavender());
-        };
-        if receipt.status != Some(U64::from(1)) {
-            bail!("{name} tx reverted {}", tx_hash.debug_red());
-        }
-        Ok(receipt)
+pub async fn run_tx(
+    name: &str,
+    tx: Eip1559TransactionRequest,
+    gas: Option<U256>,
+    client: &SignerClient,
+    verbose: bool,
+) -> Result<TransactionReceipt> {
+    let mut tx = TypedTransaction::Eip1559(tx);
+    if let Some(gas) = gas {
+        tx.set_gas(gas);
     }
+
+    let tx = client.send_transaction(tx, None).await?;
+    let tx_hash = tx.tx_hash();
+    if verbose {
+        greyln!("sent {name} tx: {}", tx_hash.debug_lavender());
+    }
+    let Some(receipt) = tx.await.wrap_err("tx failed to complete")? else {
+        bail!("failed to get receipt for tx {}", tx_hash.lavender());
+    };
+    if receipt.status != Some(U64::from(1)) {
+        bail!("{name} tx reverted {}", tx_hash.debug_red());
+    }
+    Ok(receipt)
 }
 
 /// Prepares an EVM bytecode prelude for contract creation.
@@ -234,7 +246,7 @@ pub fn program_deployment_calldata(code: &[u8], hash: &[u8; 32]) -> Vec<u8> {
     deploy
 }
 
-fn format_gas(gas: U256) -> String {
+pub fn format_gas(gas: U256) -> String {
     let gas: u64 = gas.try_into().unwrap_or(u64::MAX);
     let text = format!("{gas} gas");
     if gas <= 3_000_000 {

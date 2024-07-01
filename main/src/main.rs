@@ -26,6 +26,9 @@ enum Subcommands {
     #[command(alias = "x")]
     /// Export a Solidity ABI.
     ExportAbi,
+    /// Cache a contract.
+    #[command(alias = "c")]
+    Cache,
     /// Check a contract.
     #[command(alias = "c")]
     Check,
@@ -61,6 +64,7 @@ const COMMANDS: &[Binary] = &[
         apis: &[
             "new",
             "export-abi",
+            "cache",
             "check",
             "deploy",
             "verify",

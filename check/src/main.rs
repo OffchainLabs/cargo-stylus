@@ -96,6 +96,21 @@ struct CommonConfig {
 }
 
 #[derive(Args, Clone, Debug)]
+pub struct CacheConfig {
+    #[command(flatten)]
+    common_cfg: CommonConfig,
+    /// Wallet source to use.
+    #[command(flatten)]
+    auth: AuthOpts,
+    /// Deployed and activated program address to cache.
+    #[arg(long)]
+    program_address: H160,
+    /// Bid, in wei, to place on the program cache.
+    #[arg(short, long, hide(true))]
+    bid: Option<u64>,
+}
+
+#[derive(Args, Clone, Debug)]
 pub struct CheckConfig {
     #[command(flatten)]
     common_cfg: CommonConfig,
@@ -165,6 +180,9 @@ async fn main_impl(args: Opts) -> Result<()> {
         }
         Apis::ExportAbi { json, output } => {
             run!(export_abi::export_abi(output, json), "failed to export abi");
+        }
+        Apis::Cache(config) => {
+            run!(cache::cache_program(&config).await, "stylus cache failed");
         }
         Apis::Check(config) => {
             run!(check::check(&config).await, "stylus checks failed");
