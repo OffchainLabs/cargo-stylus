@@ -7,6 +7,7 @@ use eyre::{eyre, Context, Result};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
+mod cache;
 mod check;
 mod constants;
 mod deploy;
@@ -46,6 +47,8 @@ enum Apis {
         #[arg(long)]
         json: bool,
     },
+    /// Cache a contract using the Stylus CacheManager for Arbitrum chains.
+    Cache(CacheConfig),
     /// Check a contract.
     #[command(alias = "c")]
     Check(CheckConfig),
