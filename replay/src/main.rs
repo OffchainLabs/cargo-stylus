@@ -6,8 +6,17 @@ use alloy_primitives::TxHash;
 use cargo_stylus_util::{color::Color, sys};
 use clap::{Args, Parser};
 use eyre::{bail, eyre, Context, Result};
+// Conditional import for Unix-specific `CommandExt`
+#[cfg(unix)]
 use std::{
     os::unix::process::CommandExt,
+    path::{Path, PathBuf},
+};
+
+// Conditional import for Windows
+#[cfg(windows)]
+use std::{
+    env,
     path::{Path, PathBuf},
 };
 use tokio::runtime::Builder;
@@ -127,9 +136,12 @@ async fn replay(args: ReplayArgs) -> Result<()> {
             cmd.arg(arg);
         }
         cmd.arg("--child");
+        #[cfg(unix)]
         let err = cmd.exec();
+        #[cfg(windows)]
+        let err = cmd.status();
 
-        bail!("failed to exec gdb {}", err);
+        bail!("failed to exec gdb {:?}", err);
     }
 
     let provider = sys::new_provider(&args.endpoint)?;
