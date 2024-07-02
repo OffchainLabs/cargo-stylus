@@ -634,7 +634,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "cargo-stylus-util",
  "clap",
@@ -643,7 +643,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus-cgen"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "alloy-json-abi",
  "clap",
@@ -654,7 +654,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus-check"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "alloy-ethers-typecast",
  "alloy-json-abi",
@@ -682,14 +682,14 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus-example"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "clap",
 ]
 
 [[package]]
 name = "cargo-stylus-replay"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "alloy-primitives 0.7.2",
  "cargo-stylus-util",
@@ -709,7 +709,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus-util"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "ethers",
  "eyre",

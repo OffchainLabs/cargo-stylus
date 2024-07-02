@@ -34,4 +34,4 @@ parking_lot = "0.12.1"
 sneks = "0.1.2"
 
 # members
-cargo-stylus-util = { path = "util", version = "0.3.2" }
+cargo-stylus-util = { path = "util", version = "0.4.0" }
