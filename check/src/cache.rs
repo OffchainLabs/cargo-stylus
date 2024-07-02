@@ -90,7 +90,15 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
         }
     }
     let verbose = cfg.common_cfg.verbose;
-    let receipt = run_tx("cache", tx, None, &client, verbose).await?;
+    let receipt = run_tx(
+        "cache",
+        tx,
+        None,
+        cfg.common_cfg.max_fee_per_gas_gwei,
+        &client,
+        verbose,
+    )
+    .await?;
 
     let address = cfg.program_address.debug_lavender();
 

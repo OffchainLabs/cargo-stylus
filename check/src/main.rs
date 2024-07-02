@@ -93,6 +93,9 @@ struct CommonConfig {
     /// in project's directory tree are included.
     #[arg(long)]
     source_files_for_project_hash: Vec<String>,
+    #[arg(long)]
+    /// Optional max fee per gas in gwei units.
+    max_fee_per_gas_gwei: Option<U256>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -132,9 +135,6 @@ struct DeployConfig {
     /// Only perform gas estimation.
     #[arg(long)]
     estimate_gas: bool,
-    #[arg(long)]
-    /// Optional max fee per gas in gwei units.
-    max_fee_per_gas_gwei: Option<U256>,
 }
 
 #[derive(Args, Clone, Debug)]

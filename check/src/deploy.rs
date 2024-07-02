@@ -125,6 +125,7 @@ impl DeployConfig {
             "deploy",
             tx,
             Some(gas),
+            self.check_config.common_cfg.max_fee_per_gas_gwei,
             client,
             self.check_config.common_cfg.verbose,
         )
@@ -181,6 +182,7 @@ impl DeployConfig {
             "activate",
             tx,
             Some(gas),
+            self.check_config.common_cfg.max_fee_per_gas_gwei,
             client,
             self.check_config.common_cfg.verbose,
         )
@@ -202,14 +204,18 @@ pub async fn run_tx(
     name: &str,
     tx: Eip1559TransactionRequest,
     gas: Option<U256>,
+    max_fee_per_gas_gwei: Option<U256>,
     client: &SignerClient,
     verbose: bool,
 ) -> Result<TransactionReceipt> {
-    let mut tx = TypedTransaction::Eip1559(tx);
+    let mut tx = tx;
     if let Some(gas) = gas {
-        tx.set_gas(gas);
+        tx.gas = Some(gas);
     }
-
+    if let Some(max_fee) = max_fee_per_gas_gwei {
+        tx.max_fee_per_gas = Some(gwei_to_wei(max_fee)?);
+    }
+    let tx = TypedTransaction::Eip1559(tx);
     let tx = client.send_transaction(tx, None).await?;
     let tx_hash = tx.tx_hash();
     if verbose {
