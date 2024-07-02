@@ -30,7 +30,6 @@ pub enum OptLevel {
 pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub stable: bool,
-    pub rebuild: bool,
 }
 
 impl BuildConfig {

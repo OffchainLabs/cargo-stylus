@@ -7,6 +7,7 @@ use eyre::{eyre, Context, Result};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
+mod cache;
 mod check;
 mod constants;
 mod deploy;
@@ -48,6 +49,8 @@ enum Apis {
         #[arg(long)]
         json: bool,
     },
+    /// Cache a contract using the Stylus CacheManager for Arbitrum chains.
+    Cache(CacheConfig),
     /// Check a contract.
     #[command(alias = "c")]
     Check(CheckConfig),
@@ -90,6 +93,21 @@ struct CommonConfig {
     /// in project's directory tree are included.
     #[arg(long)]
     source_files_for_project_hash: Vec<String>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct CacheConfig {
+    #[command(flatten)]
+    common_cfg: CommonConfig,
+    /// Wallet source to use.
+    #[command(flatten)]
+    auth: AuthOpts,
+    /// Deployed and activated program address to cache.
+    #[arg(long)]
+    program_address: H160,
+    /// Bid, in wei, to place on the desired program to cache
+    #[arg(short, long, hide(true))]
+    bid: Option<u64>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -162,6 +180,9 @@ async fn main_impl(args: Opts) -> Result<()> {
         }
         Apis::ExportAbi { json, output } => {
             run!(export_abi::export_abi(output, json), "failed to export abi");
+        }
+        Apis::Cache(config) => {
+            run!(cache::cache_program(&config).await, "stylus cache failed");
         }
         Apis::Check(config) => {
             run!(check::check(&config).await, "stylus checks failed");

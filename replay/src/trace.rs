@@ -7,9 +7,7 @@ use alloy_primitives::{Address, FixedBytes, TxHash, B256, U256};
 use cargo_stylus_util::color::{Color, DebugColor};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
-    types::{
-        GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction, TransactionReceipt,
-    },
+    types::{GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction},
     utils::__serde_json::{from_value, Value},
 };
 use eyre::{bail, Result};
@@ -20,7 +18,6 @@ use std::{collections::VecDeque, mem};
 #[derive(Debug)]
 pub struct Trace {
     pub top_frame: TraceFrame,
-    pub receipt: TransactionReceipt,
     pub tx: Transaction,
     pub json: Value,
 }
@@ -61,7 +58,6 @@ impl Trace {
 
         Ok(Self {
             top_frame,
-            receipt,
             tx,
             json,
         })
@@ -399,6 +395,7 @@ pub struct Hostio {
     pub end_ink: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, SimpleSnakeNames)]
 pub enum HostioKind {
     UserEntrypoint {

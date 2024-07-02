@@ -169,9 +169,9 @@ fn format_data_fee(fee: U256) -> Result<String> {
     })
 }
 
-struct EthCallError {
-    data: Vec<u8>,
-    msg: String,
+pub struct EthCallError {
+    pub data: Vec<u8>,
+    pub msg: String,
 }
 
 impl From<EthCallError> for ErrReport {
@@ -180,13 +180,13 @@ impl From<EthCallError> for ErrReport {
     }
 }
 
-/// A funded eth_call to ArbWasm.
-async fn eth_call(
+/// A funded eth_call.
+pub async fn eth_call(
     tx: Eip1559TransactionRequest,
     mut state: State,
     provider: &Provider<Http>,
 ) -> Result<Result<Vec<u8>, EthCallError>> {
-    let tx = TypedTransaction::Eip1559(tx.to(*ARB_WASM_H160));
+    let tx = TypedTransaction::Eip1559(tx);
     state.account(Default::default()).balance = Some(ethers::types::U256::MAX); // infinite balance
 
     match provider.call_raw(&tx).state(&state).await {
@@ -211,7 +211,9 @@ async fn eth_call(
 /// Checks whether a program has already been activated with the most recent version of Stylus.
 async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<bool> {
     let data = ArbWasm::codehashVersionCall { codehash }.abi_encode();
-    let tx = Eip1559TransactionRequest::new().data(data);
+    let tx = Eip1559TransactionRequest::new()
+        .to(*ARB_WASM_H160)
+        .data(data);
     let outs = eth_call(tx, State::default(), provider).await?;
 
     let program_version = match outs {
@@ -236,7 +238,9 @@ async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<boo
     };
 
     let data = ArbWasm::stylusVersionCall {}.abi_encode();
-    let tx = Eip1559TransactionRequest::new().data(data);
+    let tx = Eip1559TransactionRequest::new()
+        .to(*ARB_WASM_H160)
+        .data(data);
     let outs = eth_call(tx, State::default(), provider).await??;
     let ArbWasm::stylusVersionReturn { version } =
         ArbWasm::stylusVersionCall::abi_decode_returns(&outs, true)?;
@@ -248,7 +252,10 @@ async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<boo
 async fn check_activate(code: Bytes, address: H160, provider: &Provider<Http>) -> Result<U256> {
     let program = Address::from(address.to_fixed_bytes());
     let data = ArbWasm::activateProgramCall { program }.abi_encode();
-    let tx = Eip1559TransactionRequest::new().data(data).value(ONE_ETH);
+    let tx = Eip1559TransactionRequest::new()
+        .to(*ARB_WASM_H160)
+        .data(data)
+        .value(ONE_ETH);
     let state = spoof::code(address, code);
     let outs = eth_call(tx, state, provider).await??;
     let ArbWasm::activateProgramReturn { dataFee, .. } =
