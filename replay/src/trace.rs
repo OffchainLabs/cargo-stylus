@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use sneks::SimpleSnakeNames;
 use std::{collections::VecDeque, mem};
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Trace {
     pub top_frame: TraceFrame,
