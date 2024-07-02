@@ -2,7 +2,7 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use clap::{ArgGroup, Args, Parser};
-use ethers::types::H160;
+use ethers::types::{H160, U256};
 use eyre::{eyre, Context, Result};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
@@ -93,6 +93,9 @@ struct CommonConfig {
     /// in project's directory tree are included.
     #[arg(long)]
     source_files_for_project_hash: Vec<String>,
+    #[arg(long)]
+    /// Optional max fee per gas in gwei units.
+    max_fee_per_gas_gwei: Option<U256>,
 }
 
 #[derive(Args, Clone, Debug)]
