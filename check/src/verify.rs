@@ -52,7 +52,6 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     let build_cfg = project::BuildConfig {
         opt_level: project::OptLevel::default(),
         stable: cfg.common_cfg.rust_stable,
-        rebuild: false,
     };
     let wasm_file: PathBuf = project::build_dylib(build_cfg.clone())
         .map_err(|e| eyre!("could not build project to WASM: {e}"))?;
