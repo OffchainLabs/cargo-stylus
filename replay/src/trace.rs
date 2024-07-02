@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use sneks::SimpleSnakeNames;
 use std::{collections::VecDeque, mem};
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Trace {
     pub top_frame: TraceFrame,
@@ -399,6 +400,7 @@ pub struct Hostio {
     pub end_ink: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, SimpleSnakeNames)]
 pub enum HostioKind {
     UserEntrypoint {
