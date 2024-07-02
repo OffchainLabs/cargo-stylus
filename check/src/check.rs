@@ -3,7 +3,7 @@
 
 use crate::{
     check::ArbWasm::ArbWasmErrors,
-    constants::{ARB_WASM_ADDRESS, ARB_WASM_H160, ONE_ETH},
+    constants::{ARB_WASM_H160, ONE_ETH},
     macros::*,
     project::{self, BuildConfig},
     CheckConfig,
