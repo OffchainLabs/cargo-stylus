@@ -7,19 +7,17 @@ use alloy_primitives::{Address, FixedBytes, TxHash, B256, U256};
 use cargo_stylus_util::color::{Color, DebugColor};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
-    types::{
-        GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction, TransactionReceipt,
-    },
-    utils::__serde_json::Value,
+    types::{GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction},
+    utils::__serde_json::{from_value, Value},
 };
 use eyre::{bail, Result};
+use serde::{Deserialize, Serialize};
 use sneks::SimpleSnakeNames;
 use std::{collections::VecDeque, mem};
 
 #[derive(Debug)]
 pub struct Trace {
     pub top_frame: TraceFrame,
-    pub receipt: TransactionReceipt,
     pub tx: Transaction,
     pub json: Value,
 }
@@ -44,12 +42,22 @@ impl Trace {
             bail!("malformed tracing result")
         };
 
+        if let Value::Array(arr) = json.clone() {
+            if arr.is_empty() {
+                bail!("No trace frames found, perhaps you are attempting to trace the program deployment transaction");
+            }
+        }
+
+        let maybe_activation_trace: Result<Vec<ActivationTraceFrame>, _> = from_value(json.clone());
+        if maybe_activation_trace.is_ok() {
+            bail!("Your tx was a program activation transaction. It has no trace frames");
+        }
+
         let to = receipt.to.map(|x| Address::from(x.0));
         let top_frame = TraceFrame::parse_frame(to, json.clone())?;
 
         Ok(Self {
             top_frame,
-            receipt,
             tx,
             json,
         })
@@ -61,6 +69,11 @@ impl Trace {
             frame: self.top_frame,
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ActivationTraceFrame {
+    address: Value,
 }
 
 #[derive(Clone, Debug)]
@@ -382,6 +395,7 @@ pub struct Hostio {
     pub end_ink: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, SimpleSnakeNames)]
 pub enum HostioKind {
     UserEntrypoint {

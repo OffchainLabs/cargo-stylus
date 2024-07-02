@@ -7,21 +7,29 @@ use crate::{
 };
 use brotli2::read::BrotliEncoder;
 use cargo_stylus_util::{color::Color, sys};
-use eyre::{eyre, Result, WrapErr};
-use std::{env::current_dir, fs, io::Read, path::PathBuf, process};
+use eyre::{bail, eyre, Result, WrapErr};
+use glob::glob;
+use std::process::Command;
+use std::{
+    env::current_dir,
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+    process,
+};
+use tiny_keccak::{Hasher, Keccak};
 
-#[derive(Default, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 pub enum OptLevel {
     #[default]
     S,
     Z,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub stable: bool,
-    pub rebuild: bool,
 }
 
 impl BuildConfig {
@@ -112,6 +120,120 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     Ok(wasm_file_path)
 }
 
+fn all_paths(root_dir: &Path, source_file_patterns: Vec<String>) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::<PathBuf>::new();
+    let mut directories = Vec::<PathBuf>::new();
+    directories.push(root_dir.to_path_buf()); // Using `from` directly
+
+    let glob_paths = expand_glob_patterns(source_file_patterns)?;
+
+    while let Some(dir) = directories.pop() {
+        for entry in fs::read_dir(&dir)
+            .map_err(|e| eyre!("Unable to read directory {}: {e}", dir.display()))?
+        {
+            let entry = entry.map_err(|e| eyre!("Error finding file in {}: {e}", dir.display()))?;
+            let path = entry.path();
+
+            if path.is_dir() {
+                if path.ends_with("target") || path.ends_with(".git") {
+                    continue; // Skip "target" and ".git" directories
+                }
+                directories.push(path);
+            } else if path.file_name().map_or(false, |f| {
+                // If the user has has specified a list of source file patterns, check if the file
+                // matches the pattern.
+                if !glob_paths.is_empty() {
+                    for glob_path in glob_paths.iter() {
+                        if glob_path == &path {
+                            return true;
+                        }
+                    }
+                    false
+                } else {
+                    // Otherwise, by default include all rust files, Cargo.toml and Cargo.lock files.
+                    f == "Cargo.toml" || f == "Cargo.lock" || f.to_string_lossy().ends_with(".rs")
+                }
+            }) {
+                files.push(path);
+            }
+        }
+    }
+    Ok(files)
+}
+
+pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
+    let mut keccak = Keccak::v256();
+    let mut cmd = Command::new("cargo");
+    if !cfg.stable {
+        cmd.arg("+nightly");
+    }
+    cmd.arg("--version");
+    let output = cmd
+        .output()
+        .map_err(|e| eyre!("failed to execute cargo command: {e}"))?;
+    if !output.status.success() {
+        bail!("cargo version command failed");
+    }
+    keccak.update(&output.stdout);
+    if cfg.opt_level == OptLevel::Z {
+        keccak.update(&[0]);
+    } else {
+        keccak.update(&[1]);
+    }
+
+    let mut buf = vec![0u8; 0x100000];
+
+    let mut hash_file = |filename: &Path| -> Result<()> {
+        keccak.update(&(filename.as_os_str().len() as u64).to_be_bytes());
+        keccak.update(filename.as_os_str().as_encoded_bytes());
+        let mut file = std::fs::File::open(filename)
+            .map_err(|e| eyre!("failed to open file {}: {e}", filename.display()))?;
+        keccak.update(&file.metadata().unwrap().len().to_be_bytes());
+        loop {
+            let bytes_read = file
+                .read(&mut buf)
+                .map_err(|e| eyre!("Unable to read file {}: {e}", filename.display()))?;
+            if bytes_read == 0 {
+                break;
+            }
+            keccak.update(&buf[..bytes_read]);
+        }
+        Ok(())
+    };
+
+    let mut paths = all_paths(PathBuf::from(".").as_path(), source_file_patterns)?;
+    paths.sort();
+
+    for filename in paths.iter() {
+        println!(
+            "File used for deployment hash: {}",
+            filename.as_os_str().to_string_lossy()
+        );
+        hash_file(filename)?;
+    }
+
+    let mut hash = [0u8; 32];
+    keccak.finalize(&mut hash);
+    println!(
+        "Project hash computed on deployment: {:?}",
+        hex::encode(hash)
+    );
+    Ok(hash)
+}
+
+fn expand_glob_patterns(patterns: Vec<String>) -> Result<Vec<PathBuf>> {
+    let mut files_to_include = Vec::new();
+    for pattern in patterns {
+        let paths = glob(&pattern)
+            .map_err(|e| eyre!("Failed to read glob pattern '{}': {}", pattern, e))?;
+        for path_result in paths {
+            let path = path_result.map_err(|e| eyre!("Error processing path: {}", e))?;
+            files_to_include.push(path);
+        }
+    }
+    Ok(files_to_include)
+}
+
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
 pub fn compress_wasm(wasm: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
     let wasm =
@@ -129,4 +251,57 @@ pub fn compress_wasm(wasm: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
     contract_code.extend(compressed_bytes);
 
     Ok((wasm.to_vec(), contract_code))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_all_paths() -> Result<()> {
+        let dir = tempdir()?;
+        let dir_path = dir.path();
+
+        let files = vec!["file.rs", "ignore.me", "Cargo.toml", "Cargo.lock"];
+        for file in files.iter() {
+            let file_path = dir_path.join(file);
+            let mut file = File::create(&file_path)?;
+            writeln!(file, "Test content")?;
+        }
+
+        let dirs = vec!["nested", ".git", "target"];
+        for d in dirs.iter() {
+            let subdir_path = dir_path.join(d);
+            if !subdir_path.exists() {
+                fs::create_dir(&subdir_path)?;
+            }
+        }
+
+        let nested_dir = dir_path.join("nested");
+        let nested_file = nested_dir.join("nested.rs");
+        if !nested_file.exists() {
+            File::create(&nested_file)?;
+        }
+
+        let found_files = all_paths(
+            dir_path,
+            vec![format!(
+                "{}/{}",
+                dir_path.as_os_str().to_string_lossy(),
+                "**/*.rs"
+            )],
+        )?;
+
+        // Check that the correct files are included
+        assert!(found_files.contains(&dir_path.join("file.rs")));
+        assert!(found_files.contains(&nested_dir.join("nested.rs")));
+        assert!(!found_files.contains(&dir_path.join("ignore.me")));
+        assert!(!found_files.contains(&dir_path.join("Cargo.toml"))); // Not matching *.rs
+        assert_eq!(found_files.len(), 2, "Should only find 2 Rust files.");
+
+        Ok(())
+    }
 }

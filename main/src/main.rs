@@ -4,7 +4,14 @@
 use cargo_stylus_util::{color::Color, sys};
 use clap::Parser;
 use eyre::{bail, Result};
+
+// Conditional import for Unix-specific `CommandExt`
+#[cfg(unix)]
 use std::{env, os::unix::process::CommandExt};
+
+// Conditional import for Windows
+#[cfg(windows)]
+use std::env;
 
 #[derive(Parser, Debug)]
 #[command(name = "stylus")]
@@ -26,6 +33,9 @@ enum Subcommands {
     #[command(alias = "x")]
     /// Export a Solidity ABI.
     ExportAbi,
+    /// Cache a contract.
+    #[command(alias = "c")]
+    Cache,
     /// Check a contract.
     #[command(alias = "c")]
     Check,
@@ -38,6 +48,12 @@ enum Subcommands {
     /// Trace a transaction.
     #[command()]
     Trace,
+    /// Verify the deployment of a Stylus program against a local project.
+    #[command(alias = "v")]
+    Verify,
+    /// Run cargo stylus commands in a Docker container for reproducibility.
+    #[command()]
+    Reproducible,
     /// Generate C code.
     #[command()]
     CGen,
@@ -52,7 +68,20 @@ struct Binary<'a> {
 const COMMANDS: &[Binary] = &[
     Binary {
         name: "cargo-stylus-check",
-        apis: &["new", "export-abi", "check", "deploy", "n", "x", "c", "d"],
+        apis: &[
+            "new",
+            "export-abi",
+            "cache",
+            "check",
+            "deploy",
+            "verify",
+            "reproducible",
+            "n",
+            "x",
+            "c",
+            "d",
+            "v",
+        ],
         rust_flags: None,
     },
     Binary {
@@ -102,8 +131,15 @@ fn main() -> Result<()> {
         // see if custom extension exists
         let custom = format!("cargo-stylus-{arg}");
         if sys::command_exists(&custom) {
-            let err = sys::new_command(&custom).arg(arg).args(args).exec();
-            bail!("failed to invoke {}: {err}", custom.red());
+            let mut command = sys::new_command(&custom);
+            command.arg(arg).args(args);
+
+            // Execute command conditionally based on the platform
+            #[cfg(unix)]
+            let err = command.exec(); // Unix-specific execution
+            #[cfg(windows)]
+            let err = command.status(); // Windows-specific execution
+            bail!("failed to invoke {:?}: {:?}", custom.red(), err);
         }
 
         eprintln!("Unknown subcommand {}.", arg.red());
@@ -126,6 +162,13 @@ fn main() -> Result<()> {
     }
 
     // should never return
-    let err = sys::new_command(name).arg(arg).args(args).exec();
-    bail!("failed to invoke {}: {err}", name.red());
+    let mut command = sys::new_command(name);
+    command.arg(arg).args(args);
+
+    // Execute command conditionally based on the platform
+    #[cfg(unix)]
+    let err = command.exec(); // Unix-specific execution
+    #[cfg(windows)]
+    let err = command.status(); // Windows-specific execution
+    bail!("failed to invoke {:?}: {:?}", name.red(), err);
 }

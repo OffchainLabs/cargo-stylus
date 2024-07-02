@@ -47,13 +47,13 @@ sol! {
 /// Checks that a program is valid and can be deployed onchain.
 /// Returns whether the WASM is already up-to-date and activated onchain, and the data fee.
 pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
-    if cfg.endpoint == "https://stylus-testnet.arbitrum.io/rpc" {
+    if cfg.common_cfg.endpoint == "https://stylus-testnet.arbitrum.io/rpc" {
         let version = "cargo stylus version 0.2.1".to_string().red();
         bail!("The old Stylus testnet is no longer supported.\nPlease downgrade to {version}",);
     }
 
-    let verbose = cfg.verbose;
-    let wasm = cfg.build_wasm().wrap_err("failed to build wasm")?;
+    let verbose = cfg.common_cfg.verbose;
+    let (wasm, project_hash) = cfg.build_wasm().wrap_err("failed to build wasm")?;
 
     if verbose {
         greyln!("reading wasm file at {}", wasm.to_string_lossy().lavender());
@@ -65,55 +65,79 @@ pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
 
     if verbose {
         greyln!("wasm size: {}", format_file_size(wasm.len(), 96, 128));
-        greyln!("connecting to RPC: {}", &cfg.endpoint.lavender());
+        greyln!("connecting to RPC: {}", &cfg.common_cfg.endpoint.lavender());
     }
 
     // check if the program already exists
-    let provider = sys::new_provider(&cfg.endpoint)?;
+    let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
     let codehash = alloy_primitives::keccak256(&code);
 
     if program_exists(codehash, &provider).await? {
-        return Ok(ProgramCheck::Active(code));
+        return Ok(ProgramCheck::Active { code, project_hash });
     }
 
     let address = cfg.program_address.unwrap_or(H160::random());
     let fee = check_activate(code.clone().into(), address, &provider).await?;
     let visual_fee = format_data_fee(fee).unwrap_or("???".red());
     greyln!("wasm data fee: {visual_fee}");
-    Ok(ProgramCheck::Ready(code, fee))
+    Ok(ProgramCheck::Ready {
+        code,
+        fee,
+        project_hash,
+    })
 }
 
 /// Whether a program is active, or needs activation.
 #[derive(PartialEq)]
 pub enum ProgramCheck {
     /// Program already exists onchain.
-    Active(Vec<u8>),
+    Active {
+        code: Vec<u8>,
+        project_hash: [u8; 32],
+    },
     /// Program can be activated with the given data fee.
-    Ready(Vec<u8>, U256),
+    Ready {
+        code: Vec<u8>,
+        fee: U256,
+        project_hash: [u8; 32],
+    },
 }
 
 impl ProgramCheck {
     pub fn code(&self) -> &[u8] {
         match self {
-            Self::Active(code) => code,
-            Self::Ready(code, _) => code,
+            Self::Active { code, .. } => code,
+            Self::Ready { code, .. } => code,
+        }
+    }
+
+    pub fn project_hash(&self) -> &[u8; 32] {
+        match self {
+            Self::Active { project_hash, .. } => project_hash,
+            Self::Ready { project_hash, .. } => project_hash,
         }
     }
 
     pub fn suggest_fee(&self) -> U256 {
         match self {
-            Self::Active(_) => U256::default(),
-            Self::Ready(_, data_fee) => data_fee * U256::from(120) / U256::from(100),
+            Self::Active { .. } => U256::default(),
+            Self::Ready { fee, .. } => fee * U256::from(120) / U256::from(100),
         }
     }
 }
 
 impl CheckConfig {
-    fn build_wasm(&self) -> Result<PathBuf> {
+    fn build_wasm(&self) -> Result<(PathBuf, [u8; 32])> {
         if let Some(wasm) = self.wasm_file.clone() {
-            return Ok(wasm);
+            return Ok((wasm, [0u8; 32]));
         }
-        project::build_dylib(BuildConfig::new(self.rust_stable))
+        let cfg = BuildConfig::new(self.common_cfg.rust_stable);
+        let project_hash = project::hash_files(
+            self.common_cfg.source_files_for_project_hash.clone(),
+            cfg.clone(),
+        )?;
+        let wasm = project::build_dylib(cfg)?;
+        Ok((wasm, project_hash))
     }
 }
 
@@ -145,9 +169,9 @@ fn format_data_fee(fee: U256) -> Result<String> {
     })
 }
 
-struct EthCallError {
-    data: Vec<u8>,
-    msg: String,
+pub struct EthCallError {
+    pub data: Vec<u8>,
+    pub msg: String,
 }
 
 impl From<EthCallError> for ErrReport {
@@ -156,13 +180,13 @@ impl From<EthCallError> for ErrReport {
     }
 }
 
-/// A funded eth_call to ArbWasm.
-async fn eth_call(
+/// A funded eth_call.
+pub async fn eth_call(
     tx: Eip1559TransactionRequest,
     mut state: State,
     provider: &Provider<Http>,
 ) -> Result<Result<Vec<u8>, EthCallError>> {
-    let tx = TypedTransaction::Eip1559(tx.to(*ARB_WASM_H160));
+    let tx = TypedTransaction::Eip1559(tx);
     state.account(Default::default()).balance = Some(ethers::types::U256::MAX); // infinite balance
 
     match provider.call_raw(&tx).state(&state).await {
@@ -187,7 +211,9 @@ async fn eth_call(
 /// Checks whether a program has already been activated with the most recent version of Stylus.
 async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<bool> {
     let data = ArbWasm::codehashVersionCall { codehash }.abi_encode();
-    let tx = Eip1559TransactionRequest::new().data(data);
+    let tx = Eip1559TransactionRequest::new()
+        .to(*ARB_WASM_H160)
+        .data(data);
     let outs = eth_call(tx, State::default(), provider).await?;
 
     let program_version = match outs {
@@ -212,7 +238,9 @@ async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<boo
     };
 
     let data = ArbWasm::stylusVersionCall {}.abi_encode();
-    let tx = Eip1559TransactionRequest::new().data(data);
+    let tx = Eip1559TransactionRequest::new()
+        .to(*ARB_WASM_H160)
+        .data(data);
     let outs = eth_call(tx, State::default(), provider).await??;
     let ArbWasm::stylusVersionReturn { version } =
         ArbWasm::stylusVersionCall::abi_decode_returns(&outs, true)?;
@@ -224,7 +252,10 @@ async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<boo
 async fn check_activate(code: Bytes, address: H160, provider: &Provider<Http>) -> Result<U256> {
     let program = Address::from(address.to_fixed_bytes());
     let data = ArbWasm::activateProgramCall { program }.abi_encode();
-    let tx = Eip1559TransactionRequest::new().data(data).value(ONE_ETH);
+    let tx = Eip1559TransactionRequest::new()
+        .to(*ARB_WASM_H160)
+        .data(data)
+        .value(ONE_ETH);
     let state = spoof::code(address, code);
     let outs = eth_call(tx, state, provider).await??;
     let ArbWasm::activateProgramReturn { dataFee, .. } =

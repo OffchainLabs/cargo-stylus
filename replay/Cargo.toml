@@ -22,5 +22,6 @@ libc.workspace = true
 libloading.workspace = true
 parking_lot.workspace = true
 rustc-host.workspace = true
+serde = { version = "1.0.203", features = ["derive"] }
 sneks.workspace = true
 tokio.workspace = true

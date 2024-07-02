@@ -7,13 +7,16 @@ use eyre::{eyre, Context, Result};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
+mod cache;
 mod check;
 mod constants;
 mod deploy;
+mod docker;
 mod export_abi;
 mod macros;
 mod new;
 mod project;
+mod verify;
 mod wallet;
 
 #[derive(Parser, Debug)]
@@ -46,31 +49,77 @@ enum Apis {
         #[arg(long)]
         json: bool,
     },
+    /// Cache a contract using the Stylus CacheManager for Arbitrum chains.
+    Cache(CacheConfig),
     /// Check a contract.
     #[command(alias = "c")]
     Check(CheckConfig),
     /// Deploy a contract.
     #[command(alias = "d")]
     Deploy(DeployConfig),
+    /// Build in a Docker container to ensure reproducibility.
+    ///
+    /// Specify the Rust version to use, followed by the cargo stylus subcommand.
+    /// Example: `cargo stylus reproducible 1.77 check`
+    Reproducible {
+        /// Rust version to use.
+        #[arg()]
+        rust_version: String,
+
+        /// Stylus subcommand.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        stylus: Vec<String>,
+    },
+    /// Verify the deployment of a Stylus program.
+    #[command(alias = "v")]
+    Verify(VerifyConfig),
 }
 
 #[derive(Args, Clone, Debug)]
-struct CheckConfig {
+struct CommonConfig {
     /// Arbitrum RPC endpoint.
-    #[arg(short, long, default_value = "https://stylusv2.arbitrum.io/rpc")]
+    #[arg(short, long, default_value = "https://sepolia-rollup.arbitrum.io/rpc")]
     endpoint: String,
-    /// The WASM to check (defaults to any found in the current directory).
-    #[arg(long)]
-    wasm_file: Option<PathBuf>,
-    /// Where to deploy and activate the program (defaults to a random address).
-    #[arg(long)]
-    program_address: Option<H160>,
     /// Whether to use stable Rust.
     #[arg(long)]
     rust_stable: bool,
     /// Whether to print debug info.
     #[arg(long)]
     verbose: bool,
+    /// The path to source files to include in the project hash, which
+    /// is included in the contract deployment init code transaction
+    /// to be used for verification of deployment integrity.
+    /// If not provided, all .rs files and Cargo.toml and Cargo.lock files
+    /// in project's directory tree are included.
+    #[arg(long)]
+    source_files_for_project_hash: Vec<String>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct CacheConfig {
+    #[command(flatten)]
+    common_cfg: CommonConfig,
+    /// Wallet source to use.
+    #[command(flatten)]
+    auth: AuthOpts,
+    /// Deployed and activated program address to cache.
+    #[arg(long)]
+    program_address: H160,
+    /// Bid, in wei, to place on the desired program to cache
+    #[arg(short, long, hide(true))]
+    bid: Option<u64>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct CheckConfig {
+    #[command(flatten)]
+    common_cfg: CommonConfig,
+    /// The WASM to check (defaults to any found in the current directory).
+    #[arg(long)]
+    wasm_file: Option<PathBuf>,
+    /// Where to deploy and activate the program (defaults to a random address).
+    #[arg(long)]
+    program_address: Option<H160>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -86,6 +135,16 @@ struct DeployConfig {
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
     max_fee_per_gas_gwei: Option<U256>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct VerifyConfig {
+    #[command(flatten)]
+    common_cfg: CommonConfig,
+
+    /// Hash of the deployment transaction.
+    #[arg(long)]
+    deployment_tx: String,
 }
 
 #[derive(Clone, Debug, Args)]
@@ -125,11 +184,26 @@ async fn main_impl(args: Opts) -> Result<()> {
         Apis::ExportAbi { json, output } => {
             run!(export_abi::export_abi(output, json), "failed to export abi");
         }
+        Apis::Cache(config) => {
+            run!(cache::cache_program(&config).await, "stylus cache failed");
+        }
         Apis::Check(config) => {
             run!(check::check(&config).await, "stylus checks failed");
         }
         Apis::Deploy(config) => {
             run!(deploy::deploy(config).await, "failed to deploy");
+        }
+        Apis::Reproducible {
+            rust_version,
+            stylus,
+        } => {
+            run!(
+                docker::run_reproducible(&rust_version, &stylus),
+                "failed reproducible run"
+            );
+        }
+        Apis::Verify(config) => {
+            run!(verify::verify(config).await, "failed to verify");
         }
     }
     Ok(())
