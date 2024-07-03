@@ -172,7 +172,8 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
         .output()
         .map_err(|e| eyre!("failed to execute cargo command: {e}"))?;
     if !output.status.success() {
-        bail!("cargo version command failed");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("cargo version command failed: {}", stderr);
     }
     keccak.update(&output.stdout);
     if cfg.opt_level == OptLevel::Z {
