@@ -83,9 +83,7 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         }
     }
 
-    let contract = cfg
-        .deploy_contract(program.code(), program.project_hash(), sender, &client)
-        .await?;
+    let contract = cfg.deploy_contract(program.code(), sender, &client).await?;
 
     match program {
         ProgramCheck::Ready { .. } => cfg.activate(sender, contract, data_fee, &client).await?,
@@ -98,11 +96,10 @@ impl DeployConfig {
     async fn deploy_contract(
         &self,
         code: &[u8],
-        project_hash: &[u8; 32],
         sender: H160,
         client: &SignerClient,
     ) -> Result<H160> {
-        let init_code = program_deployment_calldata(code, project_hash);
+        let init_code = program_deployment_calldata(code);
 
         let tx = Eip1559TransactionRequest::new()
             .from(sender)
@@ -231,7 +228,7 @@ pub async fn run_tx(
 }
 
 /// Prepares an EVM bytecode prelude for contract creation.
-pub fn program_deployment_calldata(code: &[u8], hash: &[u8; 32]) -> Vec<u8> {
+pub fn program_deployment_calldata(code: &[u8]) -> Vec<u8> {
     let mut code_len = [0u8; 32];
     U256::from(code.len()).to_big_endian(&mut code_len);
     let mut deploy: Vec<u8> = vec![];
@@ -239,7 +236,7 @@ pub fn program_deployment_calldata(code: &[u8], hash: &[u8; 32]) -> Vec<u8> {
     deploy.extend(code_len);
     deploy.push(0x80); // DUP1
     deploy.push(0x60); // PUSH1
-    deploy.push(42 + 1 + 32); // prelude + version + hash
+    deploy.push(42 + 1); // prelude + version + hash
     deploy.push(0x60); // PUSH1
     deploy.push(0x00);
     deploy.push(0x39); // CODECOPY
@@ -247,7 +244,6 @@ pub fn program_deployment_calldata(code: &[u8], hash: &[u8; 32]) -> Vec<u8> {
     deploy.push(0x00);
     deploy.push(0xf3); // RETURN
     deploy.push(0x00); // version
-    deploy.extend(hash);
     deploy.extend(code);
     deploy
 }

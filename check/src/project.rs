@@ -2,7 +2,9 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use crate::{
-    constants::{BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, RUST_TARGET},
+    constants::{
+        BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, PROJECT_HASH_SECTION_NAME, RUST_TARGET,
+    },
     macros::*,
 };
 use brotli2::read::BrotliEncoder;
@@ -107,7 +109,8 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
         })
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
-    let (wasm, code) = compress_wasm(&wasm_file_path).wrap_err("failed to compress WASM")?;
+    let (wasm, code) =
+        compress_wasm(&wasm_file_path, [0u8; 32]).wrap_err("failed to compress WASM")?;
 
     greyln!(
         "contract size: {}",
@@ -235,10 +238,13 @@ fn expand_glob_patterns(patterns: Vec<String>) -> Result<Vec<PathBuf>> {
 }
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
-pub fn compress_wasm(wasm: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
+pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>)> {
     let wasm =
         fs::read(wasm).wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
 
+    println!("Printing it out yo");
+    let wasm = add_project_hash_to_wasm_file(&wasm, project_hash)
+        .wrap_err("failed to add project hash to wasm file as custom section")?;
     let wasm = wasmer::wat2wasm(&wasm).wrap_err("failed to parse Wasm")?;
 
     let mut compressor = BrotliEncoder::new(&*wasm, BROTLI_COMPRESSION_LEVEL);
@@ -251,6 +257,43 @@ pub fn compress_wasm(wasm: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
     contract_code.extend(compressed_bytes);
 
     Ok((wasm.to_vec(), contract_code))
+}
+
+// Adds the hash of the project's source files to the wasm as a custom section
+// if it does not already exist. This allows for reproducible builds by cargo stylus
+// for all Rust stylus programs. See `cargo stylus verify --help` for more information.
+fn add_project_hash_to_wasm_file(
+    wasm_file_bytes: &[u8],
+    project_hash: [u8; 32],
+) -> Result<Vec<u8>> {
+    let section_exists = has_project_hash_section(wasm_file_bytes)?;
+    if section_exists {
+        greyln!("Wasm file bytes already contains a custom section with a project hash, not overwriting'");
+        return Ok(wasm_file_bytes.to_vec());
+    }
+    Ok(add_custom_section(wasm_file_bytes, project_hash))
+}
+
+fn has_project_hash_section(wasm_file_bytes: &[u8]) -> Result<bool> {
+    let parser = wasmparser::Parser::new(0);
+    for payload in parser.parse_all(wasm_file_bytes) {
+        match payload? {
+            wasmparser::Payload::CustomSection(reader) => {
+                if reader.name() == PROJECT_HASH_SECTION_NAME {
+                    return Ok(true);
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
+fn add_custom_section(wasm_file_bytes: &[u8], project_hash: [u8; 32]) -> Vec<u8> {
+    let mut bytes = vec![];
+    bytes.extend_from_slice(wasm_file_bytes);
+    wasm_gen::write_custom_section(&mut bytes, PROJECT_HASH_SECTION_NAME, &project_hash);
+    bytes
 }
 
 #[cfg(test)]

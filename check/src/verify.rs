@@ -55,9 +55,10 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     };
     let wasm_file: PathBuf = project::build_dylib(build_cfg.clone())
         .map_err(|e| eyre!("could not build project to WASM: {e}"))?;
-    let (_, init_code) = project::compress_wasm(&wasm_file)?;
-    let hash = project::hash_files(cfg.common_cfg.source_files_for_project_hash, build_cfg)?;
-    let deployment_data = deploy::program_deployment_calldata(&init_code, &hash);
+    let project_hash =
+        project::hash_files(cfg.common_cfg.source_files_for_project_hash, build_cfg)?;
+    let (_, init_code) = project::compress_wasm(&wasm_file, project_hash)?;
+    let deployment_data = deploy::program_deployment_calldata(&init_code);
     if deployment_data == *result.input {
         println!("Verified - program matches local project's file hashes");
     } else {
