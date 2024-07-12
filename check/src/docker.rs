@@ -40,6 +40,10 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN rustup target add aarch64-unknown-linux-gnu
+            RUN rustup toolchain install nightly
+            RUN rustup toolchain install nightly-aarch64-apple-darwin
+            RUN rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+            RUN rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
             RUN cargo install cargo-stylus
             RUN cargo install --force cargo-stylus-check
             RUN cargo install --force cargo-stylus-replay

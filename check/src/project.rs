@@ -208,7 +208,7 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
     paths.sort();
 
     for filename in paths.iter() {
-        println!(
+        greyln!(
             "File used for deployment hash: {}",
             filename.as_os_str().to_string_lossy()
         );
@@ -217,7 +217,7 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
 
     let mut hash = [0u8; 32];
     keccak.finalize(&mut hash);
-    println!(
+    greyln!(
         "Project hash computed on deployment: {:?}",
         hex::encode(hash)
     );
@@ -242,7 +242,6 @@ pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>,
     let wasm =
         fs::read(wasm).wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
 
-    println!("Printing it out yo");
     let wasm = add_project_hash_to_wasm_file(&wasm, project_hash)
         .wrap_err("failed to add project hash to wasm file as custom section")?;
     let wasm = wasmer::wat2wasm(&wasm).wrap_err("failed to parse Wasm")?;
@@ -277,13 +276,10 @@ fn add_project_hash_to_wasm_file(
 fn has_project_hash_section(wasm_file_bytes: &[u8]) -> Result<bool> {
     let parser = wasmparser::Parser::new(0);
     for payload in parser.parse_all(wasm_file_bytes) {
-        match payload? {
-            wasmparser::Payload::CustomSection(reader) => {
-                if reader.name() == PROJECT_HASH_SECTION_NAME {
-                    return Ok(true);
-                }
+        if let wasmparser::Payload::CustomSection(reader) = payload? {
+            if reader.name() == PROJECT_HASH_SECTION_NAME {
+                return Ok(true);
             }
-            _ => {}
         }
     }
     Ok(false)
