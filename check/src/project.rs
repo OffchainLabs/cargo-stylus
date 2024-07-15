@@ -184,6 +184,10 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
         keccak.update(&[1]);
     }
 
+    // Fetch the Rust toolchain toml file from the project root. Assert that it exists.
+
+    // Next, parse the Rust version from the toolchain project, only allowing simple characters.
+
     let mut buf = vec![0u8; 0x100000];
 
     let mut hash_file = |filename: &Path| -> Result<()> {
@@ -273,11 +277,15 @@ fn add_project_hash_to_wasm_file(
     Ok(add_custom_section(wasm_file_bytes, project_hash))
 }
 
-fn has_project_hash_section(wasm_file_bytes: &[u8]) -> Result<bool> {
+pub fn has_project_hash_section(wasm_file_bytes: &[u8]) -> Result<bool> {
     let parser = wasmparser::Parser::new(0);
     for payload in parser.parse_all(wasm_file_bytes) {
         if let wasmparser::Payload::CustomSection(reader) = payload? {
             if reader.name() == PROJECT_HASH_SECTION_NAME {
+                println!(
+                    "Found the project hash custom section name {}",
+                    hex::encode(reader.data())
+                );
                 return Ok(true);
             }
         }

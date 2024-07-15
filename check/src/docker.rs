@@ -40,14 +40,14 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN rustup target add aarch64-unknown-linux-gnu
-            RUN rustup toolchain install nightly
             RUN rustup toolchain install nightly-aarch64-apple-darwin
+            RUN rustup toolchain install nightly-x86_64-unknown-linux-gnu
             RUN rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
             RUN rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
-            RUN cargo install cargo-stylus
-            RUN cargo install --force cargo-stylus-check
-            RUN cargo install --force cargo-stylus-replay
-            RUN cargo install --force cargo-stylus-cgen
+            RUN apt-get update && apt-get install -y git
+            RUN git clone https://github.com/offchainlabs/cargo-stylus.git /cargo-stylus
+            WORKDIR /cargo-stylus
+            RUN ./install.sh
         ",
         version
     )?;

@@ -236,7 +236,7 @@ pub fn program_deployment_calldata(code: &[u8]) -> Vec<u8> {
     deploy.extend(code_len);
     deploy.push(0x80); // DUP1
     deploy.push(0x60); // PUSH1
-    deploy.push(42 + 1); // prelude + version + hash
+    deploy.push(42 + 1); // prelude + version
     deploy.push(0x60); // PUSH1
     deploy.push(0x00);
     deploy.push(0x39); // CODECOPY
@@ -246,6 +246,24 @@ pub fn program_deployment_calldata(code: &[u8]) -> Vec<u8> {
     deploy.push(0x00); // version
     deploy.extend(code);
     deploy
+}
+
+pub fn extract_program_evm_deployment_prelude(calldata: &[u8]) -> Vec<u8> {
+    // The length of the prelude, version part is 42 + 1 as per the code
+    let metadata_length = 42 + 1;
+    // Find the end index of the metadata part
+    let end_index = 1 + 32 + metadata_length;
+    // Extract and return the metadata part
+    calldata[0..end_index].to_vec()
+}
+
+pub fn extract_compressed_wasm(calldata: &[u8]) -> Vec<u8> {
+    // The length of the prelude, version part is 42 + 1 as per the code
+    let metadata_length = 42 + 1;
+    // Find the end index of the metadata part
+    let end_index = 1 + 32 + metadata_length;
+    // Extract and return the metadata part
+    calldata[end_index..].to_vec()
 }
 
 pub fn format_gas(gas: U256) -> String {

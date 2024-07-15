@@ -12,7 +12,12 @@ use ethers::types::H256;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{check, deploy, project, CheckConfig, VerifyConfig};
+use crate::{
+    check,
+    deploy::{self, extract_compressed_wasm, extract_program_evm_deployment_prelude},
+    project::{self, has_project_hash_section},
+    CheckConfig, VerifyConfig,
+};
 use cargo_stylus_util::{color::Color, sys};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -62,10 +67,26 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     if deployment_data == *result.input {
         println!("Verified - program matches local project's file hashes");
     } else {
+        let tx_prelude = extract_program_evm_deployment_prelude(&*result.input);
+        let reconstructed_prelude = extract_program_evm_deployment_prelude(&deployment_data);
         println!(
             "{} - program deployment did not verify against local project's file hashes",
             "FAILED".red()
         );
+        if tx_prelude != reconstructed_prelude {
+            println!("Prelude mismatch");
+            println!("Deployment tx prelude {}", hex::encode(tx_prelude));
+            println!(
+                "Reconstructed prelude {}",
+                hex::encode(reconstructed_prelude)
+            );
+        } else {
+            println!("Compressed WASM mismatch");
+            println!("Checking if project hash section is present locally reconstructed init code");
+            has_project_hash_section(init_code.as_slice())?;
+            println!("Checking if project hash section is present in deployment tx init code");
+            has_project_hash_section(&extract_compressed_wasm(&*result.input))?;
+        }
     }
     Ok(())
 }
