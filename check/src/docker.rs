@@ -47,6 +47,7 @@ fn create_image(version: &str) -> Result<()> {
             RUN apt-get update && apt-get install -y git
             RUN git clone https://github.com/offchainlabs/cargo-stylus.git /cargo-stylus
             WORKDIR /cargo-stylus
+            RUN git checkout proper-program-verification
             RUN ./install.sh
         ",
         version
