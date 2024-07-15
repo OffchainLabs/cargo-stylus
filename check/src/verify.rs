@@ -82,11 +82,16 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
             );
         } else {
             println!("Compressed WASM mismatch");
-            println!("Checking if project hash section is present locally reconstructed init code");
-            has_project_hash_section(init_code.as_slice())?;
-            println!("Checking if project hash section is present in deployment tx init code");
-            has_project_hash_section(&extract_compressed_wasm(&*result.input))?;
         }
+        println!("Code length of locally reconstructed {}", init_code.len());
+        println!(
+            "Code length of deployment tx {}",
+            extract_compressed_wasm(&*result.input).len()
+        );
+        println!("Checking if project hash section is present locally reconstructed init code");
+        has_project_hash_section(init_code.as_slice())?;
+        println!("Checking if project hash section is present in deployment tx init code");
+        has_project_hash_section(&extract_compressed_wasm(&*result.input))?;
     }
     Ok(())
 }
