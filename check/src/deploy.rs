@@ -251,19 +251,15 @@ pub fn program_deployment_calldata(code: &[u8]) -> Vec<u8> {
 pub fn extract_program_evm_deployment_prelude(calldata: &[u8]) -> Vec<u8> {
     // The length of the prelude, version part is 42 + 1 as per the code
     let metadata_length = 42 + 1;
-    // Find the end index of the metadata part
-    let end_index = 1 + 32 + metadata_length;
     // Extract and return the metadata part
-    calldata[0..end_index].to_vec()
+    calldata[0..metadata_length].to_vec()
 }
 
 pub fn extract_compressed_wasm(calldata: &[u8]) -> Vec<u8> {
     // The length of the prelude, version part is 42 + 1 as per the code
     let metadata_length = 42 + 1;
-    // Find the end index of the metadata part
-    let end_index = 1 + 32 + metadata_length;
     // Extract and return the metadata part
-    calldata[end_index..].to_vec()
+    calldata[metadata_length..].to_vec()
 }
 
 pub fn format_gas(gas: U256) -> String {
