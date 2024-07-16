@@ -21,6 +21,7 @@ use ethers::{
 };
 use eyre::{bail, eyre, ErrReport, Result, WrapErr};
 use serde_json::Value;
+use std::io::Write;
 use std::path::PathBuf;
 
 sol! {
@@ -68,6 +69,7 @@ pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
     let (wasm_file_bytes, code) =
         project::compress_wasm(&wasm, project_hash).wrap_err("failed to compress WASM")?;
 
+    std::fs::File::create("/tmp/deployed.wasm")?.write_all(&wasm_file_bytes)?;
     greyln!("contract size: {}", format_file_size(code.len(), 16, 24));
 
     if verbose {

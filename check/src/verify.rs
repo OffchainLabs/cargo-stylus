@@ -3,6 +3,7 @@
 
 #![allow(clippy::println_empty_string)]
 
+use std::io::Write;
 use std::path::PathBuf;
 
 use eyre::{bail, eyre};
@@ -61,7 +62,7 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
         .map_err(|e| eyre!("could not build project to WASM: {e}"))?;
     let project_hash =
         project::hash_files(cfg.common_cfg.source_files_for_project_hash, build_cfg)?;
-    let (_, init_code) = project::compress_wasm(&wasm_file, project_hash)?;
+    let (wasm_code, init_code) = project::compress_wasm(&wasm_file, project_hash)?;
     let deployment_data = deploy::program_deployment_calldata(&init_code);
     if deployment_data == *result.input {
         println!("Verified - program matches local project's file hashes");
@@ -91,5 +92,7 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
             extract_compressed_wasm(&*result.input).len()
         );
     }
+    println!("Reconstructed WASM here, writing to temp");
+    std::fs::File::create("/tmp/reconstructed.wasm")?.write_all(&wasm_code)?;
     Ok(())
 }
