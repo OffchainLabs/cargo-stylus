@@ -36,3 +36,10 @@ pub const GITHUB_TEMPLATE_REPO_MINIMAL: &str =
 
 /// One ether in wei.
 pub const ONE_ETH: U256 = U256([1000000000000000000, 0, 0, 0]);
+
+/// Name of the custom wasm section that is added to contracts deployed with cargo stylus
+/// to include a hash of the Rust project's source files for reproducible verification of builds.
+pub const PROJECT_HASH_SECTION_NAME: &str = "project_hash";
+
+/// Name of the toolchain file used to specify the Rust toolchain version for a project.
+pub const TOOLCHAIN_FILE_NAME: &str = "rust-toolchain.toml";

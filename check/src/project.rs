@@ -2,7 +2,10 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use crate::{
-    constants::{BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, RUST_TARGET},
+    constants::{
+        BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, PROJECT_HASH_SECTION_NAME, RUST_TARGET,
+        TOOLCHAIN_FILE_NAME,
+    },
     macros::*,
 };
 use brotli2::read::BrotliEncoder;
@@ -18,6 +21,7 @@ use std::{
     process,
 };
 use tiny_keccak::{Hasher, Keccak};
+use toml::Value;
 
 #[derive(Default, Clone, PartialEq)]
 pub enum OptLevel {
@@ -107,7 +111,8 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
         })
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
-    let (wasm, code) = compress_wasm(&wasm_file_path).wrap_err("failed to compress WASM")?;
+    let (wasm, code) =
+        compress_wasm(&wasm_file_path, [0u8; 32]).wrap_err("failed to compress WASM")?;
 
     greyln!(
         "contract size: {}",
@@ -161,6 +166,32 @@ fn all_paths(root_dir: &Path, source_file_patterns: Vec<String>) -> Result<Vec<P
     Ok(files)
 }
 
+pub fn extract_toolchain_channel(toolchain_file_path: &PathBuf) -> Result<String> {
+    let toolchain_file_contents = std::fs::read_to_string(toolchain_file_path).wrap_err(
+        "expected to find a rust-toolchain.toml file in project directory \
+         to specify your Rust toolchain for reproducible verification",
+    )?;
+    let toolchain_toml: Value =
+        toml::from_str(&toolchain_file_contents).wrap_err("failed to parse rust-toolchain.toml")?;
+
+    // Extract the channel from the toolchain section
+    let Some(toolchain) = toolchain_toml.get("toolchain") else {
+        bail!("toolchain section not found in rust-toolchain.toml");
+    };
+    let Some(channel) = toolchain.get("channel") else {
+        bail!("could not find channel in rust-toolchain.toml's toolchain section");
+    };
+    let Some(channel) = channel.as_str() else {
+        bail!("channel in rust-toolchain.toml's toolchain section is not a string");
+    };
+    // Next, parse the Rust version from the toolchain project, only allowing alphanumeric chars and dashes.
+    let channel = channel
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '.')
+        .collect();
+    Ok(channel)
+}
+
 pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
     let mut keccak = Keccak::v256();
     let mut cmd = Command::new("cargo");
@@ -201,11 +232,20 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
         Ok(())
     };
 
+    // Fetch the Rust toolchain toml file from the project root. Assert that it exists and add it to the
+    // files in the directory to hash.
+    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+    let _ = std::fs::metadata(&toolchain_file_path).wrap_err(
+        "expected to find a rust-toolchain.toml file in project directory \
+         to specify your Rust toolchain for reproducible verification",
+    )?;
+
     let mut paths = all_paths(PathBuf::from(".").as_path(), source_file_patterns)?;
+    paths.push(toolchain_file_path);
     paths.sort();
 
     for filename in paths.iter() {
-        println!(
+        greyln!(
             "File used for deployment hash: {}",
             filename.as_os_str().to_string_lossy()
         );
@@ -214,7 +254,7 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
 
     let mut hash = [0u8; 32];
     keccak.finalize(&mut hash);
-    println!(
+    greyln!(
         "Project hash computed on deployment: {:?}",
         hex::encode(hash)
     );
@@ -235,10 +275,12 @@ fn expand_glob_patterns(patterns: Vec<String>) -> Result<Vec<PathBuf>> {
 }
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
-pub fn compress_wasm(wasm: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
+pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>)> {
     let wasm =
         fs::read(wasm).wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
 
+    let wasm = add_project_hash_to_wasm_file(&wasm, project_hash)
+        .wrap_err("failed to add project hash to wasm file as custom section")?;
     let wasm = wasmer::wat2wasm(&wasm).wrap_err("failed to parse Wasm")?;
 
     let mut compressor = BrotliEncoder::new(&*wasm, BROTLI_COMPRESSION_LEVEL);
@@ -253,12 +295,93 @@ pub fn compress_wasm(wasm: &PathBuf) -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((wasm.to_vec(), contract_code))
 }
 
+// Adds the hash of the project's source files to the wasm as a custom section
+// if it does not already exist. This allows for reproducible builds by cargo stylus
+// for all Rust stylus programs. See `cargo stylus verify --help` for more information.
+fn add_project_hash_to_wasm_file(
+    wasm_file_bytes: &[u8],
+    project_hash: [u8; 32],
+) -> Result<Vec<u8>> {
+    let section_exists = has_project_hash_section(wasm_file_bytes)?;
+    if section_exists {
+        greyln!("Wasm file bytes already contains a custom section with a project hash, not overwriting'");
+        return Ok(wasm_file_bytes.to_vec());
+    }
+    Ok(add_custom_section(wasm_file_bytes, project_hash))
+}
+
+pub fn has_project_hash_section(wasm_file_bytes: &[u8]) -> Result<bool> {
+    let parser = wasmparser::Parser::new(0);
+    for payload in parser.parse_all(wasm_file_bytes) {
+        if let wasmparser::Payload::CustomSection(reader) = payload? {
+            if reader.name() == PROJECT_HASH_SECTION_NAME {
+                println!(
+                    "Found the project hash custom section name {}",
+                    hex::encode(reader.data())
+                );
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+fn add_custom_section(wasm_file_bytes: &[u8], project_hash: [u8; 32]) -> Vec<u8> {
+    let mut bytes = vec![];
+    bytes.extend_from_slice(wasm_file_bytes);
+    wasm_gen::write_custom_section(&mut bytes, PROJECT_HASH_SECTION_NAME, &project_hash);
+    bytes
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_extract_toolchain_channel() -> Result<()> {
+        let dir = tempdir()?;
+        let dir_path = dir.path();
+
+        let toolchain_file_path = dir_path.join(TOOLCHAIN_FILE_NAME);
+        let toolchain_contents = r#"
+            [toolchain]
+        "#;
+        std::fs::write(&toolchain_file_path, toolchain_contents)?;
+
+        let channel = extract_toolchain_channel(&toolchain_file_path);
+        let Err(err_details) = channel else {
+            panic!("expected an error");
+        };
+        assert!(err_details.to_string().contains("could not find channel"),);
+
+        let toolchain_contents = r#"
+            [toolchain]
+            channel = 32390293
+        "#;
+        std::fs::write(&toolchain_file_path, toolchain_contents)?;
+
+        let channel = extract_toolchain_channel(&toolchain_file_path);
+        let Err(err_details) = channel else {
+            panic!("expected an error");
+        };
+        assert!(err_details.to_string().contains("is not a string"),);
+
+        let toolchain_contents = r#"
+            [toolchain]
+            channel = "nightly-2020-07-10"
+            components = [ "rustfmt", "rustc-dev" ]
+            targets = [ "wasm32-unknown-unknown", "thumbv2-none-eabi" ]
+            profile = "minimal"
+        "#;
+        std::fs::write(&toolchain_file_path, toolchain_contents)?;
+
+        let channel = extract_toolchain_channel(&toolchain_file_path)?;
+        assert_eq!(channel, "nightly-2020-07-10");
+        Ok(())
+    }
 
     #[test]
     fn test_all_paths() -> Result<()> {

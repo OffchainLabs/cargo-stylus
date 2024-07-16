@@ -59,12 +59,22 @@ pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
         greyln!("reading wasm file at {}", wasm.to_string_lossy().lavender());
     }
 
-    let (wasm, code) = project::compress_wasm(&wasm).wrap_err("failed to compress WASM")?;
+    // Next, we include the project's hash as a custom section
+    // in the user's WASM so it can be verified by Cargo stylus'
+    // reproducible verification. This hash is added as a section that is
+    // ignored by WASM runtimes, so it will only exist in the file
+    // for metadata purposes.
+    // add_project_hash_to_wasm_file(wasm, project_hash)
+    let (wasm_file_bytes, code) =
+        project::compress_wasm(&wasm, project_hash).wrap_err("failed to compress WASM")?;
 
     greyln!("contract size: {}", format_file_size(code.len(), 16, 24));
 
     if verbose {
-        greyln!("wasm size: {}", format_file_size(wasm.len(), 96, 128));
+        greyln!(
+            "wasm size: {}",
+            format_file_size(wasm_file_bytes.len(), 96, 128)
+        );
         greyln!("connecting to RPC: {}", &cfg.common_cfg.endpoint.lavender());
     }
 
@@ -73,34 +83,23 @@ pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
     let codehash = alloy_primitives::keccak256(&code);
 
     if program_exists(codehash, &provider).await? {
-        return Ok(ProgramCheck::Active { code, project_hash });
+        return Ok(ProgramCheck::Active { code });
     }
 
     let address = cfg.program_address.unwrap_or(H160::random());
     let fee = check_activate(code.clone().into(), address, &provider).await?;
     let visual_fee = format_data_fee(fee).unwrap_or("???".red());
     greyln!("wasm data fee: {visual_fee}");
-    Ok(ProgramCheck::Ready {
-        code,
-        fee,
-        project_hash,
-    })
+    Ok(ProgramCheck::Ready { code, fee })
 }
 
 /// Whether a program is active, or needs activation.
 #[derive(PartialEq)]
 pub enum ProgramCheck {
     /// Program already exists onchain.
-    Active {
-        code: Vec<u8>,
-        project_hash: [u8; 32],
-    },
+    Active { code: Vec<u8> },
     /// Program can be activated with the given data fee.
-    Ready {
-        code: Vec<u8>,
-        fee: U256,
-        project_hash: [u8; 32],
-    },
+    Ready { code: Vec<u8>, fee: U256 },
 }
 
 impl ProgramCheck {
@@ -110,14 +109,6 @@ impl ProgramCheck {
             Self::Ready { code, .. } => code,
         }
     }
-
-    pub fn project_hash(&self) -> &[u8; 32] {
-        match self {
-            Self::Active { project_hash, .. } => project_hash,
-            Self::Ready { project_hash, .. } => project_hash,
-        }
-    }
-
     pub fn suggest_fee(&self) -> U256 {
         match self {
             Self::Active { .. } => U256::default(),
@@ -132,11 +123,9 @@ impl CheckConfig {
             return Ok((wasm, [0u8; 32]));
         }
         let cfg = BuildConfig::new(self.common_cfg.rust_stable);
-        let project_hash = project::hash_files(
-            self.common_cfg.source_files_for_project_hash.clone(),
-            cfg.clone(),
-        )?;
-        let wasm = project::build_dylib(cfg)?;
+        let wasm = project::build_dylib(cfg.clone())?;
+        let project_hash =
+            project::hash_files(self.common_cfg.source_files_for_project_hash.clone(), cfg)?;
         Ok((wasm, project_hash))
     }
 }

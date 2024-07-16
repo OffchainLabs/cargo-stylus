@@ -2,9 +2,13 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use eyre::{bail, eyre, Result};
+
+use crate::constants::TOOLCHAIN_FILE_NAME;
+use crate::project::extract_toolchain_channel;
 
 fn version_to_image_name(version: &str) -> String {
     format!("cargo-stylus-{}", version)
@@ -24,6 +28,8 @@ fn create_image(version: &str) -> Result<()> {
     if image_exists(&name)? {
         return Ok(());
     }
+    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+    let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
     let mut child = Command::new("docker")
         .arg("build")
         .arg("-t")
@@ -37,15 +43,19 @@ fn create_image(version: &str) -> Result<()> {
         child.stdin.as_mut().unwrap(),
         "\
             FROM rust:{} as builder\n\
+            RUN rustup toolchain install {} && rustup default {}
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN rustup target add aarch64-unknown-linux-gnu
+            RUN rustup target add x86_64-unknown-linux-gnu
             RUN cargo install cargo-stylus
             RUN cargo install --force cargo-stylus-check
             RUN cargo install --force cargo-stylus-replay
             RUN cargo install --force cargo-stylus-cgen
         ",
-        version
+        version,
+        toolchain_channel,
+        toolchain_channel,
     )?;
     child.wait().map_err(|e| eyre!("wait failed: {e}"))?;
     Ok(())
@@ -76,10 +86,14 @@ fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
 }
 
 pub fn run_reproducible(version: &str, command_line: &[String]) -> Result<()> {
+    let version: String = version
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '.')
+        .collect();
     let mut command = vec!["cargo", "stylus"];
     for s in command_line.iter() {
         command.push(s);
     }
-    create_image(version)?;
-    run_in_docker_container(version, &command)
+    create_image(&version)?;
+    run_in_docker_container(&version, &command)
 }
