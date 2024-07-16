@@ -49,6 +49,7 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup toolchain install {} && rustup default {}
             RUN apt-get update && apt-get install -y git
             RUN git clone https://github.com/offchainlabs/cargo-stylus.git /cargo-stylus
+            RUN git checkout proper-program-verification
             WORKDIR /cargo-stylus
             RUN ./install.sh
         ",
