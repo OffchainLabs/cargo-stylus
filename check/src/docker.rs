@@ -43,10 +43,11 @@ fn create_image(version: &str) -> Result<()> {
         child.stdin.as_mut().unwrap(),
         "\
             FROM rust:{} as builder\n\
+            RUN rustup toolchain install {} && rustup default {}
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN rustup target add aarch64-unknown-linux-gnu
-            RUN rustup toolchain install {} && rustup default {}
+            RUN rustup target add x86_64-unknown-linux-gnu
             RUN apt-get update && apt-get install -y git
             RUN git clone https://github.com/offchainlabs/cargo-stylus.git /cargo-stylus
             WORKDIR /cargo-stylus
