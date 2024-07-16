@@ -48,11 +48,10 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup target add wasm32-wasi
             RUN rustup target add aarch64-unknown-linux-gnu
             RUN rustup target add x86_64-unknown-linux-gnu
-            RUN apt-get update && apt-get install -y git
-            RUN git clone https://github.com/offchainlabs/cargo-stylus.git /cargo-stylus
-            WORKDIR /cargo-stylus
-            RUN git checkout proper-program-verification
-            RUN ./install.sh
+            RUN cargo install cargo-stylus
+            RUN cargo install --force cargo-stylus-check
+            RUN cargo install --force cargo-stylus-replay
+            RUN cargo install --force cargo-stylus-cgen
         ",
         version,
         toolchain_channel,
