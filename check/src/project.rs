@@ -187,7 +187,7 @@ pub fn extract_toolchain_channel(toolchain_file_path: &PathBuf) -> Result<String
     // Next, parse the Rust version from the toolchain project, only allowing alphanumeric chars and dashes.
     let channel = channel
         .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-')
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '.')
         .collect();
     Ok(channel)
 }

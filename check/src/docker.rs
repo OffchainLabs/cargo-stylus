@@ -86,10 +86,14 @@ fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
 }
 
 pub fn run_reproducible(version: &str, command_line: &[String]) -> Result<()> {
+    let version: String = version
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '.')
+        .collect();
     let mut command = vec!["cargo", "stylus"];
     for s in command_line.iter() {
         command.push(s);
     }
-    create_image(version)?;
-    run_in_docker_container(version, &command)
+    create_image(&version)?;
+    run_in_docker_container(&version, &command)
 }
