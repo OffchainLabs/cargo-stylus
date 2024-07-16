@@ -15,8 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     check,
     deploy::{self, extract_compressed_wasm, extract_program_evm_deployment_prelude},
-    project::{self, has_project_hash_section},
-    CheckConfig, VerifyConfig,
+    project, CheckConfig, VerifyConfig,
 };
 use cargo_stylus_util::{color::Color, sys};
 
@@ -81,17 +80,16 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
                 hex::encode(reconstructed_prelude)
             );
         } else {
-            println!("Compressed WASM mismatch");
+            println!("Compressed WASM bytecode mismatch");
         }
-        println!("Code length of locally reconstructed {}", init_code.len());
         println!(
-            "Code length of deployment tx {}",
+            "Compressed code length of locally reconstructed {}",
+            init_code.len()
+        );
+        println!(
+            "Compressed code length of deployment tx {}",
             extract_compressed_wasm(&*result.input).len()
         );
-        println!("Checking if project hash section is present locally reconstructed init code");
-        has_project_hash_section(init_code.as_slice())?;
-        println!("Checking if project hash section is present in deployment tx init code");
-        has_project_hash_section(&extract_compressed_wasm(&*result.input))?;
     }
     Ok(())
 }

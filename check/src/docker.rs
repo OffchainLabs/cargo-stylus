@@ -2,9 +2,13 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use eyre::{bail, eyre, Result};
+
+use crate::constants::TOOLCHAIN_FILE_NAME;
+use crate::project::extract_toolchain_channel;
 
 fn version_to_image_name(version: &str) -> String {
     format!("cargo-stylus-{}", version)
@@ -24,6 +28,8 @@ fn create_image(version: &str) -> Result<()> {
     if image_exists(&name)? {
         return Ok(());
     }
+    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+    let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
     let mut child = Command::new("docker")
         .arg("build")
         .arg("-t")
@@ -40,17 +46,15 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN rustup target add aarch64-unknown-linux-gnu
-            RUN rustup toolchain install nightly-aarch64-apple-darwin
-            RUN rustup toolchain install nightly-x86_64-unknown-linux-gnu
-            RUN rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
-            RUN rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
+            RUN rustup toolchain install {} && rustup default {}
             RUN apt-get update && apt-get install -y git
             RUN git clone https://github.com/offchainlabs/cargo-stylus.git /cargo-stylus
             WORKDIR /cargo-stylus
-            RUN git checkout proper-program-verification
             RUN ./install.sh
         ",
-        version
+        version,
+        toolchain_channel,
+        toolchain_channel,
     )?;
     child.wait().map_err(|e| eyre!("wait failed: {e}"))?;
     Ok(())

@@ -4,6 +4,7 @@
 use crate::{
     constants::{
         BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, PROJECT_HASH_SECTION_NAME, RUST_TARGET,
+        TOOLCHAIN_FILE_NAME,
     },
     macros::*,
 };
@@ -20,6 +21,7 @@ use std::{
     process,
 };
 use tiny_keccak::{Hasher, Keccak};
+use toml::Value;
 
 #[derive(Default, Clone, PartialEq)]
 pub enum OptLevel {
@@ -164,6 +166,32 @@ fn all_paths(root_dir: &Path, source_file_patterns: Vec<String>) -> Result<Vec<P
     Ok(files)
 }
 
+pub fn extract_toolchain_channel(toolchain_file_path: &PathBuf) -> Result<String> {
+    let toolchain_file_contents = std::fs::read_to_string(toolchain_file_path).wrap_err(
+        "expected to find a rust-toolchain.toml file in project directory \
+         to specify your Rust toolchain for reproducible verification",
+    )?;
+    let toolchain_toml: Value =
+        toml::from_str(&toolchain_file_contents).wrap_err("failed to parse rust-toolchain.toml")?;
+
+    // Extract the channel from the toolchain section
+    let Some(toolchain) = toolchain_toml.get("toolchain") else {
+        bail!("toolchain section not found in rust-toolchain.toml");
+    };
+    let Some(channel) = toolchain.get("channel") else {
+        bail!("could not find channel in rust-toolchain.toml's toolchain section");
+    };
+    let Some(channel) = channel.as_str() else {
+        bail!("channel in rust-toolchain.toml's toolchain section is not a string");
+    };
+    // Next, parse the Rust version from the toolchain project, only allowing alphanumeric chars and dashes.
+    let channel = channel
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-')
+        .collect();
+    Ok(channel)
+}
+
 pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
     let mut keccak = Keccak::v256();
     let mut cmd = Command::new("cargo");
@@ -183,10 +211,6 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
     } else {
         keccak.update(&[1]);
     }
-
-    // Fetch the Rust toolchain toml file from the project root. Assert that it exists.
-
-    // Next, parse the Rust version from the toolchain project, only allowing simple characters.
 
     let mut buf = vec![0u8; 0x100000];
 
@@ -208,7 +232,16 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
         Ok(())
     };
 
+    // Fetch the Rust toolchain toml file from the project root. Assert that it exists and add it to the
+    // files in the directory to hash.
+    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+    let _ = std::fs::metadata(&toolchain_file_path).wrap_err(
+        "expected to find a rust-toolchain.toml file in project directory \
+         to specify your Rust toolchain for reproducible verification",
+    )?;
+
     let mut paths = all_paths(PathBuf::from(".").as_path(), source_file_patterns)?;
+    paths.push(toolchain_file_path);
     paths.sort();
 
     for filename in paths.iter() {
@@ -306,6 +339,49 @@ mod test {
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_extract_toolchain_channel() -> Result<()> {
+        let dir = tempdir()?;
+        let dir_path = dir.path();
+
+        let toolchain_file_path = dir_path.join(TOOLCHAIN_FILE_NAME);
+        let toolchain_contents = r#"
+            [toolchain]
+        "#;
+        std::fs::write(&toolchain_file_path, toolchain_contents)?;
+
+        let channel = extract_toolchain_channel(&toolchain_file_path);
+        let Err(err_details) = channel else {
+            panic!("expected an error");
+        };
+        assert!(err_details.to_string().contains("could not find channel"),);
+
+        let toolchain_contents = r#"
+            [toolchain]
+            channel = 32390293
+        "#;
+        std::fs::write(&toolchain_file_path, toolchain_contents)?;
+
+        let channel = extract_toolchain_channel(&toolchain_file_path);
+        let Err(err_details) = channel else {
+            panic!("expected an error");
+        };
+        assert!(err_details.to_string().contains("is not a string"),);
+
+        let toolchain_contents = r#"
+            [toolchain]
+            channel = "nightly-2020-07-10"
+            components = [ "rustfmt", "rustc-dev" ]
+            targets = [ "wasm32-unknown-unknown", "thumbv2-none-eabi" ]
+            profile = "minimal"
+        "#;
+        std::fs::write(&toolchain_file_path, toolchain_contents)?;
+
+        let channel = extract_toolchain_channel(&toolchain_file_path)?;
+        assert_eq!(channel, "nightly-2020-07-10");
+        Ok(())
+    }
 
     #[test]
     fn test_all_paths() -> Result<()> {
