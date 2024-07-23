@@ -3,9 +3,9 @@
 
 use crate::{
     check::ArbWasm::ArbWasmErrors,
-    constants::{ARB_WASM_H160, ONE_ETH},
+    constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME},
     macros::*,
-    project::{self, BuildConfig},
+    project::{self, extract_toolchain_channel, BuildConfig},
     CheckConfig,
 };
 use alloy_primitives::{Address, B256, U256};
@@ -122,7 +122,10 @@ impl CheckConfig {
         if let Some(wasm) = self.wasm_file.clone() {
             return Ok((wasm, [0u8; 32]));
         }
-        let cfg = BuildConfig::new(self.common_cfg.rust_stable);
+        let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+        let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
+        let rust_stable = !toolchain_channel.contains("nightly");
+        let cfg = BuildConfig::new(rust_stable);
         let wasm = project::build_dylib(cfg.clone())?;
         let project_hash =
             project::hash_files(self.common_cfg.source_files_for_project_hash.clone(), cfg)?;

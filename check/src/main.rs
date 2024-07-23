@@ -80,9 +80,6 @@ struct CommonConfig {
     /// Arbitrum RPC endpoint.
     #[arg(short, long, default_value = "https://sepolia-rollup.arbitrum.io/rpc")]
     endpoint: String,
-    /// Whether to use stable Rust.
-    #[arg(long)]
-    rust_stable: bool,
     /// Whether to print debug info.
     #[arg(long)]
     verbose: bool,

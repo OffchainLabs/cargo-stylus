@@ -8,6 +8,7 @@ use std::process::{Command, Stdio};
 use eyre::{bail, eyre, Result};
 
 use crate::constants::TOOLCHAIN_FILE_NAME;
+use crate::macros::greyln;
 use crate::project::extract_toolchain_channel;
 
 fn version_to_image_name(version: &str) -> String {
@@ -87,8 +88,9 @@ fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
 pub fn run_reproducible(version: &str, command_line: &[String]) -> Result<()> {
     let version: String = version
         .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '.')
+        .filter(|c| c.is_alphanumeric() || *c == '.' || *c == ':' || *c == '-')
         .collect();
+    greyln!("Running reproducible build with Rust Docker image tag {version}");
     let mut command = vec!["cargo", "stylus"];
     for s in command_line.iter() {
         command.push(s);
