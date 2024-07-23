@@ -90,7 +90,10 @@ pub fn run_reproducible(version: &str, command_line: &[String]) -> Result<()> {
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == '.' || *c == ':' || *c == '-')
         .collect();
-    greyln!("Running reproducible build with Rust Docker image tag {version}");
+    greyln!(
+        "Running reproducible build with Rust Docker image tag",
+        version
+    );
     let mut command = vec!["cargo", "stylus"];
     for s in command_line.iter() {
         command.push(s);
