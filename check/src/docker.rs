@@ -5,6 +5,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+use cargo_stylus_util::color::Color;
 use eyre::{bail, eyre, Result};
 
 use crate::constants::TOOLCHAIN_FILE_NAME;
@@ -91,8 +92,8 @@ pub fn run_reproducible(version: &str, command_line: &[String]) -> Result<()> {
         .filter(|c| c.is_alphanumeric() || *c == '.' || *c == ':' || *c == '-')
         .collect();
     greyln!(
-        "Running reproducible build with Rust Docker image tag",
-        version
+        "Running reproducible build with Rust Docker image tag {}",
+        version.mint()
     );
     let mut command = vec!["cargo", "stylus"];
     for s in command_line.iter() {
