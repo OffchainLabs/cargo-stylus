@@ -48,6 +48,7 @@ fn create_image() -> Result<()> {
         "\
             FROM --platform=linux/amd64 rust:{} as builder\n\
             RUN rustup toolchain install {}-x86_64-unknown-linux-gnu 
+            RUN rustup toolchain install nightly-x86_64-unknown-linux-gnu 
             RUN rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
             RUN rustup default {}-x86_64-unknown-linux-gnu
             RUN rustup target add wasm32-unknown-unknown
