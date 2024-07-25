@@ -4,6 +4,7 @@
 use clap::{ArgGroup, Args, Parser};
 use ethers::types::{H160, U256};
 use eyre::{eyre, Context, Result};
+use std::fmt;
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
@@ -57,19 +58,6 @@ enum Apis {
     /// Deploy a contract.
     #[command(alias = "d")]
     Deploy(DeployConfig),
-    /// Build in a Docker container to ensure reproducibility.
-    ///
-    /// Specify the Rust version to use, followed by the cargo stylus subcommand.
-    /// Example: `cargo stylus reproducible 1.77 check`
-    Reproducible {
-        /// Rust version to use.
-        #[arg()]
-        rust_version: String,
-
-        /// Stylus subcommand.
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        stylus: Vec<String>,
-    },
     /// Verify the deployment of a Stylus program.
     #[command(alias = "v")]
     Verify(VerifyConfig),
@@ -123,6 +111,9 @@ pub struct CheckConfig {
     /// Where to deploy and activate the program (defaults to a random address).
     #[arg(long)]
     program_address: Option<H160>,
+    /// If specified, will not run the command in a reproducible docker container. Useful for local
+    /// builds, but at the risk of not having a reproducible command for verification purposes.
+    no_verify: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -141,10 +132,12 @@ struct DeployConfig {
 pub struct VerifyConfig {
     #[command(flatten)]
     common_cfg: CommonConfig,
-
     /// Hash of the deployment transaction.
     #[arg(long)]
     deployment_tx: String,
+    /// If specified, will not run the command in a reproducible docker container. Useful for local
+    /// builds, but at the risk of not having a reproducible command for verification purposes.
+    no_verify: bool,
 }
 
 #[derive(Clone, Debug, Args)]
@@ -162,6 +155,104 @@ struct AuthOpts {
     /// Keystore password file.
     #[arg(long)]
     keystore_password_path: Option<PathBuf>,
+}
+
+impl fmt::Display for CommonConfig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Convert the vector of source files to a comma-separated string
+        let source_files = self.source_files_for_project_hash.join(", ");
+        write!(
+            f,
+            "--endpoint={} {} --source-files-for-project-hash=[{}] {}",
+            self.endpoint,
+            match self.verbose {
+                true => "--verbose",
+                false => "",
+            },
+            source_files,
+            match &self.max_fee_per_gas_gwei {
+                Some(fee) => format!("--max-fee-per-gas-gwei {}", fee),
+                None => "".to_string(),
+            }
+        )
+    }
+}
+
+impl fmt::Display for CheckConfig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {} {}",
+            self.common_cfg.to_string(),
+            match &self.wasm_file {
+                Some(path) => format!("--wasm-file={}", path.display().to_string()),
+                None => "".to_string(),
+            },
+            match &self.program_address {
+                Some(addr) => format!("--program-address={:?}", addr),
+                None => "".to_string(),
+            },
+            match self.no_verify {
+                true => "--no-verify".to_string(),
+                false => "".to_string(),
+            },
+        )
+    }
+}
+
+impl fmt::Display for DeployConfig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.check_config.to_string(),
+            self.auth.to_string(),
+            match self.estimate_gas {
+                true => "--estimate-gas".to_string(),
+                false => "".to_string(),
+            },
+        )
+    }
+}
+
+impl fmt::Display for AuthOpts {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {} {}",
+            match &self.private_key_path {
+                Some(path) => format!("--private-key-path={}", path.display().to_string()),
+                None => "".to_string(),
+            },
+            match &self.private_key {
+                Some(key) => format!("--private-key={}", key.clone()),
+                None => "".to_string(),
+            },
+            match &self.keystore_path {
+                Some(path) => format!("--keystore-path={}", path.clone()),
+                None => "".to_string(),
+            },
+            match &self.keystore_password_path {
+                Some(path) => format!("--keystore-password-path={}", path.display().to_string()),
+                None => "".to_string(),
+            }
+        )
+    }
+}
+
+impl fmt::Display for VerifyConfig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} --deployment-tx={} {}",
+            self.common_cfg.to_string(),
+            self.deployment_tx,
+            match self.no_verify {
+                true => "--no-verify".to_string(),
+                false => "".to_string(),
+            }
+        )
+    }
 }
 
 fn main() -> Result<()> {
@@ -188,22 +279,67 @@ async fn main_impl(args: Opts) -> Result<()> {
             run!(cache::cache_program(&config).await, "stylus cache failed");
         }
         Apis::Check(config) => {
-            run!(check::check(&config).await, "stylus checks failed");
+            if config.no_verify {
+                run!(check::check(&config).await, "stylus checks failed");
+            } else {
+                let mut commands: Vec<String> = vec!["cargo", "stylus", "check"]
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                let config_args = config
+                    .to_string()
+                    .split(' ')
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<String>>();
+                commands.extend(config_args);
+                run!(
+                    docker::run_reproducible("1.79", &commands),
+                    "failed reproducible run"
+                );
+            }
         }
         Apis::Deploy(config) => {
-            run!(deploy::deploy(config).await, "failed to deploy");
-        }
-        Apis::Reproducible {
-            rust_version,
-            stylus,
-        } => {
-            run!(
-                docker::run_reproducible(&rust_version, &stylus),
-                "failed reproducible run"
-            );
+            if config.check_config.no_verify {
+                run!(deploy::deploy(config).await, "stylus deploy failed");
+            } else {
+                let mut commands: Vec<String> = vec!["cargo", "stylus", "deploy"]
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                let config_args = config
+                    .to_string()
+                    .split(' ')
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<String>>();
+                commands.extend(config_args);
+                run!(
+                    docker::run_reproducible("1.79", &commands),
+                    "failed reproducible run"
+                );
+            }
         }
         Apis::Verify(config) => {
-            run!(verify::verify(config).await, "failed to verify");
+            if config.no_verify {
+                run!(verify::verify(config).await, "failed to verify");
+            } else {
+                let mut commands: Vec<String> = vec!["cargo", "stylus", "verify"]
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                let config_args = config
+                    .to_string()
+                    .split(' ')
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<String>>();
+                commands.extend(config_args);
+                run!(
+                    docker::run_reproducible("1.79", &commands),
+                    "failed reproducible run"
+                );
+            }
         }
     }
     Ok(())

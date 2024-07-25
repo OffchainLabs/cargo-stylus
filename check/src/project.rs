@@ -167,12 +167,13 @@ fn all_paths(root_dir: &Path, source_file_patterns: Vec<String>) -> Result<Vec<P
 }
 
 pub fn extract_toolchain_channel(toolchain_file_path: &PathBuf) -> Result<String> {
-    let toolchain_file_contents = std::fs::read_to_string(toolchain_file_path).wrap_err(
+    let toolchain_file_contents = fs::read_to_string(toolchain_file_path).context(
         "expected to find a rust-toolchain.toml file in project directory \
          to specify your Rust toolchain for reproducible verification",
     )?;
+
     let toolchain_toml: Value =
-        toml::from_str(&toolchain_file_contents).wrap_err("failed to parse rust-toolchain.toml")?;
+        toml::from_str(&toolchain_file_contents).context("failed to parse rust-toolchain.toml")?;
 
     // Extract the channel from the toolchain section
     let Some(toolchain) = toolchain_toml.get("toolchain") else {
@@ -184,11 +185,19 @@ pub fn extract_toolchain_channel(toolchain_file_path: &PathBuf) -> Result<String
     let Some(channel) = channel.as_str() else {
         bail!("channel in rust-toolchain.toml's toolchain section is not a string");
     };
-    // Next, parse the Rust version from the toolchain project, only allowing alphanumeric chars and dashes.
+
+    // Reject "stable" and "nightly" channels specified alone
+    if channel == "stable" || channel == "nightly" || channel == "beta" {
+        bail!("the channel in your project's rust-toolchain.toml's toolchain section must be a specific version e.g., '1.80.0' or 'nightly-YYYY-MM-DD'. \
+        To ensure reproducibility, it cannot be a generic channel like 'stable', 'nightly', or 'beta'");
+    }
+
+    // Parse the Rust version from the toolchain project, only allowing alphanumeric chars and dashes.
     let channel = channel
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '.')
         .collect();
+
     Ok(channel)
 }
 
