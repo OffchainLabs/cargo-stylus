@@ -160,10 +160,16 @@ struct AuthOpts {
 impl fmt::Display for CommonConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Convert the vector of source files to a comma-separated string
-        let source_files = self.source_files_for_project_hash.join(", ");
+        let mut source_files: String = "".to_string();
+        if !self.source_files_for_project_hash.is_empty() {
+            source_files = format!(
+                "--source-files-for-project-hash={}",
+                self.source_files_for_project_hash.join(", ")
+            );
+        }
         write!(
             f,
-            "--endpoint={} {} --source-files-for-project-hash=[{}] {}",
+            "--endpoint={} {} {} {}",
             self.endpoint,
             match self.verbose {
                 true => "--verbose",

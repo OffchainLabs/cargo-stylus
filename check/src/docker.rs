@@ -56,8 +56,6 @@ fn create_image() -> Result<()> {
             RUN rustup target add x86_64-unknown-linux-gnu
             RUN cargo install cargo-stylus
             RUN cargo install --force cargo-stylus-check
-            RUN cargo install --force cargo-stylus-replay
-            RUN cargo install --force cargo-stylus-cgen
         ",
         RUST_BASE_IMAGE_VERSION,
         toolchain_channel,
