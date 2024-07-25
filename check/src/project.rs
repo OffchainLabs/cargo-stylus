@@ -39,7 +39,7 @@ pub struct BuildConfig {
 impl BuildConfig {
     pub fn new(stable: bool) -> Self {
         Self {
-            stable,
+            stable: true,
             ..Default::default()
         }
     }
