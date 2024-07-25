@@ -3,6 +3,8 @@
 
 #![allow(clippy::println_empty_string)]
 
+use std::process::Command;
+
 use crate::{
     check::{self, ProgramCheck},
     constants::ARB_WASM_H160,
@@ -47,6 +49,23 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
             $expr.await.wrap_err_with(|| eyre!($($msg),+))?
         };
     }
+
+    // Get the active toolchain using rustup
+    let active_toolchain_output = Command::new("rustup")
+        .arg("show")
+        .arg("active-toolchain")
+        .output()
+        .expect("Failed to execute rustup command");
+    let active_toolchain = String::from_utf8_lossy(&active_toolchain_output.stdout);
+    greyln!("Active Rust toolchain: {}", active_toolchain.trim());
+
+    // Get the rustc version
+    let rustc_version_output = Command::new("rustc")
+        .arg("--version")
+        .output()
+        .expect("Failed to execute rustc command");
+    let rustc_version = String::from_utf8_lossy(&rustc_version_output.stdout);
+    greyln!("Using rustc version: {}", rustc_version.trim());
 
     let program = run!(check::check(&cfg.check_config), "cargo stylus check failed");
     let verbose = cfg.check_config.common_cfg.verbose;
