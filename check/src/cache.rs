@@ -1,7 +1,7 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
-use alloy_primitives::FixedBytes;
+use alloy_primitives::Address;
 use alloy_sol_macro::sol;
 use alloy_sol_types::{SolCall, SolInterface};
 use cargo_stylus_util::color::{Color, DebugColor};
@@ -10,18 +10,16 @@ use ethers::middleware::{Middleware, SignerMiddleware};
 use ethers::signers::Signer;
 use ethers::types::spoof::State;
 use ethers::types::{Eip1559TransactionRequest, U256};
-use ethers::utils::keccak256;
 use eyre::{bail, Context, Result};
 
 use crate::check::{eth_call, EthCallError};
-use crate::constants::{CACHE_MANAGER_H160, EOF_PREFIX_NO_DICT};
 use crate::deploy::{format_gas, run_tx};
 use crate::macros::greyln;
 use crate::CacheConfig;
 
 sol! {
     interface CacheManager {
-        function placeBid(bytes32 codehash) external payable;
+        function placeBid(address program) external payable;
 
         error AsmTooLarge(uint256 asm, uint256 queueSize, uint256 cacheSize);
         error AlreadyCached(bytes32 codehash);
@@ -41,27 +39,10 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
     let wallet = wallet.with_chain_id(chain_id.as_u64());
     let client = SignerMiddleware::new(provider.clone(), wallet);
 
-    let program_code = client
-        .get_code(cfg.program_address, None)
-        .await
-        .wrap_err("failed to fetch program code")?;
-
-    if !program_code.starts_with(hex::decode(EOF_PREFIX_NO_DICT).unwrap().as_slice()) {
-        bail!(
-            "program code does not start with Stylus prefix {}",
-            EOF_PREFIX_NO_DICT
-        );
-    }
-    let codehash = FixedBytes::<32>::from(keccak256(&program_code));
-    greyln!(
-        "Program codehash {}",
-        hex::encode(codehash).debug_lavender()
-    );
-    let codehash = FixedBytes::<32>::from(keccak256(&program_code));
-
-    let data = CacheManager::placeBidCall { codehash }.abi_encode();
+    let program: Address = cfg.address.to_fixed_bytes().into();
+    let data = CacheManager::placeBidCall { program }.abi_encode();
     let mut tx = Eip1559TransactionRequest::new()
-        .to(*CACHE_MANAGER_H160)
+        .to(cfg.cache_manager_address)
         .data(data);
 
     // If a bid is set, specify it. Otherwise, a zero bid will be sent.
@@ -100,7 +81,7 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
     )
     .await?;
 
-    let address = cfg.program_address.debug_lavender();
+    let address = cfg.address.debug_lavender();
 
     if verbose {
         let gas = format_gas(receipt.gas_used.unwrap_or_default());
