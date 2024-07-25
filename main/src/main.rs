@@ -102,11 +102,13 @@ const COMMANDS: &[Binary] = &[
     },
 ];
 
+// prints help message and exits
 fn exit_with_help_msg() -> ! {
     Opts::command().print_help().unwrap();
     std::process::exit(0);
 }
 
+// prints version information and exits
 fn exit_with_version() -> ! {
     println!("{}", Opts::command().render_version());
     std::process::exit(0);
