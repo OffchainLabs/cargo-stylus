@@ -26,18 +26,18 @@ fn image_exists(name: &str) -> Result<bool> {
 }
 
 fn create_image() -> Result<()> {
-    let version = "1.79".to_string();
-    let name = version_to_image_name(&version);
-    if image_exists(&name)? {
-        return Ok(());
-    }
+    // let version = "1.79".to_string();
+    // let name = version_to_image_name(&version);
+    // if image_exists(&name)? {
+    //     return Ok(());
+    // }
     let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
     let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
     // let rust_version = extract_toolchain_version(&toolchain_file_path)?;
     let mut child = Command::new("docker")
         .arg("build")
         .arg("-t")
-        .arg(name)
+        .arg("cargo-stylus-1.79")
         .arg(".")
         .arg("-f-")
         .stdin(Stdio::piped())
@@ -69,9 +69,9 @@ fn create_image() -> Result<()> {
 
 fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
     let name = version_to_image_name(version);
-    if !image_exists(&name)? {
-        bail!("Docker image {name} doesn't exist");
-    }
+    // if !image_exists(&name)? {
+    //     bail!("Docker image {name} doesn't exist");
+    // }
     let dir =
         std::env::current_dir().map_err(|e| eyre!("failed to find current directory: {e}"))?;
     Command::new("docker")
@@ -82,7 +82,7 @@ fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
         .arg("/source")
         .arg("-v")
         .arg(format!("{}:/source", dir.as_os_str().to_str().unwrap()))
-        .arg(name)
+        .arg("cargo-stylus-1.79")
         .args(command_line)
         .spawn()
         .map_err(|e| eyre!("failed to execute Docker command: {e}"))?
