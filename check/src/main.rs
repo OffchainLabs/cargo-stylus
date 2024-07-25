@@ -104,7 +104,10 @@ pub struct CacheConfig {
     auth: AuthOpts,
     /// Deployed and activated program address to cache.
     #[arg(long)]
-    program_address: H160,
+    address: H160,
+    /// Address of the Stylus program cache manager on Arbitrum chains.
+    #[arg(long, default_value = "0c9043d042ab52cfa8d0207459260040cca54253")]
+    cache_manager_address: H160,
     /// Bid, in wei, to place on the desired program to cache
     #[arg(short, long, hide(true))]
     bid: Option<u64>,
