@@ -52,8 +52,12 @@ fn create_image() -> Result<()> {
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN rustup target add x86_64-unknown-linux-gnu
-            RUN cargo install cargo-stylus
-            RUN cargo install --force cargo-stylus-check
+            RUN apt-get update && apt-get install -y git
+            RUN git clone https://github.com/offchainlabs/cargo-stylus.git
+            WORKDIR /cargo-stylus
+            RUN git checkout docker-changes
+            RUN cargo install --path check
+            RUN cargo install --path main
         ",
         RUST_BASE_IMAGE_VERSION,
         toolchain_channel,
