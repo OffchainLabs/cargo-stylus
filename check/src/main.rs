@@ -282,10 +282,8 @@ async fn main_impl(args: Opts) -> Result<()> {
             if config.no_verify {
                 run!(check::check(&config).await, "stylus checks failed");
             } else {
-                let mut commands: Vec<String> = vec!["cargo", "stylus", "check"]
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect();
+                let mut commands: Vec<String> =
+                    vec!["check"].into_iter().map(|s| s.to_string()).collect();
                 let config_args = config
                     .to_string()
                     .split(' ')
@@ -303,10 +301,8 @@ async fn main_impl(args: Opts) -> Result<()> {
             if config.check_config.no_verify {
                 run!(deploy::deploy(config).await, "stylus deploy failed");
             } else {
-                let mut commands: Vec<String> = vec!["cargo", "stylus", "deploy"]
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect();
+                let mut commands: Vec<String> =
+                    vec!["deploy"].into_iter().map(|s| s.to_string()).collect();
                 let config_args = config
                     .to_string()
                     .split(' ')
@@ -324,10 +320,8 @@ async fn main_impl(args: Opts) -> Result<()> {
             if config.no_verify {
                 run!(verify::verify(config).await, "failed to verify");
             } else {
-                let mut commands: Vec<String> = vec!["cargo", "stylus", "verify"]
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect();
+                let mut commands: Vec<String> =
+                    vec!["verify"].into_iter().map(|s| s.to_string()).collect();
                 let config_args = config
                     .to_string()
                     .split(' ')

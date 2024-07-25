@@ -42,4 +42,4 @@ pub const TOOLCHAIN_FILE_NAME: &str = "rust-toolchain.toml";
 /// Base Rust image version to be used for reproducible builds. This simply installs cargo and the Rust
 /// compiler, but the user will specify the exact version of the Rust toolchain to use for building within
 /// the docker container.
-pub const RUST_BASE_IMAGE_VERSION: &str = "1.80.0";
+pub const RUST_BASE_IMAGE_VERSION: &str = "1.79.0";

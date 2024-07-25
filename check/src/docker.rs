@@ -47,7 +47,7 @@ fn create_image() -> Result<()> {
         child.stdin.as_mut().unwrap(),
         "\
             FROM --platform=linux/amd64 rust:{} as builder\n\
-            RUN rustup toolchain install {} && rustup default {}
+            RUN rustup toolchain install {}-x86_64-unknown-linux-gnu && rustup default {}-x86_64-unknown-linux-gnu
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN rustup target add x86_64-unknown-linux-gnu
