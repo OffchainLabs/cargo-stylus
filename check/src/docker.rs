@@ -55,7 +55,7 @@ fn create_image() -> Result<()> {
             RUN apt-get update && apt-get install -y git
             RUN git clone https://github.com/offchainlabs/cargo-stylus.git
             WORKDIR /cargo-stylus
-            RUN git checkout docker-changes
+            RUN git checkout docker-checks
             RUN cargo install --path check
             RUN cargo install --path main
         ",
