@@ -22,6 +22,21 @@ fn image_exists(name: &str) -> Result<bool> {
         .arg(name)
         .output()
         .map_err(|e| eyre!("failed to execute Docker command: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = std::str::from_utf8(&output.stderr)
+            .map_err(|e| eyre!("failed to read Docker command stderr: {e}"))?;
+        if stderr.contains("Cannot connect to the Docker daemon") {
+            println!(
+                r#"Cargo stylus deploy|check|verify run in a Docker container by default to ensure deployments
+are reproducible, but Docker is not found in your system. Please install Docker if you wish to create 
+a reproducible deployment, or opt out by using the --no-verify flag for local builds"#
+            );
+            bail!("Docker not running");
+        }
+        bail!(stderr.to_string())
+    }
+
     Ok(output.stdout.iter().filter(|c| **c == b'\n').count() > 1)
 }
 
@@ -30,8 +45,11 @@ fn create_image(version: &str) -> Result<()> {
     if image_exists(&name)? {
         return Ok(());
     }
-    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
-    let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
+    let cargo_stylus_version = env!("CARGO_PKG_VERSION");
+    println!(
+        "Building Docker image for cargo-stylus version {} and Rust toolchain {}",
+        cargo_stylus_version, version,
+    );
     let mut child = Command::new("docker")
         .arg("build")
         .arg("-t")
@@ -54,12 +72,12 @@ fn create_image(version: &str) -> Result<()> {
             RUN git clone https://github.com/offchainlabs/cargo-stylus.git
             WORKDIR /cargo-stylus
             RUN git checkout docker-checks
-            RUN cargo install --path check
-            RUN cargo install --path main
+            RUN cargo install --path check --force
+            RUN cargo install --path mai --forcen
         ",
         RUST_BASE_IMAGE_VERSION,
-        toolchain_channel,
-        toolchain_channel,
+        version,
+        version,
     )?;
     child.wait().map_err(|e| eyre!("wait failed: {e}"))?;
     Ok(())
