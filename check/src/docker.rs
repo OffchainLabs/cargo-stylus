@@ -46,7 +46,7 @@ fn create_image(version: &str) -> Result<()> {
         return Ok(());
     }
     let cargo_stylus_version = env!("CARGO_PKG_VERSION");
-    let cargo_stylus_version = cargo_stylus_version
+    let cargo_stylus_version: String = cargo_stylus_version
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '.')
         .collect();
