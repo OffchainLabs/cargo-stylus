@@ -9,15 +9,20 @@ use cargo_stylus_util::sys;
 use ethers::middleware::{Middleware, SignerMiddleware};
 use ethers::signers::Signer;
 use ethers::types::spoof::State;
-use ethers::types::{Eip1559TransactionRequest, U256};
+use ethers::types::transaction::eip2718::TypedTransaction;
+use ethers::types::{Eip1559TransactionRequest, H160, U256};
 use eyre::{bail, Context, Result};
 
 use crate::check::{eth_call, EthCallError};
+use crate::constants::ARB_WASM_CACHE_H160;
 use crate::deploy::{format_gas, run_tx};
 use crate::macros::greyln;
 use crate::CacheConfig;
 
 sol! {
+    interface ArbWasmCache {
+        function allCacheManagers() external view returns (address[] memory managers);
+    }
     interface CacheManager {
         function placeBid(address program) external payable;
 
@@ -39,10 +44,25 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
     let wallet = wallet.with_chain_id(chain_id.as_u64());
     let client = SignerMiddleware::new(provider.clone(), wallet);
 
+    let data = ArbWasmCache::allCacheManagersCall {}.abi_encode();
+    let tx = Eip1559TransactionRequest::new()
+        .to(*ARB_WASM_CACHE_H160)
+        .data(data);
+    let tx = TypedTransaction::Eip1559(tx);
+    let result = client.call(&tx, None).await?;
+    let cache_managers_result =
+        ArbWasmCache::allCacheManagersCall::abi_decode_returns(&result, true)?;
+    let cache_manager_addrs = cache_managers_result.managers;
+    if cache_manager_addrs.is_empty() {
+        bail!("no cache managers found in ArbWasmCache, perhaps the Stylus cache is not yet enabled on this chain");
+    }
+    let cache_manager = cache_manager_addrs.last().unwrap().clone();
+    let cache_manager = H160::from_slice(cache_manager.as_slice());
+
     let program: Address = cfg.address.to_fixed_bytes().into();
     let data = CacheManager::placeBidCall { program }.abi_encode();
     let mut tx = Eip1559TransactionRequest::new()
-        .to(cfg.cache_manager_address)
+        .to(cache_manager)
         .data(data);
 
     // If a bid is set, specify it. Otherwise, a zero bid will be sent.

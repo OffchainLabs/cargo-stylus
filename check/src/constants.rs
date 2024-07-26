@@ -14,10 +14,15 @@ pub const BROTLI_COMPRESSION_LEVEL: u32 = 11;
 lazy_static! {
     /// Address of the ArbWasm precompile.
     pub static ref ARB_WASM_H160: H160 = H160(*ARB_WASM_ADDRESS.0);
+    /// Address of the ArbWasmCache precompile.
+    pub static ref ARB_WASM_CACHE_H160: H160 = H160(*ARB_WASM_CACHE_ADDRESS.0);
 }
 
 /// Address of the ArbWasm precompile.
 pub const ARB_WASM_ADDRESS: Address = address!("0000000000000000000000000000000000000071");
+
+/// Address of the ArbWasmCache precompile.
+pub const ARB_WASM_CACHE_ADDRESS: Address = address!("0000000000000000000000000000000000000072");
 
 /// Target for compiled WASM folder in a Rust project
 pub const RUST_TARGET: &str = "wasm32-unknown-unknown";
