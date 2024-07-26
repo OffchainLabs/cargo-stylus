@@ -93,9 +93,6 @@ pub struct CacheConfig {
     /// Deployed and activated program address to cache.
     #[arg(long)]
     address: H160,
-    /// Address of the Stylus program cache manager on Arbitrum Sepolia testnet.
-    #[arg(long, default_value = "0c9043d042ab52cfa8d0207459260040cca54253")]
-    cache_manager_address: H160,
     /// Bid, in wei, to place on the desired program to cache
     #[arg(short, long, hide(true))]
     bid: Option<u64>,

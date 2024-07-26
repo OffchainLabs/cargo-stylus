@@ -140,6 +140,12 @@ impl DeployConfig {
         }
         let tx_hash = receipt.transaction_hash.debug_lavender();
         greyln!("deployment tx hash: {tx_hash}");
+        println!(
+            r#"we recommend running cargo stylus cache --address={} to cache your activated program in ArbOS.
+Cached programs benefit from cheaper calls. To read more about the Stylus program cache, see
+https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#,
+            hex::encode(contract)
+        );
         Ok(contract)
     }
 
