@@ -138,7 +138,7 @@ pub struct VerifyConfig {
     deployment_tx: String,
     #[arg(long)]
     /// If specified, will not run the command in a reproducible docker container. Useful for local
-    /// builds, but at the risk of not having a reproducible command for verification purposes.
+    /// builds, but at the risk of not having a reproducible contract for verification purposes.
     no_verify: bool,
 }
 
