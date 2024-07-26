@@ -169,7 +169,11 @@ fn all_paths(root_dir: &Path, source_file_patterns: Vec<String>) -> Result<Vec<P
 pub fn extract_toolchain_channel(toolchain_file_path: &PathBuf) -> Result<String> {
     let toolchain_file_contents = fs::read_to_string(toolchain_file_path).context(
         "expected to find a rust-toolchain.toml file in project directory \
-         to specify your Rust toolchain for reproducible verification",
+        to specify your Rust toolchain for reproducible verification. The channel in your project's rust-toolchain.toml's \
+        toolchain section must be a specific version e.g., '1.80.0' or 'nightly-YYYY-MM-DD'. \
+        To ensure reproducibility, it cannot be a generic channel like 'stable', 'nightly', or 'beta'. Read more about \
+        the toolchain file in https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file or see \
+        the file in https://github.com/OffchainLabs/stylus-hello-world for an example",
     )?;
 
     let toolchain_toml: Value =

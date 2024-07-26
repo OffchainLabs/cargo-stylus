@@ -51,9 +51,6 @@ enum Subcommands {
     /// Verify the deployment of a Stylus program against a local project.
     #[command(alias = "v")]
     Verify,
-    /// Run cargo stylus commands in a Docker container for reproducibility.
-    #[command()]
-    Reproducible,
     /// Generate C code.
     #[command()]
     CGen,
@@ -75,7 +72,6 @@ const COMMANDS: &[Binary] = &[
             "check",
             "deploy",
             "verify",
-            "reproducible",
             "n",
             "x",
             "c",
