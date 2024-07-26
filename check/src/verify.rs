@@ -72,7 +72,7 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     if deployment_data == *result.input {
         println!("Verified - program matches local project's file hashes");
     } else {
-        let tx_prelude = extract_program_evm_deployment_prelude(&*result.input);
+        let tx_prelude = extract_program_evm_deployment_prelude(&result.input);
         let reconstructed_prelude = extract_program_evm_deployment_prelude(&deployment_data);
         println!(
             "{} - program deployment did not verify against local project's file hashes",
@@ -94,7 +94,7 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
         );
         println!(
             "Compressed code length of deployment tx {}",
-            extract_compressed_wasm(&*result.input).len()
+            extract_compressed_wasm(&result.input).len()
         );
     }
     Ok(())

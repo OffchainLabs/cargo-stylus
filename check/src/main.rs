@@ -207,9 +207,9 @@ impl fmt::Display for CheckConfig {
         write!(
             f,
             "{} {} {} {}",
-            self.common_cfg.to_string(),
+            self.common_cfg,
             match &self.wasm_file {
-                Some(path) => format!("--wasm-file={}", path.display().to_string()),
+                Some(path) => format!("--wasm-file={}", path.display()),
                 None => "".to_string(),
             },
             match &self.program_address {
@@ -229,8 +229,8 @@ impl fmt::Display for DeployConfig {
         write!(
             f,
             "{} {} {}",
-            self.check_config.to_string(),
-            self.auth.to_string(),
+            self.check_config,
+            self.auth,
             match self.estimate_gas {
                 true => "--estimate-gas".to_string(),
                 false => "".to_string(),
@@ -245,7 +245,7 @@ impl fmt::Display for AuthOpts {
             f,
             "{} {} {} {}",
             match &self.private_key_path {
-                Some(path) => format!("--private-key-path={}", path.display().to_string()),
+                Some(path) => format!("--private-key-path={}", path.display()),
                 None => "".to_string(),
             },
             match &self.private_key {
@@ -257,7 +257,7 @@ impl fmt::Display for AuthOpts {
                 None => "".to_string(),
             },
             match &self.keystore_password_path {
-                Some(path) => format!("--keystore-password-path={}", path.display().to_string()),
+                Some(path) => format!("--keystore-password-path={}", path.display()),
                 None => "".to_string(),
             }
         )
@@ -269,7 +269,7 @@ impl fmt::Display for VerifyConfig {
         write!(
             f,
             "{} --deployment-tx={} {}",
-            self.common_cfg.to_string(),
+            self.common_cfg,
             self.deployment_tx,
             match self.no_verify {
                 true => "--no-verify".to_string(),

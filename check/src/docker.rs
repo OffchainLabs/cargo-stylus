@@ -41,7 +41,7 @@ a reproducible deployment, or opt out by using the --no-verify flag for local bu
 }
 
 fn create_image(version: &str) -> Result<()> {
-    let name = version_to_image_name(&version);
+    let name = version_to_image_name(version);
     if image_exists(&name)? {
         return Ok(());
     }
