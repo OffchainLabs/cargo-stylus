@@ -264,7 +264,7 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
     let mut hash = [0u8; 32];
     keccak.finalize(&mut hash);
     greyln!(
-        "Project hash computed on deployment: {:?}",
+        "project metadata hash computed on deployment: {:?}",
         hex::encode(hash)
     );
     Ok(hash)

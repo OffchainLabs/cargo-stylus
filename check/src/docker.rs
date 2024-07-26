@@ -17,13 +17,11 @@ fn version_to_image_name(version: &str) -> String {
 }
 
 fn image_exists(name: &str) -> Result<bool> {
-    println!("Checking if {} exists yo", name);
     let output = Command::new("docker")
         .arg("images")
         .arg(name)
         .output()
         .map_err(|e| eyre!("failed to execute Docker command: {e}"))?;
-    println!("yay it did not fail");
     Ok(output.stdout.iter().filter(|c| **c == b'\n').count() > 1)
 }
 
@@ -35,7 +33,6 @@ fn create_image() -> Result<()> {
     }
     let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
     let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
-    println!("Creating image...");
     let mut child = Command::new("docker")
         .arg("build")
         .arg("-t")
@@ -74,7 +71,6 @@ fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
     if !image_exists(&name)? {
         bail!("Docker image {name} doesn't exist");
     }
-    println!("Running command in container: {:?}", command_line);
     let dir =
         std::env::current_dir().map_err(|e| eyre!("failed to find current directory: {e}"))?;
     Command::new("docker")
