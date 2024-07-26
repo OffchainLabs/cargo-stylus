@@ -2,7 +2,6 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 #![allow(clippy::println_empty_string)]
-
 use crate::{
     check::{self, ProgramCheck},
     constants::ARB_WASM_H160,
@@ -140,7 +139,7 @@ impl DeployConfig {
             greyln!("deployed code at address: {address}");
         }
         let tx_hash = receipt.transaction_hash.debug_lavender();
-        greyln!("Deployment tx hash: {tx_hash}");
+        greyln!("deployment tx hash: {tx_hash}");
         println!(
             r#"we recommend running cargo stylus cache --address={} to cache your activated program in ArbOS.
 Cached programs benefit from cheaper calls. To read more about the Stylus program cache, see

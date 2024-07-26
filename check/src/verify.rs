@@ -14,8 +14,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     check,
+    constants::TOOLCHAIN_FILE_NAME,
     deploy::{self, extract_compressed_wasm, extract_program_evm_deployment_prelude},
-    project, CheckConfig, VerifyConfig,
+    project::{self, extract_toolchain_channel},
+    CheckConfig, VerifyConfig,
 };
 use cargo_stylus_util::{color::Color, sys};
 
@@ -30,6 +32,9 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     if hash.len() != 32 {
         bail!("Invalid hash");
     }
+    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+    let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
+    let rust_stable = !toolchain_channel.contains("nightly");
     let Some(result) = provider
         .get_transaction(H256::from_slice(&hash))
         .await
@@ -49,13 +54,14 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
         common_cfg: cfg.common_cfg.clone(),
         wasm_file: None,
         program_address: None,
+        no_verify: cfg.no_verify,
     };
     let _ = check::check(&check_cfg)
         .await
         .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
     let build_cfg = project::BuildConfig {
         opt_level: project::OptLevel::default(),
-        stable: cfg.common_cfg.rust_stable,
+        stable: rust_stable,
     };
     let wasm_file: PathBuf = project::build_dylib(build_cfg.clone())
         .map_err(|e| eyre!("could not build project to WASM: {e}"))?;
