@@ -289,7 +289,7 @@ async fn main_impl(args: Opts) -> Result<()> {
                 run!(check::check(&config).await, "stylus checks failed");
             } else {
                 let mut commands: Vec<String> =
-                    vec!["check"].into_iter().map(|s| s.to_string()).collect();
+                    vec![String::from("check"), String::from("--no-verify")];
                 let config_args = config
                     .to_string()
                     .split(' ')
@@ -308,7 +308,7 @@ async fn main_impl(args: Opts) -> Result<()> {
                 run!(deploy::deploy(config).await, "stylus deploy failed");
             } else {
                 let mut commands: Vec<String> =
-                    vec!["deploy"].into_iter().map(|s| s.to_string()).collect();
+                    vec![String::from("deploy"), String::from("--no-verify")];
                 let config_args = config
                     .to_string()
                     .split(' ')
@@ -327,7 +327,7 @@ async fn main_impl(args: Opts) -> Result<()> {
                 run!(verify::verify(config).await, "failed to verify");
             } else {
                 let mut commands: Vec<String> =
-                    vec!["verify"].into_iter().map(|s| s.to_string()).collect();
+                    vec![String::from("verify"), String::from("--no-verify")];
                 let config_args = config
                     .to_string()
                     .split(' ')
