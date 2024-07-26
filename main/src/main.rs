@@ -38,6 +38,9 @@ enum Subcommands {
     /// Check a contract.
     #[command(alias = "c")]
     Check,
+    /// Activate an already deployed program
+    #[command(alias = "a")]
+    Activate,
     /// Deploy a contract.
     #[command(alias = "d")]
     Deploy,
@@ -71,6 +74,7 @@ const COMMANDS: &[Binary] = &[
             "check",
             "deploy",
             "verify",
+            "a",
             "n",
             "x",
             "c",

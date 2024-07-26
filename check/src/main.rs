@@ -106,9 +106,15 @@ pub struct CacheConfig {
 pub struct ActivateConfig {
     #[command(flatten)]
     common_cfg: CommonConfig,
+    /// Wallet source to use.
+    #[command(flatten)]
+    auth: AuthOpts,
     /// Deployed Stylus program address to activate.
     #[arg(long)]
     address: H160,
+    /// Percent to bump the estimated activation data fee by.
+    #[arg(long)]
+    data_fee_bump_percent: Option<u64>,
 }
 
 #[derive(Args, Clone, Debug)]
