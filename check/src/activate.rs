@@ -48,13 +48,11 @@ pub async fn activate_program(cfg: &ActivateConfig) -> Result<()> {
         "obtained estimated activation data fee {}",
         format_units(data_fee, "ether")?.debug_lavender()
     );
-    if let Some(bump_percent) = cfg.data_fee_bump_percent {
-        greyln!(
-            "bumping estimated activation data fee by {}%",
-            bump_percent.debug_lavender()
-        );
-        data_fee = bump_data_fee(data_fee, bump_percent);
-    }
+    greyln!(
+        "bumping estimated activation data fee by {}%",
+        cfg.data_fee_bump_percent.debug_lavender()
+    );
+    data_fee = bump_data_fee(data_fee, cfg.data_fee_bump_percent);
 
     let program: Address = cfg.address.to_fixed_bytes().into();
     let data = ArbWasm::activateProgramCall { program }.abi_encode();
