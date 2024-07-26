@@ -288,8 +288,6 @@ async fn main_impl(args: Opts) -> Result<()> {
         }
         Apis::Check(config) => {
             if config.no_verify {
-                println!("WARNING: Running using --no-verify. This is not recommended for production use \
-                as it will not guarantee reproducible builds.");
                 run!(check::check(&config).await, "stylus checks failed");
             } else {
                 let mut commands: Vec<String> =
@@ -309,8 +307,6 @@ async fn main_impl(args: Opts) -> Result<()> {
         }
         Apis::Deploy(config) => {
             if config.check_config.no_verify {
-                println!("WARNING: Running using --no-verify. This is not recommended for production use \
-                as it will not guarantee reproducible builds.");
                 run!(deploy::deploy(config).await, "stylus deploy failed");
             } else {
                 let mut commands: Vec<String> =
@@ -330,8 +326,6 @@ async fn main_impl(args: Opts) -> Result<()> {
         }
         Apis::Verify(config) => {
             if config.no_verify {
-                println!("WARNING: Running using --no-verify. This is not recommended for production use \
-                as it will not guarantee reproducible builds.");
                 run!(verify::verify(config).await, "failed to verify");
             } else {
                 let mut commands: Vec<String> =

@@ -46,6 +46,10 @@ fn create_image(version: &str) -> Result<()> {
         return Ok(());
     }
     let cargo_stylus_version = env!("CARGO_PKG_VERSION");
+    let cargo_stylus_version = cargo_stylus_version
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '.')
+        .collect();
     println!(
         "Building Docker image for cargo-stylus version {} and Rust toolchain {}",
         cargo_stylus_version, version,
@@ -68,16 +72,14 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup target add wasm32-wasi
             RUN rustup target add x86_64-unknown-linux-gnu
-            RUN apt-get update && apt-get install -y git
-            RUN git clone https://github.com/offchainlabs/cargo-stylus.git
-            WORKDIR /cargo-stylus
-            RUN git checkout docker-checks
-            RUN cargo install --path check --force
-            RUN cargo install --path main --force
+            RUN cargo install cargo-stylus-check --version {} --force
+            RUN cargo install cargo-stylus --version {} --force
         ",
         RUST_BASE_IMAGE_VERSION,
         version,
         version,
+        cargo_stylus_version,
+        cargo_stylus_version,
     )?;
     child.wait().map_err(|e| eyre!("wait failed: {e}"))?;
     Ok(())
