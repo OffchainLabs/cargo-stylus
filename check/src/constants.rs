@@ -14,10 +14,15 @@ pub const BROTLI_COMPRESSION_LEVEL: u32 = 11;
 lazy_static! {
     /// Address of the ArbWasm precompile.
     pub static ref ARB_WASM_H160: H160 = H160(*ARB_WASM_ADDRESS.0);
+    /// Address of the ArbWasmCache precompile.
+    pub static ref ARB_WASM_CACHE_H160: H160 = H160(*ARB_WASM_CACHE_ADDRESS.0);
 }
 
 /// Address of the ArbWasm precompile.
 pub const ARB_WASM_ADDRESS: Address = address!("0000000000000000000000000000000000000071");
+
+/// Address of the ArbWasmCache precompile.
+pub const ARB_WASM_CACHE_ADDRESS: Address = address!("0000000000000000000000000000000000000072");
 
 /// Target for compiled WASM folder in a Rust project
 pub const RUST_TARGET: &str = "wasm32-unknown-unknown";
@@ -38,3 +43,8 @@ pub const PROJECT_HASH_SECTION_NAME: &str = "project_hash";
 
 /// Name of the toolchain file used to specify the Rust toolchain version for a project.
 pub const TOOLCHAIN_FILE_NAME: &str = "rust-toolchain.toml";
+
+/// Base Rust image version to be used for reproducible builds. This simply installs cargo and the Rust
+/// compiler, but the user will specify the exact version of the Rust toolchain to use for building within
+/// the docker container.
+pub const RUST_BASE_IMAGE_VERSION: &str = "1.79.0";
