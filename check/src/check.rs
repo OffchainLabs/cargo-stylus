@@ -241,7 +241,7 @@ async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<boo
 }
 
 /// Checks program activation, returning the data fee.
-async fn check_activate(code: Bytes, address: H160, provider: &Provider<Http>) -> Result<U256> {
+pub async fn check_activate(code: Bytes, address: H160, provider: &Provider<Http>) -> Result<U256> {
     let program = Address::from(address.to_fixed_bytes());
     let data = ArbWasm::activateProgramCall { program }.abi_encode();
     let tx = Eip1559TransactionRequest::new()

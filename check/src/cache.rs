@@ -56,7 +56,7 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
     if cache_manager_addrs.is_empty() {
         bail!("no cache managers found in ArbWasmCache, perhaps the Stylus cache is not yet enabled on this chain");
     }
-    let cache_manager = cache_manager_addrs.last().unwrap().clone();
+    let cache_manager = *cache_manager_addrs.last().unwrap();
     let cache_manager = H160::from_slice(cache_manager.as_slice());
 
     let program: Address = cfg.address.to_fixed_bytes().into();

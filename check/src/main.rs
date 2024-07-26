@@ -8,6 +8,7 @@ use std::fmt;
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 
+mod activate;
 mod cache;
 mod check;
 mod constants;
@@ -50,6 +51,9 @@ enum Apis {
         #[arg(long)]
         json: bool,
     },
+    /// Activate an already deployed contract.
+    #[command(alias = "a")]
+    Activate(ActivateConfig),
     /// Cache a contract using the Stylus CacheManager for Arbitrum chains.
     Cache(CacheConfig),
     /// Check a contract.
@@ -96,6 +100,21 @@ pub struct CacheConfig {
     /// Bid, in wei, to place on the desired program to cache
     #[arg(short, long, hide(true))]
     bid: Option<u64>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct ActivateConfig {
+    #[command(flatten)]
+    common_cfg: CommonConfig,
+    /// Wallet source to use.
+    #[command(flatten)]
+    auth: AuthOpts,
+    /// Deployed Stylus program address to activate.
+    #[arg(long)]
+    address: H160,
+    /// Percent to bump the estimated activation data fee by. Default of 20%
+    #[arg(long, default_value = "20")]
+    data_fee_bump_percent: u64,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -188,9 +207,9 @@ impl fmt::Display for CheckConfig {
         write!(
             f,
             "{} {} {} {}",
-            self.common_cfg.to_string(),
+            self.common_cfg,
             match &self.wasm_file {
-                Some(path) => format!("--wasm-file={}", path.display().to_string()),
+                Some(path) => format!("--wasm-file={}", path.display()),
                 None => "".to_string(),
             },
             match &self.program_address {
@@ -210,8 +229,8 @@ impl fmt::Display for DeployConfig {
         write!(
             f,
             "{} {} {}",
-            self.check_config.to_string(),
-            self.auth.to_string(),
+            self.check_config,
+            self.auth,
             match self.estimate_gas {
                 true => "--estimate-gas".to_string(),
                 false => "".to_string(),
@@ -226,7 +245,7 @@ impl fmt::Display for AuthOpts {
             f,
             "{} {} {} {}",
             match &self.private_key_path {
-                Some(path) => format!("--private-key-path={}", path.display().to_string()),
+                Some(path) => format!("--private-key-path={}", path.display()),
                 None => "".to_string(),
             },
             match &self.private_key {
@@ -238,7 +257,7 @@ impl fmt::Display for AuthOpts {
                 None => "".to_string(),
             },
             match &self.keystore_password_path {
-                Some(path) => format!("--keystore-password-path={}", path.display().to_string()),
+                Some(path) => format!("--keystore-password-path={}", path.display()),
                 None => "".to_string(),
             }
         )
@@ -250,7 +269,7 @@ impl fmt::Display for VerifyConfig {
         write!(
             f,
             "{} --deployment-tx={} {}",
-            self.common_cfg.to_string(),
+            self.common_cfg,
             self.deployment_tx,
             match self.no_verify {
                 true => "--no-verify".to_string(),
@@ -279,6 +298,12 @@ async fn main_impl(args: Opts) -> Result<()> {
         }
         Apis::ExportAbi { json, output } => {
             run!(export_abi::export_abi(output, json), "failed to export abi");
+        }
+        Apis::Activate(config) => {
+            run!(
+                activate::activate_program(&config).await,
+                "stylus activate failed"
+            );
         }
         Apis::Cache(config) => {
             run!(cache::cache_program(&config).await, "stylus cache failed");
