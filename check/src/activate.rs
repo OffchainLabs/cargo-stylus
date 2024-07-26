@@ -28,6 +28,7 @@ sol! {
     }
 }
 
+/// Activates an already deployed Stylus program by address.
 pub async fn activate_program(cfg: &ActivateConfig) -> Result<()> {
     let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
     let chain_id = provider

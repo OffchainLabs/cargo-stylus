@@ -112,9 +112,9 @@ pub struct ActivateConfig {
     /// Deployed Stylus program address to activate.
     #[arg(long)]
     address: H160,
-    /// Percent to bump the estimated activation data fee by.
-    #[arg(long)]
-    data_fee_bump_percent: Option<u64>,
+    /// Percent to bump the estimated activation data fee by. Default of 20%
+    #[arg(long, default_value = "20")]
+    data_fee_bump_percent: u64,
 }
 
 #[derive(Args, Clone, Debug)]
