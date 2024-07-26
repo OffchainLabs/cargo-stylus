@@ -34,7 +34,6 @@ enum Subcommands {
     /// Export a Solidity ABI.
     ExportAbi,
     /// Cache a contract.
-    #[command(alias = "a")]
     Cache,
     /// Check a contract.
     #[command(alias = "c")]
@@ -78,7 +77,6 @@ const COMMANDS: &[Binary] = &[
             "reproducible",
             "n",
             "x",
-            "a",
             "c",
             "d",
             "v",
