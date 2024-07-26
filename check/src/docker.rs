@@ -73,7 +73,7 @@ fn create_image(version: &str) -> Result<()> {
             WORKDIR /cargo-stylus
             RUN git checkout docker-checks
             RUN cargo install --path check --force
-            RUN cargo install --path mai --forcen
+            RUN cargo install --path main --forcen
         ",
         RUST_BASE_IMAGE_VERSION,
         version,
