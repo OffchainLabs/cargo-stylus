@@ -300,7 +300,7 @@ async fn main_impl(args: Opts) -> Result<()> {
                     .collect::<Vec<String>>();
                 commands.extend(config_args);
                 run!(
-                    docker::run_reproducible("1.79", &commands),
+                    docker::run_reproducible(&commands),
                     "failed reproducible run"
                 );
             }
@@ -319,7 +319,7 @@ async fn main_impl(args: Opts) -> Result<()> {
                     .collect::<Vec<String>>();
                 commands.extend(config_args);
                 run!(
-                    docker::run_reproducible("1.79", &commands),
+                    docker::run_reproducible(&commands),
                     "failed reproducible run"
                 );
             }
@@ -338,7 +338,7 @@ async fn main_impl(args: Opts) -> Result<()> {
                     .collect::<Vec<String>>();
                 commands.extend(config_args);
                 run!(
-                    docker::run_reproducible("1.79", &commands),
+                    docker::run_reproducible(&commands),
                     "failed reproducible run"
                 );
             }

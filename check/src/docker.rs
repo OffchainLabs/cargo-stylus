@@ -25,8 +25,7 @@ fn image_exists(name: &str) -> Result<bool> {
     Ok(output.stdout.iter().filter(|c| **c == b'\n').count() > 1)
 }
 
-fn create_image() -> Result<()> {
-    let version = "1.79".to_string();
+fn create_image(version: &str) -> Result<()> {
     let name = version_to_image_name(&version);
     if image_exists(&name)? {
         return Ok(());
@@ -90,22 +89,20 @@ fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
     Ok(())
 }
 
-pub fn run_reproducible(version: &str, command_line: &[String]) -> Result<()> {
+pub fn run_reproducible(command_line: &[String]) -> Result<()> {
     verify_valid_host()?;
-    let version: String = version
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '.' || *c == ':' || *c == '-')
-        .collect();
+    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+    let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
     greyln!(
-        "Running reproducible Stylus command with Rust Docker image tag {}",
-        version.mint()
+        "Running reproducible Stylus command with toolchain {}",
+        toolchain_channel.mint()
     );
     let mut command = vec!["cargo", "stylus"];
     for s in command_line.iter() {
         command.push(s);
     }
-    create_image()?;
-    run_in_docker_container(&version, &command)
+    create_image(&toolchain_channel)?;
+    run_in_docker_container(&toolchain_channel, &command)
 }
 
 fn verify_valid_host() -> Result<()> {
