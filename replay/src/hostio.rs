@@ -58,6 +58,12 @@ pub unsafe extern "C" fn write_result(data: *const u8, len: usize) {
     assert_eq!(read_bytes(data, len), &*result);
 }
 
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn exit_early(status: u32) {
+    frame!(ExitEarly { status });
+}
+
 /// Reads a 32-byte value from permanent storage. Stylus's storage format is identical to
 /// that of the EVM. This means that, under the hood, this hostio is accessing the 32-byte
 /// value stored in the EVM state trie at offset `key`, which will be `0` when not previously
@@ -100,100 +106,20 @@ pub unsafe extern "C" fn storage_flush_cache(clear: u32) {
     frame!(StorageFlushCache { clear });
 }
 
-/// Gets the ETH balance in wei of the account at the given address.
-/// The semantics are equivalent to that of the EVM's [`BALANCE`] opcode.
-///
-/// [`BALANCE`]: https://www.evm.codes/#31
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn account_balance(address_ptr: *const u8, dest: *mut u8) {
-    frame!(AccountBalance { address, balance });
-    assert_eq!(read_fixed(address_ptr), address);
-    copy!(balance.to_be_bytes::<32>(), dest);
+pub unsafe extern "C" fn transient_load_bytes32(
+    mut env: WasmEnvMut<D, E>,
+    key: GuestPtr,
+    dest: GuestPtr,
+) -> MaybeEscape {
+    hostio!(env, transient_load_bytes32(key, dest))
 }
 
-/// Gets the code hash of the account at the given address. The semantics are equivalent
-/// to that of the EVM's [`EXT_CODEHASH`] opcode. Note that the code hash of an account without
-/// code will be the empty hash
-/// `keccak("") = c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`.
-///
-/// [`EXT_CODEHASH`]: https://www.evm.codes/#3F
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn account_codehash(address_ptr: *const u8, dest: *mut u8) {
-    frame!(AccountCodehash { address, codehash });
-    assert_eq!(read_fixed(address_ptr), address);
-    copy!(codehash, dest);
-}
-
-/// Gets the basefee of the current block. The semantics are equivalent to that of the EVM's
-/// [`BASEFEE`] opcode.
-///
-/// [`BASEFEE`]: https://www.evm.codes/#48
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn block_basefee(dest: *mut u8) {
-    frame!(BlockBasefee { basefee });
-    copy!(basefee.to_be_bytes::<32>(), dest);
-}
-
-/// Gets the coinbase of the current block, which on Arbitrum chains is the L1 batch poster's
-/// address. This differs from Ethereum where the validator including the transaction
-/// determines the coinbase.
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn block_coinbase(dest: *mut u8) {
-    frame!(BlockCoinbase { coinbase });
-    copy!(coinbase, dest);
-}
-
-/// Gets the gas limit of the current block. The semantics are equivalent to that of the EVM's
-/// [`GAS_LIMIT`] opcode. Note that as of the time of this writing, `evm.codes` incorrectly
-/// implies that the opcode returns the gas limit of the current transaction.  When in doubt,
-/// consult [`The Ethereum Yellow Paper`].
-///
-/// [`GAS_LIMIT`]: https://www.evm.codes/#45
-/// [`The Ethereum Yellow Paper`]: https://ethereum.github.io/yellowpaper/paper.pdf
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn block_gas_limit() -> u64 {
-    frame!(BlockGasLimit { limit });
-    limit
-}
-
-/// Gets a bounded estimate of the L1 block number at which the Sequencer sequenced the
-/// transaction. See [`Block Numbers and Time`] for more information on how this value is
-/// determined.
-///
-/// [`Block Numbers and Time`]: https://developer.arbitrum.io/time
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn block_number() -> u64 {
-    frame!(BlockNumber { number });
-    number
-}
-
-/// Gets a bounded estimate of the Unix timestamp at which the Sequencer sequenced the
-/// transaction. See [`Block Numbers and Time`] for more information on how this value is
-/// determined.
-///
-/// [`Block Numbers and Time`]: https://developer.arbitrum.io/time
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn block_timestamp() -> u64 {
-    frame!(BlockTimestamp { timestamp });
-    timestamp
-}
-
-/// Gets the unique chain identifier of the Arbitrum chain. The semantics are equivalent to
-/// that of the EVM's [`CHAIN_ID`] opcode.
-///
-/// [`CHAIN_ID`]: https://www.evm.codes/#46
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn chainid() -> u64 {
-    frame!(Chainid { chainid });
-    chainid
+pub unsafe extern "C" fn transient_store_bytes32(
+    mut env: WasmEnvMut<D, E>,
+    key: GuestPtr,
+    value: GuestPtr,
+) -> MaybeEscape {
+    hostio!(env, transient_store_bytes32(key, value))
 }
 
 /// Calls the contract at the given address with options for passing value and to limit the
@@ -313,17 +239,6 @@ pub unsafe extern "C" fn static_call_contract(
     status
 }
 
-/// Gets the address of the current program. The semantics are equivalent to that of the EVM's
-/// [`ADDRESS`] opcode.
-///
-/// [`ADDRESS`]: https://www.evm.codes/#30
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn contract_address(dest: *mut u8) {
-    frame!(ContractAddress { address });
-    copy!(address, dest);
-}
-
 /// Deploys a new contract using the init code provided, which the EVM executes to construct
 /// the code of the newly deployed contract. The init code must be written in EVM bytecode, but
 /// the code it deploys can be that of a Stylus program. The code returned will be treated as
@@ -399,6 +314,37 @@ pub unsafe extern "C" fn create2(
     *revert_data_len_ptr = revert_data_len;
 }
 
+/// Copies the bytes of the last EVM call or deployment return result. Does not revert if out of
+/// bounds, but rather copies the overlapping portion. The semantics are otherwise equivalent
+/// to that of the EVM's [`RETURN_DATA_COPY`] opcode.
+///
+/// [`RETURN_DATA_COPY`]: https://www.evm.codes/#3e
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn read_return_data(
+    dest: *mut u8,
+    offset_value: usize,
+    size_value: usize,
+) -> usize {
+    frame!(ReadReturnData { offset, size, data });
+    assert_eq!(offset_value, offset as usize);
+    assert_eq!(size_value, size as usize);
+    copy!(data, dest, data.len());
+    data.len()
+}
+
+/// Returns the length of the last EVM call or deployment return result, or `0` if neither have
+/// happened during the program's execution. The semantics are equivalent to that of the EVM's
+/// [`RETURN_DATA_SIZE`] opcode.
+///
+/// [`RETURN_DATA_SIZE`]: https://www.evm.codes/#3d
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn return_data_size() -> usize {
+    frame!(ReturnDataSize { size });
+    size
+}
+
 /// Emits an EVM log with the given number of topics and data, the first bytes of which should
 /// be the 32-byte-aligned topic data. The semantics are equivalent to that of the EVM's
 /// [`LOG0`], [`LOG1`], [`LOG2`], [`LOG3`], and [`LOG4`] opcodes based on the number of topics
@@ -415,6 +361,129 @@ pub unsafe extern "C" fn emit_log(data_ptr: *const u8, len: usize, topic_count: 
     frame!(EmitLog { data, topics });
     assert_eq!(read_bytes(data_ptr, len), &*data);
     assert_eq!(topics, topic_count);
+}
+
+/// Gets the ETH balance in wei of the account at the given address.
+/// The semantics are equivalent to that of the EVM's [`BALANCE`] opcode.
+///
+/// [`BALANCE`]: https://www.evm.codes/#31
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn account_balance(address_ptr: *const u8, dest: *mut u8) {
+    frame!(AccountBalance { address, balance });
+    assert_eq!(read_fixed(address_ptr), address);
+    copy!(balance.to_be_bytes::<32>(), dest);
+}
+
+pub(crate) fn account_code<D: DataReader, E: EvmApi<D>>(
+    mut env: WasmEnvMut<D, E>,
+    address: GuestPtr,
+    offset: u32,
+    size: u32,
+    code: GuestPtr,
+) -> Result<u32, Escape> {
+    hostio!(env, account_code(address, offset, size, code))
+}
+
+pub(crate) fn account_code_size<D: DataReader, E: EvmApi<D>>(
+    mut env: WasmEnvMut<D, E>,
+    address: GuestPtr,
+) -> Result<u32, Escape> {
+    hostio!(env, account_code_size(address))
+}
+
+/// Gets the code hash of the account at the given address. The semantics are equivalent
+/// to that of the EVM's [`EXT_CODEHASH`] opcode. Note that the code hash of an account without
+/// code will be the empty hash
+/// `keccak("") = c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`.
+///
+/// [`EXT_CODEHASH`]: https://www.evm.codes/#3F
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn account_codehash(address_ptr: *const u8, dest: *mut u8) {
+    frame!(AccountCodehash { address, codehash });
+    assert_eq!(read_fixed(address_ptr), address);
+    copy!(codehash, dest);
+}
+
+/// Gets the basefee of the current block. The semantics are equivalent to that of the EVM's
+/// [`BASEFEE`] opcode.
+///
+/// [`BASEFEE`]: https://www.evm.codes/#48
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn block_basefee(dest: *mut u8) {
+    frame!(BlockBasefee { basefee });
+    copy!(basefee.to_be_bytes::<32>(), dest);
+}
+
+/// Gets the coinbase of the current block, which on Arbitrum chains is the L1 batch poster's
+/// address. This differs from Ethereum where the validator including the transaction
+/// determines the coinbase.
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn block_coinbase(dest: *mut u8) {
+    frame!(BlockCoinbase { coinbase });
+    copy!(coinbase, dest);
+}
+
+/// Gets the gas limit of the current block. The semantics are equivalent to that of the EVM's
+/// [`GAS_LIMIT`] opcode. Note that as of the time of this writing, `evm.codes` incorrectly
+/// implies that the opcode returns the gas limit of the current transaction.  When in doubt,
+/// consult [`The Ethereum Yellow Paper`].
+///
+/// [`GAS_LIMIT`]: https://www.evm.codes/#45
+/// [`The Ethereum Yellow Paper`]: https://ethereum.github.io/yellowpaper/paper.pdf
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn block_gas_limit() -> u64 {
+    frame!(BlockGasLimit { limit });
+    limit
+}
+
+/// Gets a bounded estimate of the L1 block number at which the Sequencer sequenced the
+/// transaction. See [`Block Numbers and Time`] for more information on how this value is
+/// determined.
+///
+/// [`Block Numbers and Time`]: https://developer.arbitrum.io/time
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn block_number() -> u64 {
+    frame!(BlockNumber { number });
+    number
+}
+
+/// Gets a bounded estimate of the Unix timestamp at which the Sequencer sequenced the
+/// transaction. See [`Block Numbers and Time`] for more information on how this value is
+/// determined.
+///
+/// [`Block Numbers and Time`]: https://developer.arbitrum.io/time
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn block_timestamp() -> u64 {
+    frame!(BlockTimestamp { timestamp });
+    timestamp
+}
+
+/// Gets the unique chain identifier of the Arbitrum chain. The semantics are equivalent to
+/// that of the EVM's [`CHAIN_ID`] opcode.
+///
+/// [`CHAIN_ID`]: https://www.evm.codes/#46
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn chainid() -> u64 {
+    frame!(Chainid { chainid });
+    chainid
+}
+/// Gets the address of the current program. The semantics are equivalent to that of the EVM's
+/// [`ADDRESS`] opcode.
+///
+/// [`ADDRESS`]: https://www.evm.codes/#30
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn contract_address(dest: *mut u8) {
+    frame!(ContractAddress { address });
+    copy!(address, dest);
 }
 
 /// Gets the amount of gas left after paying for the cost of this hostio. The semantics are
@@ -441,15 +510,46 @@ pub unsafe extern "C" fn evm_ink_left() -> u64 {
     ink_left
 }
 
-/// The `entrypoint!` macro handles importing this hostio, which is required if the
-/// program's memory grows. Otherwise compilation through the `ArbWasm` precompile will revert.
-/// Internally the Stylus VM forces calls to this hostio whenever new WASM pages are allocated.
-/// Calls made voluntarily will unproductively consume gas.
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn pay_for_memory_grow(new_pages: u16) {
-    frame!(PayForMemoryGrow { pages });
-    assert_eq!(new_pages, pages);
+pub(crate) fn math_div<D: DataReader, E: EvmApi<D>>(
+    mut env: WasmEnvMut<D, E>,
+    value: GuestPtr,
+    divisor: GuestPtr,
+) -> MaybeEscape {
+    hostio!(env, math_div(value, divisor))
+}
+
+pub(crate) fn math_mod<D: DataReader, E: EvmApi<D>>(
+    mut env: WasmEnvMut<D, E>,
+    value: GuestPtr,
+    modulus: GuestPtr,
+) -> MaybeEscape {
+    hostio!(env, math_mod(value, modulus))
+}
+
+pub(crate) fn math_pow<D: DataReader, E: EvmApi<D>>(
+    mut env: WasmEnvMut<D, E>,
+    value: GuestPtr,
+    exponent: GuestPtr,
+) -> MaybeEscape {
+    hostio!(env, math_pow(value, exponent))
+}
+
+pub(crate) fn math_add_mod<D: DataReader, E: EvmApi<D>>(
+    mut env: WasmEnvMut<D, E>,
+    value: GuestPtr,
+    addend: GuestPtr,
+    modulus: GuestPtr,
+) -> MaybeEscape {
+    hostio!(env, math_add_mod(value, addend, modulus))
+}
+
+pub(crate) fn math_mul_mod<D: DataReader, E: EvmApi<D>>(
+    mut env: WasmEnvMut<D, E>,
+    value: GuestPtr,
+    multiplier: GuestPtr,
+    modulus: GuestPtr,
+) -> MaybeEscape {
+    hostio!(env, math_mul_mod(value, multiplier, modulus))
 }
 
 /// Whether the current call is reentrant.
@@ -501,37 +601,6 @@ pub unsafe extern "C" fn native_keccak256(bytes: *const u8, len: usize, output: 
     copy!(digest, output);
 }
 
-/// Copies the bytes of the last EVM call or deployment return result. Does not revert if out of
-/// bounds, but rather copies the overlapping portion. The semantics are otherwise equivalent
-/// to that of the EVM's [`RETURN_DATA_COPY`] opcode.
-///
-/// [`RETURN_DATA_COPY`]: https://www.evm.codes/#3e
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn read_return_data(
-    dest: *mut u8,
-    offset_value: usize,
-    size_value: usize,
-) -> usize {
-    frame!(ReadReturnData { offset, size, data });
-    assert_eq!(offset_value, offset as usize);
-    assert_eq!(size_value, size as usize);
-    copy!(data, dest, data.len());
-    data.len()
-}
-
-/// Returns the length of the last EVM call or deployment return result, or `0` if neither have
-/// happened during the program's execution. The semantics are equivalent to that of the EVM's
-/// [`RETURN_DATA_SIZE`] opcode.
-///
-/// [`RETURN_DATA_SIZE`]: https://www.evm.codes/#3d
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn return_data_size() -> usize {
-    frame!(ReturnDataSize { size });
-    size
-}
-
 /// Gets the gas price in wei per gas, which on Arbitrum chains equals the basefee. The
 /// semantics are equivalent to that of the EVM's [`GAS_PRICE`] opcode.
 ///
@@ -563,6 +632,17 @@ pub unsafe extern "C" fn tx_ink_price() -> u32 {
 pub unsafe extern "C" fn tx_origin(dest: *mut u8) {
     frame!(TxOrigin { origin });
     copy!(origin, dest);
+}
+
+/// The `entrypoint!` macro handles importing this hostio, which is required if the
+/// program's memory grows. Otherwise compilation through the `ArbWasm` precompile will revert.
+/// Internally the Stylus VM forces calls to this hostio whenever new WASM pages are allocated.
+/// Calls made voluntarily will unproductively consume gas.
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn pay_for_memory_grow(new_pages: u16) {
+    frame!(PayForMemoryGrow { pages });
+    assert_eq!(new_pages, pages);
 }
 
 /// Prints a 32-bit floating point number to the console. Only available in debug mode with
