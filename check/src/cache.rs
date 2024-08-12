@@ -30,6 +30,7 @@ sol! {
         error AlreadyCached(bytes32 codehash);
         error BidTooSmall(uint192 bid, uint192 min);
         error BidsArePaused();
+        error ProgramNotActivated();
     }
 }
 
@@ -87,6 +88,9 @@ pub async fn cache_contract(cfg: &CacheConfig) -> Result<()> {
             }
             C::BidTooSmall(_) => {
                 bail!("Bid amount {} (wei) too small", cfg.bid.unwrap_or_default())
+            }
+            C::ProgramNotActivated(_) => {
+                bail!("Your Stylus contract {} is not yet activated. To activate it, use the `cargo stylus activate` subcommand", hex::encode(contract))
             }
         }
     }
