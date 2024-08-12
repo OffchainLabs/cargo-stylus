@@ -37,7 +37,7 @@ macro_rules! copy {
     };
 }
 
-/// Reads the program calldata. The semantics are equivalent to that of the EVM's
+/// Reads the contract calldata. The semantics are equivalent to that of the EVM's
 /// [`CALLDATA_COPY`] opcode when requesting the entirety of the current call's calldata.
 ///
 /// [`CALLDATA_COPY`]: https://www.evm.codes/#37
@@ -48,8 +48,8 @@ pub unsafe extern "C" fn read_args(dest: *mut u8) {
     copy!(args, dest, args.len());
 }
 
-/// Writes the final return data. If not called before the program exists, the return data will
-/// be 0 bytes long. Note that this hostio does not cause the program to exit, which happens
+/// Writes the final return data. If not called before the contract exists, the return data will
+/// be 0 bytes long. Note that this hostio does not cause the contract to exit, which happens
 /// naturally when `user_entrypoint` returns.
 #[named]
 #[no_mangle]
@@ -313,7 +313,7 @@ pub unsafe extern "C" fn static_call_contract(
     status
 }
 
-/// Gets the address of the current program. The semantics are equivalent to that of the EVM's
+/// Gets the address of the current contract. The semantics are equivalent to that of the EVM's
 /// [`ADDRESS`] opcode.
 ///
 /// [`ADDRESS`]: https://www.evm.codes/#30
@@ -326,9 +326,9 @@ pub unsafe extern "C" fn contract_address(dest: *mut u8) {
 
 /// Deploys a new contract using the init code provided, which the EVM executes to construct
 /// the code of the newly deployed contract. The init code must be written in EVM bytecode, but
-/// the code it deploys can be that of a Stylus program. The code returned will be treated as
+/// the code it deploys can be that of a Stylus contract. The code returned will be treated as
 /// WASM if it begins with the EOF-inspired header `0xEFF000`. Otherwise the code will be
-/// interpreted as that of a traditional EVM-style contract. See [`Deploying Stylus Programs`]
+/// interpreted as that of a traditional EVM-style contract. See [`Deploying Stylus Contracts`]
 /// for more information on writing init code.
 ///
 /// On success, this hostio returns the address of the newly created account whose address is
@@ -337,7 +337,7 @@ pub unsafe extern "C" fn contract_address(dest: *mut u8) {
 /// `read_return_data` hostio. The semantics are equivalent to that of the EVM's [`CREATE`]
 /// opcode, which notably includes the exact address returned.
 ///
-/// [`Deploying Stylus Programs`]: https://developer.arbitrum.io/TODO
+/// [`Deploying Stylus Contracts`]: https://developer.arbitrum.io/TODO
 /// [`CREATE`]: https://www.evm.codes/#f0
 #[named]
 #[no_mangle]
@@ -362,9 +362,9 @@ pub unsafe extern "C" fn create1(
 
 /// Deploys a new contract using the init code provided, which the EVM executes to construct
 /// the code of the newly deployed contract. The init code must be written in EVM bytecode, but
-/// the code it deploys can be that of a Stylus program. The code returned will be treated as
+/// the code it deploys can be that of a Stylus contract. The code returned will be treated as
 /// WASM if it begins with the EOF-inspired header `0xEFF000`. Otherwise the code will be
-/// interpreted as that of a traditional EVM-style contract. See [`Deploying Stylus Programs`]
+/// interpreted as that of a traditional EVM-style contract. See [`Deploying Stylus Contracts`]
 /// for more information on writing init code.
 ///
 /// On success, this hostio returns the address of the newly created account whose address is a
@@ -373,7 +373,7 @@ pub unsafe extern "C" fn create1(
 /// via the `read_return_data` hostio. The semantics are equivalent to that of the EVM's
 /// `[CREATE2`] opcode, which notably includes the exact address returned.
 ///
-/// [`Deploying Stylus Programs`]: https://developer.arbitrum.io/TODO
+/// [`Deploying Stylus Contracts`]: https://developer.arbitrum.io/TODO
 /// [`CREATE2`]: https://www.evm.codes/#f5
 #[named]
 #[no_mangle]
@@ -442,7 +442,7 @@ pub unsafe extern "C" fn evm_ink_left() -> u64 {
 }
 
 /// The `entrypoint!` macro handles importing this hostio, which is required if the
-/// program's memory grows. Otherwise compilation through the `ArbWasm` precompile will revert.
+/// contract's memory grows. Otherwise compilation through the `ArbWasm` precompile will revert.
 /// Internally the Stylus VM forces calls to this hostio whenever new WASM pages are allocated.
 /// Calls made voluntarily will unproductively consume gas.
 #[named]
@@ -460,7 +460,7 @@ pub unsafe extern "C" fn msg_reentrant() -> bool {
     reentrant
 }
 
-/// Gets the address of the account that called the program. For normal L2-to-L2 transactions
+/// Gets the address of the account that called the contract. For normal L2-to-L2 transactions
 /// the semantics are equivalent to that of the EVM's [`CALLER`] opcode, including in cases
 /// arising from [`DELEGATE_CALL`].
 ///
@@ -477,7 +477,7 @@ pub unsafe extern "C" fn msg_sender(dest: *mut u8) {
     copy!(sender, dest);
 }
 
-/// Get the ETH value in wei sent to the program. The semantics are equivalent to that of the
+/// Get the ETH value in wei sent to the contract. The semantics are equivalent to that of the
 /// EVM's [`CALLVALUE`] opcode.
 ///
 /// [`CALLVALUE`]: https://www.evm.codes/#34
@@ -521,7 +521,7 @@ pub unsafe extern "C" fn read_return_data(
 }
 
 /// Returns the length of the last EVM call or deployment return result, or `0` if neither have
-/// happened during the program's execution. The semantics are equivalent to that of the EVM's
+/// happened during the contract's execution. The semantics are equivalent to that of the EVM's
 /// [`RETURN_DATA_SIZE`] opcode.
 ///
 /// [`RETURN_DATA_SIZE`]: https://www.evm.codes/#3d

@@ -38,7 +38,7 @@ enum Subcommands {
     /// Check a contract.
     #[command(alias = "c")]
     Check,
-    /// Activate an already deployed program
+    /// Activate an already deployed contract
     #[command(alias = "a")]
     Activate,
     /// Deploy a contract.
@@ -50,7 +50,7 @@ enum Subcommands {
     /// Trace a transaction.
     #[command()]
     Trace,
-    /// Verify the deployment of a Stylus program against a local project.
+    /// Verify the deployment of a Stylus contract against a local project.
     #[command(alias = "v")]
     Verify,
     /// Generate C code.

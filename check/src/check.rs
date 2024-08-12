@@ -44,9 +44,9 @@ sol! {
     }
 }
 
-/// Checks that a program is valid and can be deployed onchain.
+/// Checks that a contract is valid and can be deployed onchain.
 /// Returns whether the WASM is already up-to-date and activated onchain, and the data fee.
-pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
+pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
     if cfg.common_cfg.endpoint == "https://stylus-testnet.arbitrum.io/rpc" {
         let version = "cargo stylus version 0.2.1".to_string().red();
         bail!("The old Stylus testnet is no longer supported.\nPlease downgrade to {version}",);
@@ -78,31 +78,31 @@ pub async fn check(cfg: &CheckConfig) -> Result<ProgramCheck> {
         greyln!("connecting to RPC: {}", &cfg.common_cfg.endpoint.lavender());
     }
 
-    // check if the program already exists
+    // Check if the contract already exists.
     let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
     let codehash = alloy_primitives::keccak256(&code);
 
-    if program_exists(codehash, &provider).await? {
-        return Ok(ProgramCheck::Active { code });
+    if contract_exists(codehash, &provider).await? {
+        return Ok(ContractCheck::Active { code });
     }
 
-    let address = cfg.program_address.unwrap_or(H160::random());
+    let address = cfg.contract_address.unwrap_or(H160::random());
     let fee = check_activate(code.clone().into(), address, &provider).await?;
     let visual_fee = format_data_fee(fee).unwrap_or("???".red());
     greyln!("wasm data fee: {visual_fee}");
-    Ok(ProgramCheck::Ready { code, fee })
+    Ok(ContractCheck::Ready { code, fee })
 }
 
-/// Whether a program is active, or needs activation.
+/// Whether a contract is active, or needs activation.
 #[derive(PartialEq)]
-pub enum ProgramCheck {
-    /// Program already exists onchain.
+pub enum ContractCheck {
+    /// Contract already exists onchain.
     Active { code: Vec<u8> },
-    /// Program can be activated with the given data fee.
+    /// Contract can be activated with the given data fee.
     Ready { code: Vec<u8>, fee: U256 },
 }
 
-impl ProgramCheck {
+impl ContractCheck {
     pub fn code(&self) -> &[u8] {
         match self {
             Self::Active { code, .. } => code,
@@ -200,8 +200,8 @@ pub async fn eth_call(
     }
 }
 
-/// Checks whether a program has already been activated with the most recent version of Stylus.
-async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<bool> {
+/// Checks whether a contract has already been activated with the most recent version of Stylus.
+async fn contract_exists(codehash: B256, provider: &Provider<Http>) -> Result<bool> {
     let data = ArbWasm::codehashVersionCall { codehash }.abi_encode();
     let tx = Eip1559TransactionRequest::new()
         .to(*ARB_WASM_H160)
@@ -220,7 +220,7 @@ async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<boo
             };
             use ArbWasmErrors as A;
             match error {
-                A::ProgramNotWasm(_) => bail!("not a Stylus program"),
+                A::ProgramNotWasm(_) => bail!("not a Stylus contract"),
                 A::ProgramNotActivated(_) | A::ProgramNeedsUpgrade(_) | A::ProgramExpired(_) => {
                     return Ok(false);
                 }
@@ -240,10 +240,10 @@ async fn program_exists(codehash: B256, provider: &Provider<Http>) -> Result<boo
     Ok(program_version == version)
 }
 
-/// Checks program activation, returning the data fee.
+/// Checks contract activation, returning the data fee.
 pub async fn check_activate(code: Bytes, address: H160, provider: &Provider<Http>) -> Result<U256> {
-    let program = Address::from(address.to_fixed_bytes());
-    let data = ArbWasm::activateProgramCall { program }.abi_encode();
+    let contract = Address::from(address.to_fixed_bytes());
+    let data = ArbWasm::activateProgramCall { program: contract }.abi_encode();
     let tx = Eip1559TransactionRequest::new()
         .to(*ARB_WASM_H160)
         .data(data)

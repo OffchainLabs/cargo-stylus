@@ -8,7 +8,7 @@ use lazy_static::lazy_static;
 /// EOF prefix used in Stylus compressed WASMs on-chain
 pub const EOF_PREFIX_NO_DICT: &str = "EFF00000";
 
-/// Maximum brotli compression level used for Stylus programs.
+/// Maximum brotli compression level used for Stylus contracts.
 pub const BROTLI_COMPRESSION_LEVEL: u32 = 11;
 
 lazy_static! {
