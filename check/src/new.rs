@@ -42,7 +42,6 @@ pub fn init(minimal: bool) -> Result<()> {
         .arg("clone")
         .arg("--depth")
         .arg("1")
-        .arg("--no-checkout")
         .arg(repo)
         .arg(".")
         .output()
@@ -50,16 +49,6 @@ pub fn init(minimal: bool) -> Result<()> {
 
     if !output.status.success() {
         bail!("git clone command failed");
-    }
-
-    let output = sys::new_command("git")
-        .arg("checkout")
-        .arg(".")
-        .output()
-        .wrap_err("git checkout failed")?;
-
-    if !output.status.success() {
-        bail!("git checkout command failed");
     }
 
     println!(

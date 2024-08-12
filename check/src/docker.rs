@@ -58,17 +58,11 @@ fn create_image(version: &str) -> Result<()> {
     write!(
         child.stdin.as_mut().unwrap(),
         "\
-            FROM --platform=linux/amd64 rust:{} as builder\n\
-            RUN rustup target add wasm32-unknown-unknown
-            RUN rustup target add wasm32-wasi
-            RUN rustup target add x86_64-unknown-linux-gnu
-            RUN cargo install cargo-stylus-check --force
-            RUN cargo install cargo-stylus --force
-
+            FROM --platform=linux/amd64 rauljordan2020/cargo-stylus-base as base
             RUN rustup toolchain install {}-x86_64-unknown-linux-gnu 
             RUN rustup default {}-x86_64-unknown-linux-gnu
+            RUN rustup target add wasm32-unknown-unknown
         ",
-        RUST_BASE_IMAGE_VERSION,
         version,
         version,
     )?;
