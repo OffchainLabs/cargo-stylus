@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 use cargo_stylus_util::color::Color;
 use eyre::{bail, eyre, Result};
 
-use crate::constants::{RUST_BASE_IMAGE_VERSION, TOOLCHAIN_FILE_NAME};
+use crate::constants::TOOLCHAIN_FILE_NAME;
 use crate::macros::greyln;
 use crate::project::extract_toolchain_channel;
 
