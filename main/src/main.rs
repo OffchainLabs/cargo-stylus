@@ -69,6 +69,7 @@ const COMMANDS: &[Binary] = &[
         name: "cargo-stylus-check",
         apis: &[
             "new",
+            "activate",
             "export-abi",
             "cache",
             "check",
