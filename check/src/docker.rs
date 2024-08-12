@@ -62,7 +62,9 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup toolchain install {}-x86_64-unknown-linux-gnu 
             RUN rustup default {}-x86_64-unknown-linux-gnu
             RUN rustup target add wasm32-unknown-unknown
+            RUN rustup component add rust-src --toolchain {}-x86_64-unknown-linux-gnu
         ",
+        version,
         version,
         version,
     )?;
