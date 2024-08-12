@@ -28,8 +28,11 @@ struct Opts {
 #[derive(Parser, Debug, Clone)]
 enum Subcommands {
     #[command(alias = "n")]
-    /// Create a new Rust project.
+    /// Create a new Stylus project.
     New,
+    #[command(alias = "i")]
+    /// Initializes a Stylus project in the current directory.
+    Init,
     #[command(alias = "x")]
     /// Export a Solidity ABI.
     ExportAbi,
@@ -69,6 +72,7 @@ const COMMANDS: &[Binary] = &[
         name: "cargo-stylus-check",
         apis: &[
             "new",
+            "init",
             "activate",
             "export-abi",
             "cache",
@@ -76,6 +80,7 @@ const COMMANDS: &[Binary] = &[
             "deploy",
             "verify",
             "a",
+            "i",
             "n",
             "x",
             "c",

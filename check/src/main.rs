@@ -34,10 +34,16 @@ struct Opts {
 
 #[derive(Parser, Debug, Clone)]
 enum Apis {
-    /// Create a new Rust project.
+    /// Create a new Stylus project.
     New {
         /// Project name.
         name: PathBuf,
+        /// Create a minimal contract.
+        #[arg(long)]
+        minimal: bool,
+    },
+    /// Initializes a Stylus project in the current directory.
+    Init {
         /// Create a minimal contract.
         #[arg(long)]
         minimal: bool,
@@ -295,6 +301,9 @@ async fn main_impl(args: Opts) -> Result<()> {
     match args.command {
         Apis::New { name, minimal } => {
             run!(new::new(&name, minimal), "failed to open new project");
+        }
+        Apis::Init { minimal } => {
+            run!(new::init(minimal), "failed to initialize project");
         }
         Apis::ExportAbi { json, output } => {
             run!(export_abi::export_abi(output, json), "failed to export abi");
