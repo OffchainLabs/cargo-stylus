@@ -173,7 +173,7 @@ pub fn build_so(path: &Path, stable: bool) -> Result<()> {
     let mut cargo = sys::new_command("cargo");
 
     if !stable {
-        cargo.arg("+nightly");
+        // cargo.arg("+nightly");
     }
     cargo
         .current_dir(path)
