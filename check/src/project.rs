@@ -310,7 +310,7 @@ pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>,
 
 // Adds the hash of the project's source files to the wasm as a custom section
 // if it does not already exist. This allows for reproducible builds by cargo stylus
-// for all Rust stylus programs. See `cargo stylus verify --help` for more information.
+// for all Rust stylus contracts. See `cargo stylus verify --help` for more information.
 fn add_project_hash_to_wasm_file(
     wasm_file_bytes: &[u8],
     project_hash: [u8; 32],

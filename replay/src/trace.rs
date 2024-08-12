@@ -44,13 +44,13 @@ impl Trace {
 
         if let Value::Array(arr) = json.clone() {
             if arr.is_empty() {
-                bail!("No trace frames found, perhaps you are attempting to trace the program deployment transaction");
+                bail!("No trace frames found, perhaps you are attempting to trace the contract deployment transaction");
             }
         }
 
         let maybe_activation_trace: Result<Vec<ActivationTraceFrame>, _> = from_value(json.clone());
         if maybe_activation_trace.is_ok() {
-            bail!("Your tx was a program activation transaction. It has no trace frames");
+            bail!("Your tx was a contract activation transaction. It has no trace frames");
         }
 
         let to = receipt.to.map(|x| Address::from(x.0));

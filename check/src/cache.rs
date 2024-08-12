@@ -33,7 +33,7 @@ sol! {
     }
 }
 
-pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
+pub async fn cache_contract(cfg: &CacheConfig) -> Result<()> {
     let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
     let chain_id = provider
         .get_chainid()
@@ -59,8 +59,8 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
     let cache_manager = *cache_manager_addrs.last().unwrap();
     let cache_manager = H160::from_slice(cache_manager.as_slice());
 
-    let program: Address = cfg.address.to_fixed_bytes().into();
-    let data = CacheManager::placeBidCall { program }.abi_encode();
+    let contract: Address = cfg.address.to_fixed_bytes().into();
+    let data = CacheManager::placeBidCall { program: contract }.abi_encode();
     let mut tx = Eip1559TransactionRequest::new()
         .to(cache_manager)
         .data(data);
@@ -80,13 +80,13 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
         };
         use CacheManager::CacheManagerErrors as C;
         match error {
-            C::AsmTooLarge(_) => bail!("program too large"),
-            C::AlreadyCached(_) => bail!("program already cached"),
+            C::AsmTooLarge(_) => bail!("Stylus contract was too large to cache"),
+            C::AlreadyCached(_) => bail!("Stylus contract is already cached"),
             C::BidsArePaused(_) => {
-                bail!("bidding is currently paused for the Stylus cache manager")
+                bail!("Bidding is currently paused for the Stylus cache manager")
             }
             C::BidTooSmall(_) => {
-                bail!("bid amount {} (wei) too small", cfg.bid.unwrap_or_default())
+                bail!("Bid amount {} (wei) too small", cfg.bid.unwrap_or_default())
             }
         }
     }
@@ -106,11 +106,11 @@ pub async fn cache_program(cfg: &CacheConfig) -> Result<()> {
     if verbose {
         let gas = format_gas(receipt.gas_used.unwrap_or_default());
         greyln!(
-            "Successfully cached program at address: {address} {} {gas}",
+            "Successfully cached contract at address: {address} {} {gas}",
             "with".grey()
         );
     } else {
-        greyln!("Successfully cached program at address: {address}");
+        greyln!("Successfully cached contract at address: {address}");
     }
     let tx_hash = receipt.transaction_hash.debug_lavender();
     greyln!("Sent Stylus cache tx with hash: {tx_hash}");

@@ -10,7 +10,7 @@ use std::{
     process::{self, Command, Stdio},
 };
 
-/// Exports Solidity ABIs by running the program natively.
+/// Exports Solidity ABIs by running the contract natively.
 pub fn export_abi(file: Option<PathBuf>, json: bool) -> Result<()> {
     if json && !sys::command_exists("solc") {
         let link = "https://docs.soliditylang.org/en/latest/installing-solidity.html".red();
@@ -30,7 +30,7 @@ pub fn export_abi(file: Option<PathBuf>, json: bool) -> Result<()> {
         let out = (out != "")
             .then_some(format!(": {out}"))
             .unwrap_or_default();
-        egreyln!("failed to run program{out}");
+        egreyln!("failed to run contract {out}");
         process::exit(1);
     }
 

@@ -1,6 +1,6 @@
-# Optimizing Stylus Program WASM Binaries
+# Optimizing Stylus Contract WASM Binaries
 
-WASM programs need to be small to be deployed onchain. Stylus applies [brotli compression](https://github.com/google/brotli), which empirically reduces the footprint of common Rust WASMs by over 50%, the Stylus runtime obeys the EVM contract size limit of 24KB. This means that, after compression, **all WASMs must not exceed 24KB**.
+WASM contracts need to be small to be deployed onchain. Stylus applies [brotli compression](https://github.com/google/brotli), which empirically reduces the footprint of common Rust WASMs by over 50%, the Stylus runtime obeys the EVM contract size limit of 24KB. This means that, after compression, **all WASMs must not exceed 24KB**.
 
 **Uncompressed WASM** files also have an enforced limit of **128Kb**.
 

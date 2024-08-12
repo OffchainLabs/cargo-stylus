@@ -28,8 +28,8 @@ sol! {
     }
 }
 
-/// Activates an already deployed Stylus program by address.
-pub async fn activate_program(cfg: &ActivateConfig) -> Result<()> {
+/// Activates an already deployed Stylus contract by address.
+pub async fn activate_contract(cfg: &ActivateConfig) -> Result<()> {
     let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
     let chain_id = provider
         .get_chainid()
@@ -54,8 +54,8 @@ pub async fn activate_program(cfg: &ActivateConfig) -> Result<()> {
     );
     data_fee = bump_data_fee(data_fee, cfg.data_fee_bump_percent);
 
-    let program: Address = cfg.address.to_fixed_bytes().into();
-    let data = ArbWasm::activateProgramCall { program }.abi_encode();
+    let contract: Address = cfg.address.to_fixed_bytes().into();
+    let data = ArbWasm::activateProgramCall { program: contract }.abi_encode();
     let tx = Eip1559TransactionRequest::new()
         .from(client.address())
         .to(*ARB_WASM_H160)
@@ -66,14 +66,14 @@ pub async fn activate_program(cfg: &ActivateConfig) -> Result<()> {
     match tx.await? {
         Some(receipt) => {
             greyln!(
-                "successfully activated program 0x{} with tx {}",
+                "successfully activated contract 0x{} with tx {}",
                 hex::encode(cfg.address),
                 hex::encode(receipt.transaction_hash).debug_lavender()
             );
         }
         None => {
             bail!(
-                "failed to fetch receipt for program activation {}",
+                "failed to fetch receipt for contract activation {}",
                 cfg.address
             );
         }

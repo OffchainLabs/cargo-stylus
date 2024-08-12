@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     check,
     constants::TOOLCHAIN_FILE_NAME,
-    deploy::{self, extract_compressed_wasm, extract_program_evm_deployment_prelude},
+    deploy::{self, extract_compressed_wasm, extract_contract_evm_deployment_prelude},
     project::{self, extract_toolchain_channel},
     CheckConfig, VerifyConfig,
 };
@@ -53,7 +53,7 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     let check_cfg = CheckConfig {
         common_cfg: cfg.common_cfg.clone(),
         wasm_file: None,
-        program_address: None,
+        contract_address: None,
         no_verify: cfg.no_verify,
     };
     let _ = check::check(&check_cfg)
@@ -68,14 +68,14 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     let project_hash =
         project::hash_files(cfg.common_cfg.source_files_for_project_hash, build_cfg)?;
     let (_, init_code) = project::compress_wasm(&wasm_file, project_hash)?;
-    let deployment_data = deploy::program_deployment_calldata(&init_code);
+    let deployment_data = deploy::contract_deployment_calldata(&init_code);
     if deployment_data == *result.input {
-        println!("Verified - program matches local project's file hashes");
+        println!("Verified - contract matches local project's file hashes");
     } else {
-        let tx_prelude = extract_program_evm_deployment_prelude(&result.input);
-        let reconstructed_prelude = extract_program_evm_deployment_prelude(&deployment_data);
+        let tx_prelude = extract_contract_evm_deployment_prelude(&result.input);
+        let reconstructed_prelude = extract_contract_evm_deployment_prelude(&deployment_data);
         println!(
-            "{} - program deployment did not verify against local project's file hashes",
+            "{} - contract deployment did not verify against local project's file hashes",
             "FAILED".red()
         );
         if tx_prelude != reconstructed_prelude {
