@@ -210,6 +210,12 @@ async fn contract_exists(codehash: B256, provider: &Provider<Http>) -> Result<bo
 
     let program_version = match outs {
         Ok(outs) => {
+            if outs.is_empty() {
+                bail!(
+                    r#"No data returned from the ArbWasm precompile when checking if your Stylus contract exists.
+Perhaps the Arbitrum node for the endpoint you are connecting to has not yet upgraded to Stylus"#
+                );
+            }
             let ArbWasm::codehashVersionReturn { version } =
                 ArbWasm::codehashVersionCall::abi_decode_returns(&outs, true)?;
             version
