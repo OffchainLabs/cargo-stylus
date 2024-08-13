@@ -133,10 +133,6 @@ pub struct CheckConfig {
     /// Where to deploy and activate the contract (defaults to a random address).
     #[arg(long)]
     contract_address: Option<H160>,
-    /// If specified, will not run the command in a reproducible docker container. Useful for local
-    /// builds, but at the risk of not having a reproducible contract for verification purposes.
-    #[arg(long)]
-    no_verify: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -149,6 +145,10 @@ struct DeployConfig {
     /// Only perform gas estimation.
     #[arg(long)]
     estimate_gas: bool,
+    /// If specified, will not run the command in a reproducible docker container. Useful for local
+    /// builds, but at the risk of not having a reproducible contract for verification purposes.
+    #[arg(long)]
+    no_verify: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -212,7 +212,7 @@ impl fmt::Display for CheckConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} {} {} {}",
+            "{} {} {}",
             self.common_cfg,
             match &self.wasm_file {
                 Some(path) => format!("--wasm-file={}", path.display()),
@@ -222,10 +222,6 @@ impl fmt::Display for CheckConfig {
                 Some(addr) => format!("--contract-address={:?}", addr),
                 None => "".to_string(),
             },
-            match self.no_verify {
-                true => "--no-verify".to_string(),
-                false => "".to_string(),
-            },
         )
     }
 }
@@ -234,11 +230,15 @@ impl fmt::Display for DeployConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} {} {}",
+            "{} {} {} {}",
             self.check_config,
             self.auth,
             match self.estimate_gas {
                 true => "--estimate-gas".to_string(),
+                false => "".to_string(),
+            },
+            match self.no_verify {
+                true => "--no-verify".to_string(),
                 false => "".to_string(),
             },
         )
@@ -318,26 +318,10 @@ async fn main_impl(args: Opts) -> Result<()> {
             run!(cache::cache_contract(&config).await, "stylus cache failed");
         }
         Apis::Check(config) => {
-            if config.no_verify {
-                run!(check::check(&config).await, "stylus checks failed");
-            } else {
-                let mut commands: Vec<String> =
-                    vec![String::from("check"), String::from("--no-verify")];
-                let config_args = config
-                    .to_string()
-                    .split(' ')
-                    .map(|s| s.to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<String>>();
-                commands.extend(config_args);
-                run!(
-                    docker::run_reproducible(&commands),
-                    "failed reproducible run"
-                );
-            }
+            run!(check::check(&config).await, "stylus checks failed");
         }
         Apis::Deploy(config) => {
-            if config.check_config.no_verify {
+            if config.no_verify {
                 run!(deploy::deploy(config).await, "stylus deploy failed");
             } else {
                 let mut commands: Vec<String> =
