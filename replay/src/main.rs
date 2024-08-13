@@ -147,7 +147,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     let provider = sys::new_provider(&args.endpoint)?;
     let trace = Trace::new(provider, args.tx).await?;
 
-    build_so(&args.project, args.stable_rust)?;
+    build_so(&args.project)?;
     let so = find_so(&args.project)?;
 
     // TODO: don't assume the contract is top-level
@@ -169,12 +169,9 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     Ok(())
 }
 
-pub fn build_so(path: &Path, stable: bool) -> Result<()> {
+pub fn build_so(path: &Path) -> Result<()> {
     let mut cargo = sys::new_command("cargo");
 
-    if !stable {
-        // cargo.arg("+nightly");
-    }
     cargo
         .current_dir(path)
         .arg("build")
