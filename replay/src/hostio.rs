@@ -53,9 +53,24 @@ pub unsafe extern "C" fn read_args(dest: *mut u8) {
 /// naturally when `user_entrypoint` returns.
 #[named]
 #[no_mangle]
-pub unsafe extern "C" fn write_result(data: *const u8, len: usize) {
+pub unsafe extern "C" fn write_result(data: *const u8, len: u32) {
     frame!(WriteResult { result });
     assert_eq!(read_bytes(data, len), &*result);
+}
+
+/// Exits program execution early with the given status code.
+/// If `0`, the program returns successfully with any data supplied by `write_result`.
+/// Otherwise, the program reverts and treats any `write_result` data as revert data.
+///
+/// The semantics are equivalent to that of the EVM's [`Return`] and [`Revert`] opcodes.
+/// Note: this function just traces, it's up to the caller to actually perform the exit.
+///
+/// [`Return`]: https://www.evm.codes/#f3
+/// [`Revert`]: https://www.evm.codes/#fd
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn exit_early(status: u32) {
+    frame!(ExitEarly { status });
 }
 
 /// Reads a 32-byte value from permanent storage. Stylus's storage format is identical to
@@ -72,20 +87,17 @@ pub unsafe extern "C" fn storage_load_bytes32(key_ptr: *const u8, dest: *mut u8)
     copy!(value, dest);
 }
 
-/// Stores a 32-byte value to permanent storage. Stylus's storage format is identical to that
-/// of the EVM. This means that, under the hood, this hostio is storing a 32-byte value into
-/// the EVM state trie at offset `key`. Furthermore, refunds are tabulated exactly as in the
-/// EVM. The semantics, then, are equivalent to that of the EVM's [`SSTORE`] opcode.
+/// Writes a 32-byte value to the permanent storage cache. Stylus's storage format is identical to that
+/// of the EVM. This means that, under the hood, this hostio represents storing a 32-byte value into
+/// the EVM state trie at offset `key`. Refunds are tabulated exactly as in the EVM. The semantics, then,
+/// are equivalent to that of the EVM's [`SSTORE`] opcode.
+///
+/// Note: because this value is cached, one must call `storage_flush_cache` to persist the value.
+///
+/// Auditor's note: we require the [`SSTORE`] sentry per EVM rules. The `gas_cost` returned by the EVM API
+/// may exceed this amount, but that's ok because the predominant cost is due to state bloat concerns.
 ///
 /// [`SSTORE`]: https://www.evm.codes/#55
-#[named]
-#[no_mangle]
-pub unsafe extern "C" fn storage_store_bytes32(key_ptr: *const u8, value_ptr: *const u8) {
-    frame!(StorageStoreBytes32 { key, value });
-    assert_eq!(read_fixed(key_ptr), key);
-    assert_eq!(read_fixed(value_ptr), value);
-}
-
 #[named]
 #[no_mangle]
 pub unsafe extern "C" fn storage_cache_bytes32(key_ptr: *const u8, value_ptr: *const u8) {
@@ -94,10 +106,42 @@ pub unsafe extern "C" fn storage_cache_bytes32(key_ptr: *const u8, value_ptr: *c
     assert_eq!(read_fixed(value_ptr), value);
 }
 
+/// Persists any dirty values in the storage cache to the EVM state trie, dropping the cache entirely if requested.
+/// Analogous to repeated invocations of [`SSTORE`].
+///
+/// [`SSTORE`]: https://www.evm.codes/#55
 #[named]
 #[no_mangle]
 pub unsafe extern "C" fn storage_flush_cache(clear: u32) {
     frame!(StorageFlushCache { clear });
+}
+
+/// Reads a 32-byte value from transient storage. Stylus's storage format is identical to
+/// that of the EVM. This means that, under the hood, this hostio is accessing the 32-byte
+/// value stored in the EVM's transient state trie at offset `key`, which will be `0` when not previously
+/// set. The semantics, then, are equivalent to that of the EVM's [`TLOAD`] opcode.
+///
+/// [`TLOAD`]: https://www.evm.codes/#5c
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn transient_load_bytes32(key_ptr: *const u8, dest: *mut u8) {
+    frame!(TransientLoadBytes32 { key, value });
+    assert_eq!(read_fixed(key_ptr), key);
+    copy!(value, dest);
+}
+
+/// Writes a 32-byte value to transient storage. Stylus's storage format is identical to that
+/// of the EVM. This means that, under the hood, this hostio represents storing a 32-byte value into
+/// the EVM's transient state trie at offset `key`. The semantics, then, are equivalent to that of the
+/// EVM's [`TSTORE`] opcode.
+///
+/// [`TSTORE`]: https://www.evm.codes/#5d
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn transient_store_bytes32(key_ptr: *const u8, value_ptr: *const u8) {
+    frame!(TransientStoreBytes32 { key, value });
+    assert_eq!(read_fixed(key_ptr), key);
+    assert_eq!(read_fixed(value_ptr), value);
 }
 
 /// Gets the ETH balance in wei of the account at the given address.
@@ -110,6 +154,45 @@ pub unsafe extern "C" fn account_balance(address_ptr: *const u8, dest: *mut u8) 
     frame!(AccountBalance { address, balance });
     assert_eq!(read_fixed(address_ptr), address);
     copy!(balance.to_be_bytes::<32>(), dest);
+}
+
+/// Gets a subset of the code from the account at the given address. The semantics are identical to that
+/// of the EVM's [`EXT_CODE_COPY`] opcode, aside from one small detail: the write to the buffer `dest` will
+/// stop after the last byte is written. This is unlike the EVM, which right pads with zeros in this scenario.
+/// The return value is the number of bytes written, which allows the caller to detect if this has occured.
+///
+/// [`EXT_CODE_COPY`]: https://www.evm.codes/#3C
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn account_code(
+    address_ptr: *const u8,
+    offset_recv: u32,
+    size_recv: u32,
+    dest: *mut u8,
+) -> u32 {
+    frame!(AccountCode {
+        address,
+        offset,
+        size,
+        code
+    });
+    assert_eq!(offset_recv, offset);
+    assert_eq!(size_recv, size);
+    assert_eq!(read_fixed(address_ptr), address);
+    copy!(code, dest);
+    code.len() as u32
+}
+
+/// Gets the size of the code in bytes at the given address. The semantics are equivalent
+/// to that of the EVM's [`EXT_CODESIZE`].
+///
+/// [`EXT_CODESIZE`]: https://www.evm.codes/#3B
+#[named]
+#[no_mangle]
+pub unsafe extern "C" fn account_code_size(address_ptr: *const u8) -> u32 {
+    frame!(AccountCodeSize { address, size });
+    assert_eq!(read_fixed(address_ptr), address);
+    size
 }
 
 /// Gets the code hash of the account at the given address. The semantics are equivalent
@@ -215,10 +298,10 @@ pub unsafe extern "C" fn chainid() -> u64 {
 pub unsafe extern "C" fn call_contract(
     address_ptr: *const u8,
     calldata: *const u8,
-    calldata_len: usize,
+    calldata_len: u32,
     value_ptr: *const u8,
     gas_supplied: u64,
-    return_data_len: *mut usize,
+    return_data_len: *mut u32,
 ) -> u8 {
     frame!(CallContract {
         address,
@@ -233,7 +316,7 @@ pub unsafe extern "C" fn call_contract(
     assert_eq!(read_bytes(calldata, calldata_len), &*data);
     assert_eq!(read_fixed(value_ptr), value.to_be_bytes::<32>());
     assert_eq!(gas_supplied, gas);
-    *return_data_len = outs_len as usize;
+    *return_data_len = outs_len;
     status
 }
 
@@ -256,9 +339,9 @@ pub unsafe extern "C" fn call_contract(
 pub unsafe extern "C" fn delegate_call_contract(
     address_ptr: *const u8,
     calldata: *const u8,
-    calldata_len: usize,
+    calldata_len: u32,
     gas_supplied: u64,
-    return_data_len: *mut usize,
+    return_data_len: *mut u32,
 ) -> u8 {
     frame!(DelegateCallContract {
         address,
@@ -271,7 +354,7 @@ pub unsafe extern "C" fn delegate_call_contract(
     assert_eq!(read_fixed(address_ptr), address);
     assert_eq!(read_bytes(calldata, calldata_len), &*data);
     assert_eq!(gas_supplied, gas);
-    *return_data_len = outs_len as usize;
+    *return_data_len = outs_len;
     status
 }
 
@@ -294,9 +377,9 @@ pub unsafe extern "C" fn delegate_call_contract(
 pub unsafe extern "C" fn static_call_contract(
     address_ptr: *const u8,
     calldata: *const u8,
-    calldata_len: usize,
+    calldata_len: u32,
     gas_supplied: u64,
-    return_data_len: *mut usize,
+    return_data_len: *mut u32,
 ) -> u8 {
     frame!(StaticCallContract {
         address,
@@ -309,7 +392,7 @@ pub unsafe extern "C" fn static_call_contract(
     assert_eq!(read_fixed(address_ptr), address);
     assert_eq!(read_bytes(calldata, calldata_len), &*data);
     assert_eq!(gas_supplied, gas);
-    *return_data_len = outs_len as usize;
+    *return_data_len = outs_len;
     status
 }
 
@@ -343,10 +426,10 @@ pub unsafe extern "C" fn contract_address(dest: *mut u8) {
 #[no_mangle]
 pub unsafe extern "C" fn create1(
     code_ptr: *const u8,
-    code_len: usize,
+    code_len: u32,
     value: *const u8,
     contract: *mut u8,
-    revert_data_len_ptr: *mut usize,
+    revert_data_len_ptr: *mut u32,
 ) {
     frame!(Create1 {
         code,
@@ -379,11 +462,11 @@ pub unsafe extern "C" fn create1(
 #[no_mangle]
 pub unsafe extern "C" fn create2(
     code_ptr: *const u8,
-    code_len: usize,
+    code_len: u32,
     value_ptr: *const u8,
     salt_ptr: *const u8,
     contract: *mut u8,
-    revert_data_len_ptr: *mut usize,
+    revert_data_len_ptr: *mut u32,
 ) {
     frame!(Create2 {
         code,
@@ -411,7 +494,7 @@ pub unsafe extern "C" fn create2(
 /// [`LOG4`]: https://www.evm.codes/#a4
 #[named]
 #[no_mangle]
-pub unsafe extern "C" fn emit_log(data_ptr: *const u8, len: usize, topic_count: usize) {
+pub unsafe extern "C" fn emit_log(data_ptr: *const u8, len: u32, topic_count: u32) {
     frame!(EmitLog { data, topics });
     assert_eq!(read_bytes(data_ptr, len), &*data);
     assert_eq!(topics, topic_count);
@@ -450,6 +533,77 @@ pub unsafe extern "C" fn evm_ink_left() -> u64 {
 pub unsafe extern "C" fn pay_for_memory_grow(new_pages: u16) {
     frame!(PayForMemoryGrow { pages });
     assert_eq!(new_pages, pages);
+}
+
+/// Computes `value ÷ exponent` using 256-bit math, writing the result to the first.
+/// The semantics are equivalent to that of the EVM's [`DIV`] opcode, which means that a `divisor` of `0`
+/// writes `0` to `value`.
+///
+/// [`DIV`]: https://www.evm.codes/#04
+#[named]
+#[no_mangle]
+pub unsafe fn math_div(value: *mut u8, divisor: *const u8) {
+    frame!(MathDiv { a, b, result });
+    assert_eq!(read_fixed(value), a.to_be_bytes::<32>());
+    assert_eq!(read_fixed(divisor), b.to_be_bytes::<32>());
+    copy!(result.to_be_bytes::<32>(), value);
+}
+
+/// Computes `value % exponent` using 256-bit math, writing the result to the first.
+/// The semantics are equivalent to that of the EVM's [`MOD`] opcode, which means that a `modulus` of `0`
+/// writes `0` to `value`.
+///
+/// [`MOD`]: https://www.evm.codes/#06
+#[named]
+#[no_mangle]
+pub unsafe fn math_mod(value: *mut u8, modulus: *const u8) {
+    frame!(MathMod { a, b, result });
+    assert_eq!(read_fixed(value), a.to_be_bytes::<32>());
+    assert_eq!(read_fixed(modulus), b.to_be_bytes::<32>());
+    copy!(result.to_be_bytes::<32>(), value);
+}
+
+/// Computes `value ^ exponent` using 256-bit math, writing the result to the first.
+/// The semantics are equivalent to that of the EVM's [`EXP`] opcode.
+///
+/// [`EXP`]: https://www.evm.codes/#0A
+#[named]
+#[no_mangle]
+pub unsafe fn math_pow(value: *mut u8, exponent: *const u8) {
+    frame!(MathPow { a, b, result });
+    assert_eq!(read_fixed(value), a.to_be_bytes::<32>());
+    assert_eq!(read_fixed(exponent), b.to_be_bytes::<32>());
+    copy!(result.to_be_bytes::<32>(), value);
+}
+
+/// Computes `(value + addend) % modulus` using 256-bit math, writing the result to the first.
+/// The semantics are equivalent to that of the EVM's [`ADDMOD`] opcode, which means that a `modulus` of `0`
+/// writes `0` to `value`.
+///
+/// [`ADDMOD`]: https://www.evm.codes/#08
+#[named]
+#[no_mangle]
+pub unsafe fn math_add_mod(value: *mut u8, addend: *const u8, modulus: *const u8) {
+    frame!(MathAddMod { a, b, c, result });
+    assert_eq!(read_fixed(value), a.to_be_bytes::<32>());
+    assert_eq!(read_fixed(addend), b.to_be_bytes::<32>());
+    assert_eq!(read_fixed(modulus), c.to_be_bytes::<32>());
+    copy!(result.to_be_bytes::<32>(), value);
+}
+
+/// Computes `(value * multiplier) % modulus` using 256-bit math, writing the result to the first.
+/// The semantics are equivalent to that of the EVM's [`MULMOD`] opcode, which means that a `modulus` of `0`
+/// writes `0` to `value`.
+///
+/// [`MULMOD`]: https://www.evm.codes/#09
+#[named]
+#[no_mangle]
+pub unsafe fn math_mul_mod(value: *mut u8, multiplier: *const u8, modulus: *const u8) {
+    frame!(MathAddMod { a, b, c, result });
+    assert_eq!(read_fixed(value), a.to_be_bytes::<32>());
+    assert_eq!(read_fixed(multiplier), b.to_be_bytes::<32>());
+    assert_eq!(read_fixed(modulus), c.to_be_bytes::<32>());
+    copy!(result.to_be_bytes::<32>(), value);
 }
 
 /// Whether the current call is reentrant.
@@ -495,7 +649,7 @@ pub unsafe extern "C" fn msg_value(dest: *mut u8) {
 /// [`SHA3`]: https://www.evm.codes/#20
 #[named]
 #[no_mangle]
-pub unsafe extern "C" fn native_keccak256(bytes: *const u8, len: usize, output: *mut u8) {
+pub unsafe extern "C" fn native_keccak256(bytes: *const u8, len: u32, output: *mut u8) {
     frame!(NativeKeccak256 { preimage, digest });
     assert_eq!(read_bytes(bytes, len), &*preimage);
     copy!(digest, output);
@@ -510,14 +664,14 @@ pub unsafe extern "C" fn native_keccak256(bytes: *const u8, len: usize, output: 
 #[no_mangle]
 pub unsafe extern "C" fn read_return_data(
     dest: *mut u8,
-    offset_value: usize,
-    size_value: usize,
-) -> usize {
+    offset_value: u32,
+    size_value: u32,
+) -> u32 {
     frame!(ReadReturnData { offset, size, data });
-    assert_eq!(offset_value, offset as usize);
-    assert_eq!(size_value, size as usize);
+    assert_eq!(offset_value, offset);
+    assert_eq!(size_value, size);
     copy!(data, dest, data.len());
-    data.len()
+    data.len() as u32
 }
 
 /// Returns the length of the last EVM call or deployment return result, or `0` if neither have
@@ -527,7 +681,7 @@ pub unsafe extern "C" fn read_return_data(
 /// [`RETURN_DATA_SIZE`]: https://www.evm.codes/#3d
 #[named]
 #[no_mangle]
-pub unsafe extern "C" fn return_data_size() -> usize {
+pub unsafe extern "C" fn return_data_size() -> u32 {
     frame!(ReturnDataSize { size });
     size
 }
@@ -604,7 +758,7 @@ pub unsafe extern "C" fn log_i64(value: i64) {
 /// Prints a UTF-8 encoded string to the console. Only available in debug mode.
 #[named]
 #[no_mangle]
-pub unsafe extern "C" fn log_txt(text_ptr: *const u8, len: usize) {
+pub unsafe extern "C" fn log_txt(text_ptr: *const u8, len: u32) {
     frame!(ConsoleLogText { text });
     assert_eq!(read_bytes(text_ptr, len), &*text);
 }
@@ -615,7 +769,8 @@ unsafe fn read_fixed<const N: usize>(ptr: *const u8) -> [u8; N] {
     value.assume_init()
 }
 
-unsafe fn read_bytes(ptr: *const u8, len: usize) -> Vec<u8> {
+unsafe fn read_bytes(ptr: *const u8, len: u32) -> Vec<u8> {
+    let len = len as usize;
     let mut data = Vec::with_capacity(len);
     memcpy(ptr, data.as_mut_ptr(), len);
     data.set_len(len);

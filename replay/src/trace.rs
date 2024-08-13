@@ -3,7 +3,7 @@
 
 #![allow(clippy::redundant_closure_call)]
 
-use alloy_primitives::{Address, FixedBytes, TxHash, B256, U256};
+use alloy_primitives::{Address, TxHash, B256, U256};
 use cargo_stylus_util::color::{Color, DebugColor};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
@@ -205,11 +205,6 @@ impl TraceFrame {
                     read_num!($src, u64)
                 };
             }
-            macro_rules! read_usize {
-                ($src:ident) => {
-                    read_num!($src, usize)
-                };
-            }
 
             macro_rules! frame {
                 () => {{
@@ -241,13 +236,12 @@ impl TraceFrame {
                 "write_result" => WriteResult {
                     result: read_data!(args),
                 },
+                "exit_early" => ExitEarly {
+                    status: read_u32!(args),
+                },
                 "storage_load_bytes32" => StorageLoadBytes32 {
                     key: read_b256!(args),
                     value: read_b256!(outs),
-                },
-                "storage_store_bytes32" => StorageStoreBytes32 {
-                    key: read_b256!(args),
-                    value: read_b256!(args),
                 },
                 "storage_cache_bytes32" => StorageCacheBytes32 {
                     key: read_b256!(args),
@@ -256,9 +250,27 @@ impl TraceFrame {
                 "storage_flush_cache" => StorageFlushCache {
                     clear: read_u8!(args),
                 },
+                "transient_load_bytes32" => TransientLoadBytes32 {
+                    key: read_b256!(args),
+                    value: read_b256!(outs),
+                },
+                "transient_store_bytes32" => TransientStoreBytes32 {
+                    key: read_b256!(args),
+                    value: read_b256!(args),
+                },
                 "account_balance" => AccountBalance {
                     address: read_address!(args),
                     balance: read_u256!(outs),
+                },
+                "account_code" => AccountCode {
+                    address: read_address!(args),
+                    offset: read_u32!(args),
+                    size: read_u32!(args),
+                    code: read_data!(outs),
+                },
+                "account_code_size" => AccountCodeSize {
+                    address: read_address!(args),
+                    size: read_u32!(outs),
                 },
                 "account_codehash" => AccountCodehash {
                     address: read_address!(args),
@@ -291,6 +303,33 @@ impl TraceFrame {
                 "evm_ink_left" => EvmInkLeft {
                     ink_left: read_u64!(outs),
                 },
+                "math_div" => MathDiv {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    result: read_u256!(outs),
+                },
+                "math_mod" => MathMod {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    result: read_u256!(outs),
+                },
+                "math_pow" => MathPow {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    result: read_u256!(outs),
+                },
+                "math_add_mod" => MathAddMod {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    c: read_u256!(args),
+                    result: read_u256!(outs),
+                },
+                "math_mul_mod" => MathMulMod {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    c: read_u256!(args),
+                    result: read_u256!(outs),
+                },
                 "msg_reentrant" => MsgReentrant {
                     reentrant: read_u32!(outs) != 0,
                 },
@@ -313,7 +352,7 @@ impl TraceFrame {
                 "tx_origin" => TxOrigin {
                     origin: read_address!(outs),
                 },
-                "memory_grow" => PayForMemoryGrow {
+                "pay_for_memory_grow" => PayForMemoryGrow {
                     pages: read_u16!(args),
                 },
                 "call_contract" => CallContract {
@@ -345,17 +384,17 @@ impl TraceFrame {
                     endowment: read_u256!(args),
                     code: read_data!(args),
                     address: read_address!(outs),
-                    revert_data_len: read_usize!(outs),
+                    revert_data_len: read_u32!(outs),
                 },
                 "create2" => Create2 {
                     endowment: read_u256!(args),
                     salt: read_b256!(args),
                     code: read_data!(args),
                     address: read_address!(outs),
-                    revert_data_len: read_usize!(outs),
+                    revert_data_len: read_u32!(outs),
                 },
                 "emit_log" => EmitLog {
-                    topics: read_usize!(args),
+                    topics: read_u32!(args),
                     data: read_data!(args),
                 },
                 "read_return_data" => ReadReturnData {
@@ -364,7 +403,7 @@ impl TraceFrame {
                     data: read_data!(outs),
                 },
                 "return_data_size" => ReturnDataSize {
-                    size: read_usize!(outs),
+                    size: read_u32!(outs),
                 },
                 "console_log_text" => ConsoleLogText {
                     text: read_data!(args),
@@ -410,24 +449,41 @@ pub enum HostioKind {
     WriteResult {
         result: Box<[u8]>,
     },
+    ExitEarly {
+        status: u32,
+    },
     StorageLoadBytes32 {
         key: B256,
         value: B256,
     },
-    StorageStoreBytes32 {
+    StorageCacheBytes32 {
         key: B256,
         value: B256,
-    },
-    StorageCacheBytes32 {
-        key: FixedBytes<32>,
-        value: FixedBytes<32>,
     },
     StorageFlushCache {
         clear: u8,
     },
+    TransientLoadBytes32 {
+        key: B256,
+        value: B256,
+    },
+    TransientStoreBytes32 {
+        key: B256,
+        value: B256,
+    },
     AccountBalance {
         address: Address,
         balance: U256,
+    },
+    AccountCode {
+        address: Address,
+        offset: u32,
+        size: u32,
+        code: Box<[u8]>,
+    },
+    AccountCodeSize {
+        address: Address,
+        size: u32,
     },
     AccountCodehash {
         address: Address,
@@ -462,6 +518,33 @@ pub enum HostioKind {
     },
     PayForMemoryGrow {
         pages: u16,
+    },
+    MathDiv {
+        a: U256,
+        b: U256,
+        result: U256,
+    },
+    MathMod {
+        a: U256,
+        b: U256,
+        result: U256,
+    },
+    MathPow {
+        a: U256,
+        b: U256,
+        result: U256,
+    },
+    MathAddMod {
+        a: U256,
+        b: U256,
+        c: U256,
+        result: U256,
+    },
+    MathMulMod {
+        a: U256,
+        b: U256,
+        c: U256,
+        result: U256,
     },
     MsgReentrant {
         reentrant: bool,
@@ -520,18 +603,18 @@ pub enum HostioKind {
         code: Box<[u8]>,
         endowment: U256,
         address: Address,
-        revert_data_len: usize,
+        revert_data_len: u32,
     },
     Create2 {
         code: Box<[u8]>,
         endowment: U256,
         salt: B256,
         address: Address,
-        revert_data_len: usize,
+        revert_data_len: u32,
     },
     EmitLog {
         data: Box<[u8]>,
-        topics: usize,
+        topics: u32,
     },
     ReadReturnData {
         offset: u32,
@@ -539,7 +622,7 @@ pub enum HostioKind {
         data: Box<[u8]>,
     },
     ReturnDataSize {
-        size: usize,
+        size: u32,
     },
 }
 
@@ -583,7 +666,7 @@ impl FrameReader {
             let kind = hostio.kind;
             let name = kind.name();
             match name {
-                "memory_grow" | "user_entrypoint" | "user_returned" => continue,
+                "pay_for_memory_grow" | "user_entrypoint" | "user_returned" => continue,
                 _ => {
                     detected(self, expected);
                     println!("However, onchain there's a call to {name}. Are you sure this the right contract?\n");
