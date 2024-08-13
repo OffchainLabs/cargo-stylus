@@ -1,7 +1,7 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use clap::{ArgGroup, Args, Parser};
+use clap::{ArgGroup, Args, Parser, Subcommand};
 use ethers::types::{H160, U256};
 use eyre::{eyre, Context, Result};
 use std::fmt;
@@ -54,8 +54,9 @@ enum Apis {
     /// Activate an already deployed contract.
     #[command(alias = "a")]
     Activate(ActivateConfig),
+    #[command(subcommand)]
     /// Cache a contract using the Stylus CacheManager for Arbitrum chains.
-    Cache(CacheConfig),
+    Cache(Cache),
     /// Check a contract.
     #[command(alias = "c")]
     Check(CheckConfig),
@@ -85,6 +86,22 @@ struct CommonConfig {
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
     max_fee_per_gas_gwei: Option<U256>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+enum Cache {
+    /// Places a bid on a Stylus contract to cache it in the Arbitrum chain's cache manager.
+    #[command(alias = "b")]
+    Bid {
+        #[command(flatten)]
+        config: CacheConfig,
+    },
+    /// Checks the status of the Stylus program cache.
+    #[command(alias = "s")]
+    Status {
+        #[command(flatten)]
+        config: CacheConfig,
+    },
 }
 
 #[derive(Args, Clone, Debug)]
@@ -305,9 +322,14 @@ async fn main_impl(args: Opts) -> Result<()> {
                 "stylus activate failed"
             );
         }
-        Apis::Cache(config) => {
-            run!(cache::cache_contract(&config).await, "stylus cache failed");
-        }
+        Apis::Cache(subcommand) => match subcommand {
+            Cache::Bid { config } => {
+                run!(cache::cache_contract(&config).await, "stylus cache failed");
+            }
+            Cache::Status { config } => {
+                run!(cache::cache_contract(&config).await, "stylus cache failed");
+            }
+        },
         Apis::Check(config) => {
             if config.no_verify {
                 run!(check::check(&config).await, "stylus checks failed");
