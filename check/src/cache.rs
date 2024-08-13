@@ -17,7 +17,7 @@ use crate::check::{eth_call, EthCallError};
 use crate::constants::ARB_WASM_CACHE_H160;
 use crate::deploy::{format_gas, run_tx};
 use crate::macros::greyln;
-use crate::CacheConfig;
+use crate::CacheBidConfig;
 
 sol! {
     interface ArbWasmCache {
@@ -34,8 +34,8 @@ sol! {
     }
 }
 
-pub async fn cache_contract(cfg: &CacheConfig) -> Result<()> {
-    let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
+pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
+    let provider = sys::new_provider(&cfg.endpoint)?;
     let chain_id = provider
         .get_chainid()
         .await
@@ -60,17 +60,13 @@ pub async fn cache_contract(cfg: &CacheConfig) -> Result<()> {
     let cache_manager = *cache_manager_addrs.last().unwrap();
     let cache_manager = H160::from_slice(cache_manager.as_slice());
 
+    greyln!("Setting bid value of {} wei", cfg.bid.debug_mint());
     let contract: Address = cfg.address.to_fixed_bytes().into();
     let data = CacheManager::placeBidCall { program: contract }.abi_encode();
-    let mut tx = Eip1559TransactionRequest::new()
+    let tx = Eip1559TransactionRequest::new()
         .to(cache_manager)
+        .value(U256::from(cfg.bid))
         .data(data);
-
-    // If a bid is set, specify it. Otherwise, a zero bid will be sent.
-    if let Some(bid) = cfg.bid {
-        tx = tx.value(U256::from(bid));
-        greyln!("Setting bid value of {} wei", bid.debug_mint());
-    }
 
     if let Err(EthCallError { data, msg }) =
         eth_call(tx.clone(), State::default(), &provider).await?
@@ -87,19 +83,19 @@ pub async fn cache_contract(cfg: &CacheConfig) -> Result<()> {
                 bail!("Bidding is currently paused for the Stylus cache manager")
             }
             C::BidTooSmall(_) => {
-                bail!("Bid amount {} (wei) too small", cfg.bid.unwrap_or_default())
+                bail!("Bid amount {} (wei) too small", cfg.bid)
             }
             C::ProgramNotActivated(_) => {
                 bail!("Your Stylus contract {} is not yet activated. To activate it, use the `cargo stylus activate` subcommand", hex::encode(contract))
             }
         }
     }
-    let verbose = cfg.common_cfg.verbose;
+    let verbose = cfg.verbose;
     let receipt = run_tx(
-        "cache",
+        "place_bid",
         tx,
         None,
-        cfg.common_cfg.max_fee_per_gas_gwei,
+        cfg.max_fee_per_gas_gwei,
         &client,
         verbose,
     )

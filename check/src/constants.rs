@@ -48,3 +48,6 @@ pub const TOOLCHAIN_FILE_NAME: &str = "rust-toolchain.toml";
 /// compiler, but the user will specify the exact version of the Rust toolchain to use for building within
 /// the docker container.
 pub const RUST_BASE_IMAGE_VERSION: &str = "1.79.0";
+
+/// The default endpoint for connections to a Stylus-enabled Arbitrum node.
+pub const DEFAULT_ENDPOINT: &str = "https://sepolia-rollup.arbitrum.io/rpc";

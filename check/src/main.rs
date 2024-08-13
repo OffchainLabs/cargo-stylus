@@ -2,6 +2,7 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use clap::{ArgGroup, Args, Parser, Subcommand};
+use constants::DEFAULT_ENDPOINT;
 use ethers::types::{H160, U256};
 use eyre::{eyre, Context, Result};
 use std::fmt;
@@ -71,7 +72,7 @@ enum Apis {
 #[derive(Args, Clone, Debug)]
 struct CommonConfig {
     /// Arbitrum RPC endpoint.
-    #[arg(short, long, default_value = "https://sepolia-rollup.arbitrum.io/rpc")]
+    #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
     endpoint: String,
     /// Whether to print debug info.
     #[arg(long)]
@@ -92,31 +93,39 @@ struct CommonConfig {
 enum Cache {
     /// Places a bid on a Stylus contract to cache it in the Arbitrum chain's cache manager.
     #[command(alias = "b")]
-    Bid {
-        #[command(flatten)]
-        config: CacheConfig,
-    },
+    Bid(CacheBidConfig),
     /// Checks the status of the Stylus program cache.
     #[command(alias = "s")]
-    Status {
-        #[command(flatten)]
-        config: CacheConfig,
-    },
+    Status(CacheStatusConfig),
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct CacheConfig {
-    #[command(flatten)]
-    common_cfg: CommonConfig,
+pub struct CacheBidConfig {
+    /// Arbitrum RPC endpoint.
+    #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
+    endpoint: String,
+    /// Whether to print debug info.
+    #[arg(long)]
+    verbose: bool,
     /// Wallet source to use.
     #[command(flatten)]
     auth: AuthOpts,
     /// Deployed and activated contract address to cache.
-    #[arg(long)]
     address: H160,
     /// Bid, in wei, to place on the desired contract to cache
-    #[arg(short, long, hide(true))]
-    bid: Option<u64>,
+    bid: u64,
+    #[arg(long)]
+    /// Optional max fee per gas in gwei units.
+    max_fee_per_gas_gwei: Option<U256>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct CacheStatusConfig {
+    /// Arbitrum RPC endpoint.
+    #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
+    endpoint: String,
+    /// Deployed and activated contract address to cache.
+    address: Option<H160>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -323,11 +332,15 @@ async fn main_impl(args: Opts) -> Result<()> {
             );
         }
         Apis::Cache(subcommand) => match subcommand {
-            Cache::Bid { config } => {
-                run!(cache::cache_contract(&config).await, "stylus cache failed");
+            Cache::Bid(config) => {
+                run!(
+                    cache::place_bid(&config).await,
+                    "stylus cache place bid failed"
+                );
             }
-            Cache::Status { config } => {
-                run!(cache::cache_contract(&config).await, "stylus cache failed");
+            Cache::Status(config) => {
+                // run!(cache::cache_contract(&config).await, "stylus cache failed");
+                todo!();
             }
         },
         Apis::Check(config) => {
