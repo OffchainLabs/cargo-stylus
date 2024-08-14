@@ -113,7 +113,12 @@ async fn trace(args: TraceArgs) -> Result<()> {
 
 async fn replay(args: ReplayArgs) -> Result<()> {
     if !args.child {
-        let rust_gdb = sys::command_exists("rust-gdb");
+        // HACK: open vscode debugger
+        // let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{'request':'attach','pid':{}}}", std::process::id());
+        // std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
+        // std::thread::sleep_ms(1000);
+
+        let rust_gdb = sys::command_exists("rust-lldb");
         if !rust_gdb {
             println!(
                 "{} not installed, falling back to {}",
@@ -123,14 +128,18 @@ async fn replay(args: ReplayArgs) -> Result<()> {
         }
 
         let mut cmd = match rust_gdb {
-            true => sys::new_command("rust-gdb"),
+            true => sys::new_command("rust-lldb"),
             false => sys::new_command("gdb"),
         };
-        cmd.arg("--quiet");
-        cmd.arg("-ex=set breakpoint pending on");
-        cmd.arg("-ex=b user_entrypoint");
-        cmd.arg("-ex=r");
-        cmd.arg("--args");
+        // cmd.arg("--quiet");
+        // cmd.arg("-ex=set breakpoint pending on");
+        cmd.arg("--source-quietly");
+        cmd.arg("-o");
+        cmd.arg("b user_entrypoint");
+        cmd.arg("-o");
+        cmd.arg("r");
+        // cmd.arg("-o \"r\"");
+        cmd.arg("--");
 
         for arg in std::env::args() {
             cmd.arg(arg);
@@ -201,7 +210,7 @@ pub fn find_so(project: &Path) -> Result<PathBuf> {
         };
         let ext = ext.to_string_lossy();
 
-        if ext.contains(".so") {
+        if ext.contains(".dylib") {
             if let Some(other) = file {
                 let other = other.file_name().unwrap().to_string_lossy();
                 bail!("more than one .so found: {ext} and {other}",);
