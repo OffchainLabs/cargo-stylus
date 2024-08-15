@@ -29,3 +29,31 @@ pub fn new(name: &Path, minimal: bool) -> Result<()> {
     println!("{GREY}new project at: {}", path.to_string_lossy().mint());
     Ok(())
 }
+
+pub fn init(minimal: bool) -> Result<()> {
+    let current_dir = current_dir().wrap_err("no current dir")?;
+    let repo = if minimal {
+        GITHUB_TEMPLATE_REPO_MINIMAL
+    } else {
+        GITHUB_TEMPLATE_REPO
+    };
+
+    let output = sys::new_command("git")
+        .arg("clone")
+        .arg("--depth")
+        .arg("1")
+        .arg(repo)
+        .arg(".")
+        .output()
+        .wrap_err("git clone failed")?;
+
+    if !output.status.success() {
+        bail!("git clone command failed");
+    }
+
+    println!(
+        "{GREY}initialized project in: {}",
+        current_dir.to_string_lossy().mint()
+    );
+    Ok(())
+}
