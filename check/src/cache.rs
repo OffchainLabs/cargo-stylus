@@ -17,7 +17,7 @@ use crate::check::{eth_call, EthCallError};
 use crate::constants::ARB_WASM_CACHE_H160;
 use crate::deploy::{format_gas, run_tx};
 use crate::macros::greyln;
-use crate::CacheBidConfig;
+use crate::{CacheBidConfig, CacheStatusConfig};
 
 sol! {
     interface ArbWasmCache {
@@ -32,6 +32,26 @@ sol! {
         error BidsArePaused();
         error ProgramNotActivated();
     }
+}
+
+pub async fn suggest_bid(cfg: &CacheStatusConfig) -> Result<()> {
+    Ok(())
+}
+
+pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
+    let provider = sys::new_provider(&cfg.endpoint)?;
+    let chain_id = provider
+        .get_chainid()
+        .await
+        .wrap_err("failed to get chain id")?;
+
+    // TODO: - check the number of entries
+    // - check if paused
+    // - suggest a minimum bid for a contract of 4kb, 16kb, and 23kb as references.
+    // - check cache size
+    // - check if total queue size is < cache size, meaning cache is not at capacity.
+
+    Ok(())
 }
 
 pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {

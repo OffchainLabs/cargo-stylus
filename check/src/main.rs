@@ -91,10 +91,10 @@ struct CommonConfig {
 
 #[derive(Subcommand, Clone, Debug)]
 enum Cache {
-    /// Places a bid on a Stylus contract to cache it in the Arbitrum chain's cache manager.
+    /// Places a bid on a Stylus contract to cache it in the Arbitrum chain's wasm cache manager.
     #[command(alias = "b")]
     Bid(CacheBidConfig),
-    /// Checks the status of the Stylus program cache.
+    /// Checks the status of a Stylus contract in the Arbitrum chain's wasm cache manager.
     #[command(alias = "s")]
     Status(CacheStatusConfig),
 }
@@ -112,7 +112,7 @@ pub struct CacheBidConfig {
     auth: AuthOpts,
     /// Deployed and activated contract address to cache.
     address: H160,
-    /// Bid, in wei, to place on the desired contract to cache
+    /// Bid, in wei, to place on the desired contract to cache. A value of 0 is a valid bid.
     bid: u64,
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
@@ -125,7 +125,7 @@ pub struct CacheStatusConfig {
     #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
     endpoint: String,
     /// Deployed and activated contract address to cache.
-    address: Option<H160>,
+    address: H160,
 }
 
 #[derive(Args, Clone, Debug)]
