@@ -1,25 +1,16 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
-use std::cmp::min;
-
-use alloy_primitives::{address, keccak256, Address};
+use alloy_primitives::{keccak256, Address, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_sol_macro::sol;
-use alloy_sol_types::{SolCall, SolInterface};
+use alloy_sol_types::SolInterface;
 use bytesize::ByteSize;
 use cargo_stylus_util::color::{Color, DebugColor};
-use cargo_stylus_util::sys;
-use ethers::middleware::{Middleware, SignerMiddleware};
-use ethers::signers::Signer;
-use ethers::types::spoof::State;
-use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{Eip1559TransactionRequest, H160, U256};
-use eyre::{bail, Context, Result};
+use eyre::{bail, Result};
 
-use crate::check::{eth_call, EthCallError};
-use crate::constants::{ARB_WASM_ADDRESS, ARB_WASM_CACHE_ADDRESS, ARB_WASM_CACHE_H160};
-use crate::deploy::{format_gas, run_tx};
+use crate::constants::ARB_WASM_CACHE_ADDRESS;
+use crate::deploy::gwei_to_wei;
 use crate::macros::greyln;
 use crate::{CacheBidConfig, CacheStatusConfig, CacheSuggestionsConfig};
 
@@ -33,7 +24,6 @@ sol! {
     interface CacheManager {
         function cacheSize() external view returns (uint64);
         function queueSize() external view returns (uint64);
-        function decay() external view returns (uint64);
         function isPaused() external view returns (bool);
         function placeBid(address program) external payable;
         function getMinBid(address program) external view returns (uint192 min);
@@ -47,6 +37,8 @@ sol! {
     }
 }
 
+/// Recommends a minimum bid to the user for caching a Stylus program by address. If the program
+/// has not yet been activated, the user will be informed.
 pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
@@ -66,6 +58,9 @@ pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
     Ok(())
 }
 
+/// Checks the status of the Stylus cache manager, including the cache size, queue size, and minimum bid
+/// for different contract sizes as reference points. It also checks if a specified Stylus contract address
+/// is currently cached.
 pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
@@ -146,86 +141,68 @@ pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
     Ok(())
 }
 
+/// Attempts to cache a Stylus contract by address by placing a bid by sending a tx to the network.
+/// It will handle the different cache manager errors that can be encountered along the way and
+/// print friendlier errors if failed.
 pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
-    // let provider = sys::new_provider(&cfg.endpoint)?;
-    // let chain_id = provider
-    //     .get_chainid()
-    //     .await
-    //     .wrap_err("failed to get chain id")?;
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .on_builtin(&cfg.endpoint)
+        .await?;
+    let chain_id = provider.get_chain_id().await?;
+    let wallet = cfg.auth.alloy_wallet(chain_id)?;
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .on_builtin(&cfg.endpoint)
+        .await?;
+    let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
+    let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
+    let addr = cfg.address.to_fixed_bytes().into();
+    let mut place_bid_call = cache_manager.placeBid(addr).value(U256::from(cfg.bid));
+    if let Some(max_fee) = cfg.max_fee_per_gas_gwei {
+        place_bid_call = place_bid_call.max_fee_per_gas(gwei_to_wei(max_fee)?);
+    };
 
-    // let wallet = cfg.auth.wallet().wrap_err("failed to load wallet")?;
-    // let wallet = wallet.with_chain_id(chain_id.as_u64());
-    // let client = SignerMiddleware::new(provider.clone(), wallet);
-
-    // let data = ArbWasmCache::allCacheManagersCall {}.abi_encode();
-    // let tx = Eip1559TransactionRequest::new()
-    //     .to(*ARB_WASM_CACHE_H160)
-    //     .data(data);
-    // let tx = TypedTransaction::Eip1559(tx);
-    // let result = client.call(&tx, None).await?;
-    // let cache_managers_result =
-    //     ArbWasmCache::allCacheManagersCall::abi_decode_returns(&result, true)?;
-    // let cache_manager_addrs = cache_managers_result.managers;
-    // if cache_manager_addrs.is_empty() {
-    //     bail!("no cache managers found in ArbWasmCache, perhaps the Stylus cache is not yet enabled on this chain");
-    // }
-    // let cache_manager = *cache_manager_addrs.last().unwrap();
-    // let cache_manager = H160::from_slice(cache_manager.as_slice());
-
-    // greyln!("Setting bid value of {} wei", cfg.bid.debug_mint());
-    // let contract: Address = cfg.address.to_fixed_bytes().into();
-    // let data = CacheManager::placeBidCall { program: contract }.abi_encode();
-    // let tx = Eip1559TransactionRequest::new()
-    //     .to(cache_manager)
-    //     .value(U256::from(cfg.bid))
-    //     .data(data);
-
-    // if let Err(EthCallError { data, msg }) =
-    //     eth_call(tx.clone(), State::default(), &provider).await?
-    // {
-    //     let error = match CacheManager::CacheManagerErrors::abi_decode(&data, true) {
-    //         Ok(err) => err,
-    //         Err(err_details) => bail!("unknown CacheManager error: {msg} and {:?}", err_details),
-    //     };
-    //     use CacheManager::CacheManagerErrors as C;
-    //     match error {
-    //         C::AsmTooLarge(_) => bail!("Stylus contract was too large to cache"),
-    //         C::AlreadyCached(_) => bail!("Stylus contract is already cached"),
-    //         C::BidsArePaused(_) => {
-    //             bail!("Bidding is currently paused for the Stylus cache manager")
-    //         }
-    //         C::BidTooSmall(_) => {
-    //             bail!("Bid amount {} (wei) too small", cfg.bid)
-    //         }
-    //         C::ProgramNotActivated(_) => {
-    //             bail!("Your Stylus contract {} is not yet activated. To activate it, use the `cargo stylus activate` subcommand", hex::encode(contract))
-    //         }
-    //     }
-    // }
-    // let verbose = cfg.verbose;
-    // let receipt = run_tx(
-    //     "place_bid",
-    //     tx,
-    //     None,
-    //     cfg.max_fee_per_gas_gwei,
-    //     &client,
-    //     verbose,
-    // )
-    // .await?;
-
-    // let address = cfg.address.debug_lavender();
-
-    // if verbose {
-    //     let gas = format_gas(receipt.gas_used.unwrap_or_default());
-    //     greyln!(
-    //         "Successfully cached contract at address: {address} {} {gas}",
-    //         "with".grey()
-    //     );
-    // } else {
-    //     greyln!("Successfully cached contract at address: {address}");
-    // }
-    // let tx_hash = receipt.transaction_hash.debug_lavender();
-    // greyln!("Sent Stylus cache tx with hash: {tx_hash}");
+    greyln!("Checking if contract can be cached...");
+    let raw_output = place_bid_call.clone().call_raw().await?;
+    if !raw_output.is_empty() {
+        match CacheManager::CacheManagerErrors::abi_decode(&raw_output, true) {
+            Ok(errs) => {
+                use CacheManager::CacheManagerErrors as C;
+                match errs {
+                    C::AsmTooLarge(_) => bail!("Stylus contract was too large to cache"),
+                    C::AlreadyCached(_) => bail!("Stylus contract is already cached"),
+                    C::BidsArePaused(_) => {
+                        bail!("Bidding is currently paused for the Stylus cache manager")
+                    }
+                    C::BidTooSmall(_) => {
+                        bail!("Bid amount {} (wei) too small", cfg.bid.debug_lavender())
+                    }
+                    C::ProgramNotActivated(_) => {
+                        bail!("Your Stylus contract {} is not yet activated. To activate it, use the `cargo stylus activate` subcommand", hex::encode(addr).debug_lavender())
+                    }
+                };
+            }
+            Err(e) => {
+                bail!("unknown CacheManager error: {:?}", e)
+            }
+        }
+    }
+    greyln!("Sending cache bid tx...");
+    let pending_tx = place_bid_call.send().await?;
+    let receipt = pending_tx.get_receipt().await?;
+    if cfg.verbose {
+        let gas = format_gas(receipt.gas_used);
+        greyln!(
+            "Successfully cached contract at address: {addr} {} {gas} gas used",
+            "with".grey()
+        );
+    } else {
+        greyln!("Successfully cached contract at address: {addr}");
+    }
+    let tx_hash = receipt.transaction_hash.debug_lavender();
+    greyln!("Sent Stylus cache bid tx with hash: {tx_hash}");
     Ok(())
 }
 
@@ -239,4 +216,16 @@ where
         bail!("no cache managers found in ArbWasmCache, perhaps the Stylus cache is not yet enabled on this chain");
     }
     Ok(*result.managers.last().unwrap())
+}
+
+fn format_gas(gas: u128) -> String {
+    let gas: u128 = gas.try_into().unwrap_or(u128::MAX);
+    let text = format!("{gas} gas");
+    if gas <= 3_000_000 {
+        text.mint()
+    } else if gas <= 7_000_000 {
+        text.yellow()
+    } else {
+        text.pink()
+    }
 }

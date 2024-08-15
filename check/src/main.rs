@@ -86,7 +86,7 @@ struct CommonConfig {
     source_files_for_project_hash: Vec<String>,
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
-    max_fee_per_gas_gwei: Option<U256>,
+    max_fee_per_gas_gwei: Option<u128>,
 }
 
 #[derive(Subcommand, Clone, Debug)]
@@ -119,7 +119,7 @@ pub struct CacheBidConfig {
     bid: u64,
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
-    max_fee_per_gas_gwei: Option<U256>,
+    max_fee_per_gas_gwei: Option<u128>,
 }
 
 #[derive(Args, Clone, Debug)]

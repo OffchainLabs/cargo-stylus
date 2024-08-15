@@ -40,3 +40,5 @@ toml = "0.8.14"
 sys-info = "0.9.1"
 alloy-contract = "0.2.1"
 alloy-provider = "0.2.1"
+alloy-signer-local = { version = "0.2.1", features = ["keystore"] }
+alloy-signer = "0.2.1"
