@@ -324,6 +324,10 @@ async fn main_impl(args: Opts) -> Result<()> {
             if config.no_verify {
                 run!(deploy::deploy(config).await, "stylus deploy failed");
             } else {
+                println!(
+                    "Running in a Docker container for reproducibility, this may take a while",
+                );
+                println!("NOTE: You can opt out by doing --no-verify");
                 let mut commands: Vec<String> =
                     vec![String::from("deploy"), String::from("--no-verify")];
                 let config_args = config
@@ -343,6 +347,9 @@ async fn main_impl(args: Opts) -> Result<()> {
             if config.no_verify {
                 run!(verify::verify(config).await, "failed to verify");
             } else {
+                println!(
+                    "Running in a Docker container for reproducibility, this may take a while",
+                );
                 let mut commands: Vec<String> =
                     vec![String::from("verify"), String::from("--no-verify")];
                 let config_args = config
