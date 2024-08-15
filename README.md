@@ -156,24 +156,7 @@ See `--help` for all available flags and default values.
 
 ## Verifying Stylus Contracts
 
-**cargo stylus verify**
-
-Verifies that a deployed smart contract is identical to that produced by the
-current project. Since Stylus smart contracts include a hash of all project
-files, this additionally verifies that code comments and other files are
-identical. To ensure build reproducibility, if a contract is to be verified,
-it should be both deployed and verified using `cargo stylus reproducible`.
-
-See `--help` for all available flags and default values.
-
-## Reproducibly Deploying and Verifying
-
-**cargo stylus reproducible**
-
-Runs a `cargo stylus` command in a Docker container to ensure build
-reproducibility.
-
-See `--help` for all available flags and default values.
+See [here](https://hackmd.io/bpeMnrzbSvO4mohhvkrKqw)
 
 ## Deploying Non-Rust WASM Projects
 

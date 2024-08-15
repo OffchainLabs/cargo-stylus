@@ -57,10 +57,6 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
 
     let mut cmd = sys::new_command("cargo");
 
-    if !cfg.stable {
-        cmd.arg("+nightly");
-    }
-
     cmd.arg("build");
     cmd.arg("--lib");
 
@@ -208,9 +204,6 @@ pub fn extract_toolchain_channel(toolchain_file_path: &PathBuf) -> Result<String
 pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
     let mut keccak = Keccak::v256();
     let mut cmd = Command::new("cargo");
-    if !cfg.stable {
-        cmd.arg("+nightly");
-    }
     cmd.arg("--version");
     let output = cmd
         .output()

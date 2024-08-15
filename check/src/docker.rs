@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 use cargo_stylus_util::color::Color;
 use eyre::{bail, eyre, Result};
 
-use crate::constants::{RUST_BASE_IMAGE_VERSION, TOOLCHAIN_FILE_NAME};
+use crate::constants::TOOLCHAIN_FILE_NAME;
 use crate::macros::greyln;
 use crate::project::extract_toolchain_channel;
 
@@ -45,15 +45,7 @@ fn create_image(version: &str) -> Result<()> {
     if image_exists(&name)? {
         return Ok(());
     }
-    let cargo_stylus_version = env!("CARGO_PKG_VERSION");
-    let cargo_stylus_version: String = cargo_stylus_version
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '.')
-        .collect();
-    println!(
-        "Building Docker image for cargo-stylus version {} and Rust toolchain {}",
-        cargo_stylus_version, version,
-    );
+    println!("Building Docker image for Rust toolchain {}", version,);
     let mut child = Command::new("docker")
         .arg("build")
         .arg("-t")
@@ -62,24 +54,19 @@ fn create_image(version: &str) -> Result<()> {
         .arg("-f-")
         .stdin(Stdio::piped())
         .spawn()
-        .map_err(|e| eyre!("failed to execure Docker command: {e}"))?;
+        .map_err(|e| eyre!("failed to execute Docker command: {e}"))?;
     write!(
         child.stdin.as_mut().unwrap(),
         "\
-            FROM --platform=linux/amd64 rust:{} as builder\n\
+            FROM --platform=linux/amd64 offchainlabs/cargo-stylus-base as base
             RUN rustup toolchain install {}-x86_64-unknown-linux-gnu 
             RUN rustup default {}-x86_64-unknown-linux-gnu
             RUN rustup target add wasm32-unknown-unknown
-            RUN rustup target add wasm32-wasi
-            RUN rustup target add x86_64-unknown-linux-gnu
-            RUN cargo install cargo-stylus-check --version {} --force
-            RUN cargo install cargo-stylus --version {} --force
+            RUN rustup component add rust-src --toolchain {}-x86_64-unknown-linux-gnu
         ",
-        RUST_BASE_IMAGE_VERSION,
         version,
         version,
-        cargo_stylus_version,
-        cargo_stylus_version,
+        version,
     )?;
     child.wait().map_err(|e| eyre!("wait failed: {e}"))?;
     Ok(())
