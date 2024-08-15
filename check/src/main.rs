@@ -97,6 +97,9 @@ enum Cache {
     /// Checks the status of a Stylus contract in the Arbitrum chain's wasm cache manager.
     #[command(alias = "s")]
     Status(CacheStatusConfig),
+    /// Checks the status of a Stylus contract in the Arbitrum chain's wasm cache manager.
+    #[command()]
+    SuggestBid(CacheSuggestionsConfig),
 }
 
 #[derive(Args, Clone, Debug)]
@@ -124,7 +127,17 @@ pub struct CacheStatusConfig {
     /// Arbitrum RPC endpoint.
     #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
     endpoint: String,
-    /// Deployed and activated contract address to cache.
+    /// Stylus contract address to check status in the cache manager.
+    #[arg(long)]
+    address: Option<H160>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct CacheSuggestionsConfig {
+    /// Arbitrum RPC endpoint.
+    #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
+    endpoint: String,
+    /// Stylus contract address to suggest a minimum bid for in the cache manager.
     address: H160,
 }
 
@@ -338,9 +351,17 @@ async fn main_impl(args: Opts) -> Result<()> {
                     "stylus cache place bid failed"
                 );
             }
+            Cache::SuggestBid(config) => {
+                run!(
+                    cache::suggest_bid(&config).await,
+                    "stylus cache suggest-bid failed"
+                );
+            }
             Cache::Status(config) => {
-                // run!(cache::cache_contract(&config).await, "stylus cache failed");
-                todo!();
+                run!(
+                    cache::check_status(&config).await,
+                    "stylus cache status failed"
+                );
             }
         },
         Apis::Check(config) => {
