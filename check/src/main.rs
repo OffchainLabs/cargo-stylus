@@ -3,7 +3,7 @@
 
 use clap::{ArgGroup, Args, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
-use ethers::types::{H160, U256};
+use ethers::types::H160;
 use eyre::{eyre, Context, Result};
 use std::fmt;
 use std::path::PathBuf;

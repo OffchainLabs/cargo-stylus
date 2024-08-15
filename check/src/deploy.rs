@@ -93,6 +93,14 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         }
         ContractCheck::Active { .. } => greyln!("wasm already activated!"),
     }
+    println!("");
+    let note = format!(
+        r#"NOTE: We recommend running cargo stylus cache bid 0 {} to cache your activated contract in ArbOS.
+Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
+https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#,
+        hex::encode(contract_addr),
+    );
+    println!("{}", note.debug_mint());
     Ok(())
 }
 
@@ -145,12 +153,6 @@ impl DeployConfig {
         }
         let tx_hash = receipt.transaction_hash.debug_lavender();
         greyln!("deployment tx hash: {tx_hash}");
-        println!(
-            r#"we recommend running cargo stylus cache --address={} to cache your activated contract in ArbOS.
-Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
-https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#,
-            hex::encode(contract)
-        );
         Ok(contract)
     }
 

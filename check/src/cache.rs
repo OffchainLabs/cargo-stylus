@@ -1,13 +1,14 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
+use alloy_contract::Error;
 use alloy_primitives::{keccak256, Address, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_sol_macro::sol;
-use alloy_sol_types::SolInterface;
 use bytesize::ByteSize;
 use cargo_stylus_util::color::{Color, DebugColor};
 use eyre::{bail, Result};
+use CacheManager::CacheManagerErrors;
 
 use crate::constants::ARB_WASM_CACHE_ADDRESS;
 use crate::deploy::gwei_to_wei;
@@ -46,16 +47,32 @@ pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
         .await?;
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
-    let CacheManager::getMinBid_0Return { min: min_bid } = cache_manager
+    match cache_manager
         .getMinBid_0(cfg.address.to_fixed_bytes().into())
         .call()
-        .await?;
-    greyln!(
-        "Minimum bid for contract {}: {} wei",
-        cfg.address,
-        min_bid.debug_mint()
-    );
-    Ok(())
+        .await
+    {
+        Ok(CacheManager::getMinBid_0Return { min: min_bid }) => {
+            greyln!(
+                "Minimum bid for contract {}: {} wei",
+                cfg.address,
+                min_bid.debug_mint()
+            );
+            Ok(())
+        }
+        Err(e) => {
+            let Error::TransportError(tperr) = e else {
+                bail!("failed to send cache bid tx: {:?}", e)
+            };
+            let Some(err_resp) = tperr.as_error_resp() else {
+                bail!("no error payload received in response: {:?}", tperr)
+            };
+            let Some(errs) = err_resp.as_decoded_error::<CacheManagerErrors>(true) else {
+                bail!("failed to decode CacheManager error: {:?}", err_resp)
+            };
+            handle_cache_manager_error(errs)
+        }
+    }
 }
 
 /// Checks the status of the Stylus cache manager, including the cache size, queue size, and minimum bid
@@ -134,7 +151,7 @@ pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
             if is_cached {
                 "is cached".debug_mint()
             } else {
-                "is not cached".debug_red()
+                "is not yet cached".debug_red() + " please use cargo stylus cache bid to cache it"
             }
         );
     }
@@ -165,29 +182,19 @@ pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
     };
 
     greyln!("Checking if contract can be cached...");
-    let raw_output = place_bid_call.clone().call_raw().await?;
-    if !raw_output.is_empty() {
-        match CacheManager::CacheManagerErrors::abi_decode(&raw_output, true) {
-            Ok(errs) => {
-                use CacheManager::CacheManagerErrors as C;
-                match errs {
-                    C::AsmTooLarge(_) => bail!("Stylus contract was too large to cache"),
-                    C::AlreadyCached(_) => bail!("Stylus contract is already cached"),
-                    C::BidsArePaused(_) => {
-                        bail!("Bidding is currently paused for the Stylus cache manager")
-                    }
-                    C::BidTooSmall(_) => {
-                        bail!("Bid amount {} (wei) too small", cfg.bid.debug_lavender())
-                    }
-                    C::ProgramNotActivated(_) => {
-                        bail!("Your Stylus contract {} is not yet activated. To activate it, use the `cargo stylus activate` subcommand", hex::encode(addr).debug_lavender())
-                    }
-                };
-            }
-            Err(e) => {
-                bail!("unknown CacheManager error: {:?}", e)
-            }
-        }
+
+    let raw_output = place_bid_call.clone().call().await;
+    if let Err(e) = raw_output {
+        let Error::TransportError(tperr) = e else {
+            bail!("failed to send cache bid tx: {:?}", e)
+        };
+        let Some(err_resp) = tperr.as_error_resp() else {
+            bail!("no error payload received in response: {:?}", tperr)
+        };
+        let Some(errs) = err_resp.as_decoded_error::<CacheManagerErrors>(true) else {
+            bail!("failed to decode CacheManager error: {:?}", err_resp)
+        };
+        handle_cache_manager_error(errs)?;
     }
     greyln!("Sending cache bid tx...");
     let pending_tx = place_bid_call.send().await?;
@@ -227,5 +234,22 @@ fn format_gas(gas: u128) -> String {
         text.yellow()
     } else {
         text.pink()
+    }
+}
+
+fn handle_cache_manager_error(err: CacheManagerErrors) -> Result<()> {
+    use CacheManager::CacheManagerErrors as C;
+    match err {
+        C::AsmTooLarge(_) => bail!("Stylus contract was too large to cache"),
+        C::AlreadyCached(_) => bail!("Stylus contract is already cached"),
+        C::BidsArePaused(_) => {
+            bail!("Bidding is currently paused for the Stylus cache manager")
+        }
+        C::BidTooSmall(_) => {
+            bail!("Bid amount (wei) too small");
+        }
+        C::ProgramNotActivated(_) => {
+            bail!("Your Stylus contract is not yet activated. To activate it, use the `cargo stylus activate` subcommand");
+        }
     }
 }

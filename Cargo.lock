@@ -1042,6 +1042,7 @@ dependencies = [
  "alloy-signer-local",
  "alloy-sol-macro",
  "alloy-sol-types",
+ "alloy-transport",
  "brotli2",
  "bytes",
  "bytesize",
