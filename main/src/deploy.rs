@@ -2,6 +2,10 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 #![allow(clippy::println_empty_string)]
+use crate::util::{
+    color::{Color, DebugColor},
+    sys,
+};
 use crate::{
     check::{self, ContractCheck},
     constants::ARB_WASM_H160,
@@ -11,10 +15,6 @@ use crate::{
 use alloy_primitives::{Address, U256 as AU256};
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
-use crate::util::{
-    color::{Color, DebugColor},
-    sys,
-};
 use ethers::core::utils::format_units;
 use ethers::{
     core::k256::ecdsa::SigningKey,

@@ -425,14 +425,15 @@ fn main() -> Result<()> {
         bail!("failed to invoke {:?}: {:?}", custom.red(), err);
     }
 
-    let args = Opts::parse();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let opts = Opts::parse_from(args);
     // use the current thread for replay.
-    let mut runtime = match args.command {
+    let mut runtime = match opts.command {
         Apis::Replay(_) => Builder::new_current_thread(),
         _ => Builder::new_multi_thread(),
     };
     let runtime = runtime.enable_all().build()?;
-    runtime.block_on(main_impl(args))
+    runtime.block_on(main_impl(opts))
 }
 
 async fn main_impl(args: Opts) -> Result<()> {

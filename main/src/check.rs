@@ -1,6 +1,7 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+use crate::util::{color::Color, sys, text};
 use crate::{
     check::ArbWasm::ArbWasmErrors,
     constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME},
@@ -12,7 +13,6 @@ use alloy_primitives::{Address, B256, U256};
 use alloy_sol_macro::sol;
 use alloy_sol_types::{SolCall, SolInterface};
 use bytesize::ByteSize;
-use crate::util::{color::Color, sys, text};
 use ethers::{
     core::types::spoof,
     prelude::*,

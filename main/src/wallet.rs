@@ -71,6 +71,6 @@ impl AuthOpts {
 
         let signer =
             PrivateKeySigner::decrypt_keystore(keystore, password)?.with_chain_id(Some(chain_id));
-        return Ok(EthereumWallet::new(signer));
+        Ok(EthereumWallet::new(signer))
     }
 }

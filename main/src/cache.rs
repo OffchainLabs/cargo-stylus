@@ -226,7 +226,6 @@ where
 }
 
 fn format_gas(gas: u128) -> String {
-    let gas: u128 = gas.try_into().unwrap_or(u128::MAX);
     let text = format!("{gas} gas");
     if gas <= 3_000_000 {
         text.mint()
