@@ -11,7 +11,7 @@ use crate::{
 use alloy_primitives::{Address, U256 as AU256};
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
-use cargo_stylus_util::{
+use crate::util::{
     color::{Color, DebugColor},
     sys,
 };

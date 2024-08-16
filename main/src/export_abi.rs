@@ -2,7 +2,7 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use crate::macros::*;
-use cargo_stylus_util::{color::Color, sys};
+use crate::util::{color::Color, sys};
 use eyre::{bail, Result, WrapErr};
 use std::{
     io::Write,

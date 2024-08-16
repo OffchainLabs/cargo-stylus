@@ -1,12 +1,12 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
+use crate::util::color::{Color, DebugColor};
 use alloy_contract::Error;
 use alloy_primitives::{keccak256, Address, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_sol_macro::sol;
 use bytesize::ByteSize;
-use cargo_stylus_util::color::{Color, DebugColor};
 use eyre::{bail, Result};
 use CacheManager::CacheManagerErrors;
 

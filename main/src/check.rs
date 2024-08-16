@@ -12,7 +12,7 @@ use alloy_primitives::{Address, B256, U256};
 use alloy_sol_macro::sol;
 use alloy_sol_types::{SolCall, SolInterface};
 use bytesize::ByteSize;
-use cargo_stylus_util::{color::Color, sys, text};
+use crate::util::{color::Color, sys, text};
 use ethers::{
     core::types::spoof,
     prelude::*,

@@ -1,11 +1,11 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
+use crate::util::color::{Color, DebugColor};
+use crate::util::sys;
 use alloy_primitives::Address;
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
-use cargo_stylus_util::color::{Color, DebugColor};
-use cargo_stylus_util::sys;
 use ethers::middleware::{Middleware, SignerMiddleware};
 use ethers::signers::Signer;
 use ethers::types::transaction::eip2718::TypedTransaction;

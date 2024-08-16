@@ -1,5 +1,5 @@
 [workspace]
-members = ["cgen", "check", "example", "main", "replay", "util"]
+members = ["example", "main"]
 resolver = "2"
 
 [workspace.package]
@@ -32,6 +32,3 @@ libc = "0.2.148"
 libloading = "0.8.0"
 parking_lot = "0.12.1"
 sneks = "0.1.2"
-
-# members
-cargo-stylus-util = { path = "util", version = "0.4.2" }

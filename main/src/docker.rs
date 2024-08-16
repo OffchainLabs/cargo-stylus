@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use cargo_stylus_util::color::Color;
+use crate::util::color::Color;
 use eyre::{bail, eyre, Result};
 
 use crate::constants::TOOLCHAIN_FILE_NAME;
