@@ -15,6 +15,7 @@ use cargo_stylus_util::{
     color::{Color, DebugColor},
     sys,
 };
+use ethers::core::utils::format_units;
 use ethers::{
     core::k256::ecdsa::SigningKey,
     middleware::SignerMiddleware,
@@ -86,6 +87,10 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         .deploy_contract(contract.code(), sender, &client)
         .await?;
 
+    if cfg.estimate_gas {
+        return Ok(());
+    }
+
     match contract {
         ContractCheck::Ready { .. } => {
             cfg.activate(sender, contract_addr, data_fee, &client)
@@ -115,7 +120,19 @@ impl DeployConfig {
             .await?;
 
         if self.check_config.common_cfg.verbose || self.estimate_gas {
-            greyln!("deploy gas estimate: {}", format_gas(gas));
+            let gas_price = client.get_gas_price().await?;
+            greyln!("estimates");
+            greyln!("deployment gas: {}", gas.debug_lavender());
+            greyln!(
+                "gas price: {} gwei",
+                format_units(gas_price, "gwei")?.debug_lavender()
+            );
+            let total_cost = gas_price.checked_mul(gas).unwrap_or_default();
+            let eth_estimate = format_units(total_cost, "ether")?;
+            greyln!(
+                "deployment total cost: {} ETH",
+                eth_estimate.debug_lavender()
+            );
         }
         if self.estimate_gas {
             let nonce = client.get_transaction_count(sender, None).await?;
@@ -183,9 +200,6 @@ https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#,
 
         if self.check_config.common_cfg.verbose || self.estimate_gas {
             greyln!("activation gas estimate: {}", format_gas(gas));
-        }
-        if self.estimate_gas {
-            return Ok(());
         }
 
         let receipt = run_tx(
