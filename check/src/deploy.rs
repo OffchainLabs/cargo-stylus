@@ -99,8 +99,8 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
 Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
 https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#,
         hex::encode(contract_addr),
-    );
-    println!("{}", note.debug_mint());
+    ).debug_mint();
+    println!("{note}");
     Ok(())
 }
 
