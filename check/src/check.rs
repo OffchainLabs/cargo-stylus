@@ -151,7 +151,7 @@ pub fn format_file_size(len: usize, mid: u64, max: u64) -> String {
 fn format_data_fee(fee: U256) -> Result<String> {
     let fee: u64 = (fee / U256::from(1e9)).try_into()?;
     let fee: f64 = fee as f64 / 1e9;
-    let text = format!("Ξ{fee:.6}");
+    let text = format!("{fee:.6}");
     Ok(if fee <= 5e14 {
         text.mint()
     } else if fee <= 5e15 {
