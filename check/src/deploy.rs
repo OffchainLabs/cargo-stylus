@@ -122,7 +122,7 @@ impl DeployConfig {
         if self.check_config.common_cfg.verbose || self.estimate_gas {
             let gas_price = client.get_gas_price().await?;
             greyln!("estimates");
-            greyln!("deployment gas: {}", gas.debug_lavender());
+            greyln!("deployment tx gas: {}", gas.debug_lavender());
             greyln!(
                 "gas price: {} gwei",
                 format_units(gas_price, "gwei")?.debug_lavender()
@@ -130,7 +130,7 @@ impl DeployConfig {
             let total_cost = gas_price.checked_mul(gas).unwrap_or_default();
             let eth_estimate = format_units(total_cost, "ether")?;
             greyln!(
-                "deployment total cost: {} ETH",
+                "deployment tx total cost: {} ETH",
                 eth_estimate.debug_lavender()
             );
         }

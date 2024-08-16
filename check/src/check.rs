@@ -89,7 +89,7 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
     let address = cfg.contract_address.unwrap_or(H160::random());
     let fee = check_activate(code.clone().into(), address, &provider).await?;
     let visual_fee = format_data_fee(fee).unwrap_or("???".red());
-    greyln!("wasm data fee: {visual_fee}");
+    greyln!("wasm data fee: {visual_fee} ETH");
     Ok(ContractCheck::Ready { code, fee })
 }
 
