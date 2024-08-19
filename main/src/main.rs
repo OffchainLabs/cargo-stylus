@@ -75,27 +75,27 @@ enum Apis {
         json: bool,
     },
     /// Activate an already deployed contract.
-    #[command(alias = "a")]
+    #[command(visible_alias = "a")]
     Activate(ActivateConfig),
     #[command(subcommand)]
     /// Cache a contract using the Stylus CacheManager for Arbitrum chains.
     Cache(Cache),
     /// Check a contract.
-    #[command(alias = "c")]
+    #[command(visible_alias = "c")]
     Check(CheckConfig),
     /// Deploy a contract.
-    #[command(alias = "d")]
+    #[command(visible_alias = "d")]
     Deploy(DeployConfig),
     /// Verify the deployment of a Stylus contract.
-    #[command(alias = "v")]
+    #[command(visible_alias = "v")]
     Verify(VerifyConfig),
     /// Generate c code bindings for a Stylus contract.
     Cgen { input: PathBuf, out_dir: PathBuf },
     /// Replay a transaction in gdb.
-    #[command(alias = "r")]
+    #[command(visible_alias = "r")]
     Replay(ReplayArgs),
     /// Trace a transaction.
-    #[command(alias = "t")]
+    #[command(visible_alias = "t")]
     Trace(TraceArgs),
 }
 
@@ -122,10 +122,10 @@ struct CommonConfig {
 #[derive(Subcommand, Clone, Debug)]
 enum Cache {
     /// Places a bid on a Stylus contract to cache it in the Arbitrum chain's wasm cache manager.
-    #[command(alias = "b")]
+    #[command(visible_alias = "b")]
     Bid(CacheBidConfig),
     /// Checks the status of a Stylus contract in the Arbitrum chain's wasm cache manager.
-    #[command(alias = "s")]
+    #[command(visible_alias = "s")]
     Status(CacheStatusConfig),
     /// Checks the status of a Stylus contract in the Arbitrum chain's wasm cache manager.
     #[command()]
