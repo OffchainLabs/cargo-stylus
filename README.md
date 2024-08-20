@@ -46,6 +46,9 @@ cd cargo-stylus
 ```
 
 Run the `install.sh` script to build and install the local binaries to cargo
+```
+./install.sh
+```
 
 Add the `wasm32-unknown-unknown` build target to your Rust compiler:
 ```
