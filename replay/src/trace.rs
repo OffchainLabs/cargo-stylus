@@ -23,7 +23,11 @@ pub struct Trace {
 }
 
 impl Trace {
-    pub async fn new<T: JsonRpcClient>(provider: Provider<T>, tx: TxHash) -> Result<Self> {
+    pub async fn new<T: JsonRpcClient>(
+        provider: Provider<T>,
+        tx: TxHash,
+        use_native_tracer: bool,
+    ) -> Result<Self> {
         let hash = tx.0.into();
 
         let Some(receipt) = provider.get_transaction_receipt(hash).await? else {
@@ -33,7 +37,11 @@ impl Trace {
             bail!("failed to get tx data: {}", hash)
         };
 
-        let query = include_str!("query.js");
+        let query = if use_native_tracer {
+            "stylusTracer"
+        } else {
+            include_str!("query.js")
+        };
         let tracer = GethDebugTracingOptions {
             tracer: Some(GethDebugTracerType::JsTracer(query.to_owned())),
             ..GethDebugTracingOptions::default()
