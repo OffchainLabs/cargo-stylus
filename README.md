@@ -57,11 +57,10 @@ rustup target add wasm32-unknown-unknown
 
 When testing changes to your local repository, ensure that commands such as `cargo stylus deploy` are run with the `--no-verify` flag to opt out of using Docker
 
-You can avoid building and reinstalling all packages by running
+If your changes are localized to a single package, you can avoid building and reinstalling all packages by running
 ```
 cargo install --path <workspace_pkg_with_changes>
 ```
-if your changes are localized to a single package.
 
 ### Overview
 
