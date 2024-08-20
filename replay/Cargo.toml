@@ -17,6 +17,7 @@ clap.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 function_name.workspace = true
+hex.workspace = true
 lazy_static.workspace = true
 libc.workspace = true
 libloading.workspace = true
@@ -25,3 +26,6 @@ rustc-host.workspace = true
 serde = { version = "1.0.203", features = ["derive"] }
 sneks.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

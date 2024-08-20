@@ -10,7 +10,7 @@ use ethers::{
     types::{GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction},
     utils::__serde_json::{from_value, Value},
 };
-use eyre::{bail, Result};
+use eyre::{bail, OptionExt, Result, WrapErr};
 use serde::{Deserialize, Serialize};
 use sneks::SimpleSnakeNames;
 use std::{collections::VecDeque, mem};
@@ -76,7 +76,7 @@ pub struct ActivationTraceFrame {
     address: Value,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceFrame {
     steps: Vec<Hostio>,
     address: Option<Address>,
@@ -117,45 +117,48 @@ impl TraceFrame {
                     get_typed!(keys, Number, $name).as_u64().unwrap()
                 };
             }
+            macro_rules! get_hex {
+                ($name:expr) => {{
+                    let data = get_typed!(keys, String, $name);
+                    let data = data
+                        .strip_prefix("0x")
+                        .ok_or_eyre(concat!($name, " does not contain 0x prefix"))?;
+                    hex::decode(data)
+                        .wrap_err(concat!("failed to parse ", $name))?
+                        .into_boxed_slice()
+                }};
+            }
 
             let name = get_typed!(keys, String, "name");
-            let args = get_typed!(keys, Array, "args");
-            let outs = get_typed!(keys, Array, "outs");
-
-            let mut args = args.as_slice();
-            let mut outs = outs.as_slice();
+            let mut args = get_hex!("args");
+            let mut outs = get_hex!("outs");
 
             let start_ink = get_int!("startInk");
             let end_ink = get_int!("endInk");
 
-            fn read_data(values: &[Value]) -> Result<Box<[u8]>> {
-                let mut vec = vec![];
-                for value in values {
-                    let Value::Number(byte) = value else {
-                        bail!("expected a byte but found {value}");
-                    };
-                    let byte = byte.as_u64().unwrap();
-                    if byte > 255 {
-                        bail!("expected a byte but found {byte}");
-                    };
-                    vec.push(byte as u8);
-                }
-                Ok(vec.into_boxed_slice())
-            }
-
             macro_rules! read_data {
                 ($src:ident) => {{
-                    let data = read_data(&$src)?;
-                    $src = &[];
+                    let data = $src;
+                    $src = Box::new([]);
                     data
                 }};
             }
             macro_rules! read_ty {
                 ($src:ident, $ty:ident, $conv:expr) => {{
                     let size = mem::size_of::<$ty>();
-                    let data = read_data(&$src[..size])?;
-                    $src = &$src[size..];
-                    $conv(&data[..])
+                    let len = $src.len();
+                    if size > len {
+                        bail!(
+                            "parse {}: want {} bytes; got {}",
+                            stringify!($src),
+                            size,
+                            len
+                        );
+                    }
+                    let (left, right) = $src.split_at(size);
+                    let result = $conv(left);
+                    $src = right.to_vec().into_boxed_slice();
+                    result
                 }};
             }
             macro_rules! read_string {
@@ -208,16 +211,9 @@ impl TraceFrame {
 
             macro_rules! frame {
                 () => {{
-                    let mut info = get_typed!(keys, Object, "info");
-
-                    // geth uses the pattern { "0": Number, "1": Number, ... }
-                    let address = get_typed!(info, Object, "address");
-                    let mut address: Vec<_> = address.into_iter().collect();
-                    address.sort_by_key(|x| x.0.parse::<u8>().unwrap());
-                    let address: Vec<_> = address.into_iter().map(|x| x.1).collect();
-                    let address = Address::from_slice(&*read_data(&address)?);
-
-                    let steps = info.remove("steps").unwrap();
+                    let address = get_hex!("address");
+                    let address = Address::from_slice(&address);
+                    let steps = keys.remove("steps").unwrap();
                     TraceFrame::parse_frame(Some(address), steps)?
                 }};
             }
@@ -411,7 +407,16 @@ impl TraceFrame {
                 "console_log" => ConsoleLog {
                     text: read_string!(args),
                 },
-                x => todo!("Missing hostio details {x}"),
+                x => {
+                    if x.starts_with("evm_") {
+                        EVMCall {
+                            name: x.to_owned(),
+                            frame: frame!(),
+                        }
+                    } else {
+                        todo!("Missing hostio details {x}")
+                    }
+                }
             };
 
             assert!(args.is_empty(), "{name}");
@@ -427,7 +432,7 @@ impl TraceFrame {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Hostio {
     pub kind: HostioKind,
     pub start_ink: u64,
@@ -435,7 +440,7 @@ pub struct Hostio {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Debug, SimpleSnakeNames)]
+#[derive(Clone, Debug, Eq, PartialEq, SimpleSnakeNames)]
 pub enum HostioKind {
     UserEntrypoint {
         args_len: u32,
@@ -624,6 +629,10 @@ pub enum HostioKind {
     ReturnDataSize {
         size: u32,
     },
+    EVMCall {
+        name: String,
+        frame: TraceFrame,
+    },
 }
 
 #[derive(Debug)]
@@ -676,5 +685,135 @@ impl FrameReader {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::{address, fixed_bytes};
+
+    #[test]
+    fn parse_simple() {
+        let trace = r#"
+        [
+          {
+            "name": "storage_load_bytes32",
+            "args": "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+            "outs": "0xebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebeb",
+            "startInk": 1000,
+            "endInk": 900 
+          }
+        ]"#;
+        let json = serde_json::from_str(trace).expect("failed to parse json");
+        let top_frame = TraceFrame::parse_frame(None, json).expect("failed to parse frame");
+        assert_eq!(
+            top_frame.steps,
+            vec![Hostio {
+                kind: HostioKind::StorageLoadBytes32 {
+                    key: fixed_bytes!(
+                        "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
+                    ),
+                    value: fixed_bytes!(
+                        "ebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebeb"
+                    ),
+                },
+                start_ink: 1000,
+                end_ink: 900,
+            },]
+        );
+    }
+
+    #[test]
+    fn parse_call() {
+        let trace = r#"
+        [
+          {
+            "name": "call_contract",
+            "args": "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead00000000000000ff000000000000000000000000000000000000000000000000000000000000ffffbeef",
+            "outs": "0x0000000f00",
+            "startInk": 1000,
+            "endInk": 500,
+            "address": "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead",
+            "steps": [
+              {
+                "name": "user_entrypoint",
+                "args": "0x00000001",
+                "outs": "0x",
+                "startInk": 900,
+                "endInk": 600
+              }
+            ]
+          }
+        ]"#;
+        let json = serde_json::from_str(trace).expect("failed to parse json");
+        let top_frame = TraceFrame::parse_frame(None, json).expect("failed to parse frame");
+        assert_eq!(
+            top_frame.steps,
+            vec![Hostio {
+                kind: HostioKind::CallContract {
+                    address: address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead"),
+                    data: Box::new([0xbe, 0xef]),
+                    gas: 255,
+                    value: U256::from(65535),
+                    outs_len: 15,
+                    status: 0,
+                    frame: TraceFrame {
+                        steps: vec![Hostio {
+                            kind: HostioKind::UserEntrypoint { args_len: 1 },
+                            start_ink: 900,
+                            end_ink: 600,
+                        },],
+                        address: Some(address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead"),),
+                    },
+                },
+                start_ink: 1000,
+                end_ink: 500,
+            },],
+        );
+    }
+
+    #[test]
+    fn parse_evm_call() {
+        let trace = r#"
+        [
+          {
+            "name": "evm_call_contract",
+            "args": "0x",
+            "outs": "0x",
+            "startInk": 0,
+            "endInk": 0,
+            "address": "0x457b1ba688e9854bdbed2f473f7510c476a3da09",
+            "steps": [
+              {
+                "name": "user_entrypoint",
+                "args": "0x00000001",
+                "outs": "0x",
+                "startInk": 0,
+                "endInk": 0
+              }
+            ]
+          }
+        ]"#;
+        let json = serde_json::from_str(trace).expect("failed to parse json");
+        let top_frame = TraceFrame::parse_frame(None, json).expect("failed to parse frame");
+        assert_eq!(
+            top_frame.steps,
+            vec![Hostio {
+                kind: HostioKind::EVMCall {
+                    name: String::from("evm_call_contract"),
+                    frame: TraceFrame {
+                        steps: vec![Hostio {
+                            kind: HostioKind::UserEntrypoint { args_len: 1 },
+                            start_ink: 0,
+                            end_ink: 0,
+                        },],
+                        address: Some(address!("457b1ba688e9854bdbed2f473f7510c476a3da09")),
+                    },
+                },
+                start_ink: 0,
+                end_ink: 0,
+            },],
+        );
     }
 }
