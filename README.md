@@ -1,4 +1,4 @@
-# Cargo Stylus 
+# Cargo Stylus
 
 [![linux](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/linux.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/linux.yml) [![mac](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/mac.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/mac.yml) [![windows](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/windows.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/windows.yml) [![lint](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/check.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/check.yml)
 
@@ -29,24 +29,50 @@ cargo stylus --help
 
 Cargo command for developing Arbitrum Stylus projects
 
-Usage: 
+Usage:
     cargo stylus new
     cargo stylus export-abi
-    cargo stylus check 
+    cargo stylus check
     cargo stylus deploy
+```
+
+### Building the Project Locally
+Install [Rust](https://www.rust-lang.org/tools/install)
+
+Clone the repo to your local device
+```
+git clone https://github.com/OffchainLabs/cargo-stylus.git
+cd cargo-stylus
+```
+
+Run the `install.sh` script to build and install the local binaries to cargo
+```
+./install.sh
+```
+
+Add the `wasm32-unknown-unknown` build target to your Rust compiler:
+```
+rustup target add wasm32-unknown-unknown
+```
+
+When testing changes to your local repository, ensure that commands such as `cargo stylus deploy` are run with the `--no-verify` flag to opt out of using Docker
+
+If your changes are localized to a single package, you can avoid building and reinstalling all packages by running
+```
+cargo install --path <workspace_pkg_with_changes>
 ```
 
 ### Overview
 
-The cargo stylus command comes with useful commands such as `new`, `check` and `deploy`, and `export-abi` for developing and deploying Stylus contracts to Arbitrum chains. Here's a common workflow: 
+The cargo stylus command comes with useful commands such as `new`, `check` and `deploy`, and `export-abi` for developing and deploying Stylus contracts to Arbitrum chains. Here's a common workflow:
 
-Start a new Stylus project with 
+Start a new Stylus project with
 
 ```
 cargo stylus new <YOUR_PROJECT_NAME>
 ```
 
-The command above clones a local copy of the [stylus-hello-world](https://github.com/OffchainLabs/stylus-hello-world) starter project, which implements a Counter smart contract in Rust. See the [README](https://github.com/OffchainLabs/stylus-hello-world/blob/main/README.md) of stylus-hello-world for more details. 
+The command above clones a local copy of the [stylus-hello-world](https://github.com/OffchainLabs/stylus-hello-world) starter project, which implements a Counter smart contract in Rust. See the [README](https://github.com/OffchainLabs/stylus-hello-world/blob/main/README.md) of stylus-hello-world for more details.
 
 You can also use `cargo stylus new --minimal <YOUR_PROJECT_NAME>` to create a more barebones example with a Stylus entrypoint locally.
 
@@ -70,7 +96,7 @@ If the command above fails, you'll see detailed information about why your WASM 
 ```
 Reading WASM file at bad-export.wat
 Compressed WASM size: 55 B
-Stylus checks failed: contract predeployment check failed when checking against 
+Stylus checks failed: contract predeployment check failed when checking against
 ARB_WASM_ADDRESS 0x0000…0071: (code: -32000, message: contract activation failed: failed to parse contract)
 
 Caused by:
@@ -160,7 +186,7 @@ See [here](https://hackmd.io/bpeMnrzbSvO4mohhvkrKqw)
 
 ## Deploying Non-Rust WASM Projects
 
-The Stylus tool can also be used to deploy non-Rust, WASM projects to Stylus by specifying the WASM file directly with the `--wasm-file` flag to any of the cargo stylus commands. 
+The Stylus tool can also be used to deploy non-Rust, WASM projects to Stylus by specifying the WASM file directly with the `--wasm-file` flag to any of the cargo stylus commands.
 
 Even WebAssembly Text [(WAT)](https://www.webassemblyman.com/wat_webassembly_text_format.html) files are supported. This means projects that are just individual WASM files can be deployed onchain without needing to have been compiled by Rust. WASMs produced by other languages, such as C, can be used with the tool this way.
 
@@ -192,7 +218,7 @@ cargo stylus export-abi
 
 ## Optimizing Binary Sizes
 
-Brotli-compressed, Stylus contract WASM binaries must fit within the **24Kb** [code-size limit](https://ethereum.org/en/developers/tutorials/downsizing-contracts-to-fight-the-contract-size-limit/) of Ethereum smart contracts. By default, the `cargo stylus check` will attempt to compile a Rust contract into WASM with reasonable optimizations and verify its compressed size fits within the limit. However, there are additional options available in case a contract exceeds the 24Kb limit from using default settings. Deploying smaller binaries onchain is cheaper and better for the overall network, as deployed WASM contracts will exist on the Arbitrum chain's storage forever. 
+Brotli-compressed, Stylus contract WASM binaries must fit within the **24Kb** [code-size limit](https://ethereum.org/en/developers/tutorials/downsizing-contracts-to-fight-the-contract-size-limit/) of Ethereum smart contracts. By default, the `cargo stylus check` will attempt to compile a Rust contract into WASM with reasonable optimizations and verify its compressed size fits within the limit. However, there are additional options available in case a contract exceeds the 24Kb limit from using default settings. Deploying smaller binaries onchain is cheaper and better for the overall network, as deployed WASM contracts will exist on the Arbitrum chain's storage forever.
 
 We recommend optimizing your Stylus contract's sizes to smaller sizes, but keep in mind the safety tradeoffs of using some of the more advanced optimizations. However, some small contracts when compiled to much smaller sizes can suffer performance penalties.
 
