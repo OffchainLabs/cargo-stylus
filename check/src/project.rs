@@ -12,7 +12,6 @@ use brotli2::read::BrotliEncoder;
 use cargo_stylus_util::{color::Color, sys};
 use eyre::{bail, eyre, Result, WrapErr};
 use glob::glob;
-use std::process::Command;
 use std::{
     env::current_dir,
     fs,
@@ -20,8 +19,11 @@ use std::{
     path::{Path, PathBuf},
     process,
 };
+use std::{ops::Range, process::Command};
 use tiny_keccak::{Hasher, Keccak};
 use toml::Value;
+use wasm_encoder::{Module, RawSection};
+use wasmparser::{Parser, Payload};
 
 #[derive(Default, Clone, PartialEq)]
 pub enum OptLevel {
@@ -287,6 +289,10 @@ pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>,
 
     let wasm = add_project_hash_to_wasm_file(&wasm, project_hash)
         .wrap_err("failed to add project hash to wasm file as custom section")?;
+
+    let wasm =
+        strip_user_metadata(&wasm).wrap_err("failed to strip user metadata from wasm file")?;
+
     let wasm = wasmer::wat2wasm(&wasm).wrap_err("failed to parse Wasm")?;
 
     let mut compressor = BrotliEncoder::new(&*wasm, BROTLI_COMPRESSION_LEVEL);
@@ -337,6 +343,38 @@ fn add_custom_section(wasm_file_bytes: &[u8], project_hash: [u8; 32]) -> Vec<u8>
     bytes.extend_from_slice(wasm_file_bytes);
     wasm_gen::write_custom_section(&mut bytes, PROJECT_HASH_SECTION_NAME, &project_hash);
     bytes
+}
+
+fn strip_user_metadata(wasm_file_bytes: &[u8]) -> Result<Vec<u8>> {
+    let mut module = Module::new();
+    // Parse the input WASM and iterate over the sections
+    let parser = Parser::new(0);
+    for payload in parser.parse_all(wasm_file_bytes) {
+        match payload? {
+            Payload::CustomSection { .. } => {
+                // Skip custom sections to remove sensitive metadata
+                greyln!("stripped custom section from user wasm to remove any sensitive data");
+            }
+            Payload::UnknownSection { .. } => {
+                // Skip unknown sections that might not be sensitive
+                println!("stripped unknown section from user wasm to remove any sensitive data");
+            }
+            item => {
+                // Handle other sections as normal.
+                if let Some(section) = item.as_section() {
+                    let (id, range): (u8, Range<usize>) = section;
+                    let data_slice = &wasm_file_bytes[range.start..range.end]; // Start at the beginning of the range
+                    let raw_section = RawSection {
+                        id,
+                        data: data_slice,
+                    };
+                    module.section(&raw_section);
+                }
+            }
+        }
+    }
+    // Return the stripped WASM binary
+    Ok(module.finish())
 }
 
 #[cfg(test)]
