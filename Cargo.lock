@@ -1059,41 +1059,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
-name = "cargo-stylus-replay"
-version = "0.4.2"
-dependencies = [
- "alloy-primitives 0.7.7",
- "cargo-stylus-util",
- "clap",
- "ethers",
- "eyre",
- "function_name",
- "hex",
- "lazy_static",
- "libc",
- "libloading",
- "parking_lot",
- "rustc-host",
- "serde",
- "serde_json",
- "sneks",
- "tokio",
-]
-
-[[package]]
-name = "cargo-stylus-util"
-version = "0.4.2"
-dependencies = [
- "ethers",
- "eyre",
- "hex",
- "rustc-host",
-]
-
-[[package]]
->>>>>>> main
 name = "cargo_metadata"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
