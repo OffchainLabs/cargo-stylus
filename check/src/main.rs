@@ -1,8 +1,9 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use clap::{ArgGroup, Args, Parser};
-use ethers::types::{H160, U256};
+use clap::{ArgGroup, Args, Parser, Subcommand};
+use constants::DEFAULT_ENDPOINT;
+use ethers::types::H160;
 use eyre::{eyre, Context, Result};
 use std::fmt;
 use std::path::PathBuf;
@@ -60,8 +61,9 @@ enum Apis {
     /// Activate an already deployed contract.
     #[command(alias = "a")]
     Activate(ActivateConfig),
+    #[command(subcommand)]
     /// Cache a contract using the Stylus CacheManager for Arbitrum chains.
-    Cache(CacheConfig),
+    Cache(Cache),
     /// Check a contract.
     #[command(alias = "c")]
     Check(CheckConfig),
@@ -76,7 +78,7 @@ enum Apis {
 #[derive(Args, Clone, Debug)]
 struct CommonConfig {
     /// Arbitrum RPC endpoint.
-    #[arg(short, long, default_value = "https://sepolia-rollup.arbitrum.io/rpc")]
+    #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
     endpoint: String,
     /// Whether to print debug info.
     #[arg(long)]
@@ -90,22 +92,59 @@ struct CommonConfig {
     source_files_for_project_hash: Vec<String>,
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
-    max_fee_per_gas_gwei: Option<U256>,
+    max_fee_per_gas_gwei: Option<u128>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+enum Cache {
+    /// Places a bid on a Stylus contract to cache it in the Arbitrum chain's wasm cache manager.
+    #[command(alias = "b")]
+    Bid(CacheBidConfig),
+    /// Checks the status of a Stylus contract in the Arbitrum chain's wasm cache manager.
+    #[command(alias = "s")]
+    Status(CacheStatusConfig),
+    /// Checks the status of a Stylus contract in the Arbitrum chain's wasm cache manager.
+    #[command()]
+    SuggestBid(CacheSuggestionsConfig),
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct CacheConfig {
-    #[command(flatten)]
-    common_cfg: CommonConfig,
+pub struct CacheBidConfig {
+    /// Arbitrum RPC endpoint.
+    #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
+    endpoint: String,
+    /// Whether to print debug info.
+    #[arg(long)]
+    verbose: bool,
     /// Wallet source to use.
     #[command(flatten)]
     auth: AuthOpts,
     /// Deployed and activated contract address to cache.
-    #[arg(long)]
     address: H160,
-    /// Bid, in wei, to place on the desired contract to cache
-    #[arg(short, long, hide(true))]
-    bid: Option<u64>,
+    /// Bid, in wei, to place on the desired contract to cache. A value of 0 is a valid bid.
+    bid: u64,
+    #[arg(long)]
+    /// Optional max fee per gas in gwei units.
+    max_fee_per_gas_gwei: Option<u128>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct CacheStatusConfig {
+    /// Arbitrum RPC endpoint.
+    #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
+    endpoint: String,
+    /// Stylus contract address to check status in the cache manager.
+    #[arg(long)]
+    address: Option<H160>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct CacheSuggestionsConfig {
+    /// Arbitrum RPC endpoint.
+    #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
+    endpoint: String,
+    /// Stylus contract address to suggest a minimum bid for in the cache manager.
+    address: H160,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -317,9 +356,26 @@ async fn main_impl(args: Opts) -> Result<()> {
                 "stylus activate failed"
             );
         }
-        Apis::Cache(config) => {
-            run!(cache::cache_contract(&config).await, "stylus cache failed");
-        }
+        Apis::Cache(subcommand) => match subcommand {
+            Cache::Bid(config) => {
+                run!(
+                    cache::place_bid(&config).await,
+                    "stylus cache place bid failed"
+                );
+            }
+            Cache::SuggestBid(config) => {
+                run!(
+                    cache::suggest_bid(&config).await,
+                    "stylus cache suggest-bid failed"
+                );
+            }
+            Cache::Status(config) => {
+                run!(
+                    cache::check_status(&config).await,
+                    "stylus cache status failed"
+                );
+            }
+        },
         Apis::Check(config) => {
             run!(check::check(&config).await, "stylus checks failed");
         }

@@ -43,3 +43,6 @@ pub const PROJECT_HASH_SECTION_NAME: &str = "project_hash";
 
 /// Name of the toolchain file used to specify the Rust toolchain version for a project.
 pub const TOOLCHAIN_FILE_NAME: &str = "rust-toolchain.toml";
+
+/// The default endpoint for connections to a Stylus-enabled Arbitrum node.
+pub const DEFAULT_ENDPOINT: &str = "https://sepolia-rollup.arbitrum.io/rpc";

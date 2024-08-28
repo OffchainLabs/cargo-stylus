@@ -98,6 +98,14 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         }
         ContractCheck::Active { .. } => greyln!("wasm already activated!"),
     }
+    println!("");
+    let note = format!(
+        r#"NOTE: We recommend running cargo stylus cache bid 0 {} to cache your activated contract in ArbOS.
+Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
+https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#,
+        hex::encode(contract_addr),
+    ).debug_mint();
+    println!("{note}");
     Ok(())
 }
 
@@ -162,12 +170,6 @@ impl DeployConfig {
         }
         let tx_hash = receipt.transaction_hash.debug_lavender();
         greyln!("deployment tx hash: {tx_hash}");
-        println!(
-            r#"INFO: Your program is not yet part of the Stylus contract cache. We recommend running `cargo stylus cache --address={}` to cache your activated contract in ArbOS.
-Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
-https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#,
-            hex::encode(contract)
-        );
         Ok(contract)
     }
 
@@ -228,7 +230,7 @@ pub async fn run_tx(
     name: &str,
     tx: Eip1559TransactionRequest,
     gas: Option<U256>,
-    max_fee_per_gas_gwei: Option<U256>,
+    max_fee_per_gas_gwei: Option<u128>,
     client: &SignerClient,
     verbose: bool,
 ) -> Result<TransactionReceipt> {
@@ -237,7 +239,7 @@ pub async fn run_tx(
         tx.gas = Some(gas);
     }
     if let Some(max_fee) = max_fee_per_gas_gwei {
-        tx.max_fee_per_gas = Some(gwei_to_wei(max_fee)?);
+        tx.max_fee_per_gas = Some(U256::from(gwei_to_wei(max_fee)?));
     }
     let tx = TypedTransaction::Eip1559(tx);
     let tx = client.send_transaction(tx, None).await?;
@@ -301,8 +303,8 @@ pub fn format_gas(gas: U256) -> String {
     }
 }
 
-fn gwei_to_wei(gwei: U256) -> Result<U256> {
-    let wei_per_gwei: U256 = U256::from(10u64.pow(9));
+pub fn gwei_to_wei(gwei: u128) -> Result<u128> {
+    let wei_per_gwei: u128 = 10u128.pow(9);
     match gwei.checked_mul(wei_per_gwei) {
         Some(wei) => Ok(wei),
         None => bail!("overflow occurred while converting gwei to wei"),
