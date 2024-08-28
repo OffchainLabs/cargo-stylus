@@ -89,7 +89,7 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
     let address = cfg.contract_address.unwrap_or(H160::random());
     let fee = check_activate(code.clone().into(), address, &provider).await?;
     let visual_fee = format_data_fee(fee).unwrap_or("???".red());
-    greyln!("wasm data fee: {visual_fee}");
+    greyln!("wasm data fee: {visual_fee} ETH");
     Ok(ContractCheck::Ready { code, fee })
 }
 
@@ -151,7 +151,7 @@ pub fn format_file_size(len: usize, mid: u64, max: u64) -> String {
 fn format_data_fee(fee: U256) -> Result<String> {
     let fee: u64 = (fee / U256::from(1e9)).try_into()?;
     let fee: f64 = fee as f64 / 1e9;
-    let text = format!("Ξ{fee:.6}");
+    let text = format!("{fee:.6}");
     Ok(if fee <= 5e14 {
         text.mint()
     } else if fee <= 5e15 {

@@ -121,6 +121,9 @@ pub struct ActivateConfig {
     /// Percent to bump the estimated activation data fee by. Default of 20%
     #[arg(long, default_value = "20")]
     data_fee_bump_percent: u64,
+    /// Whether or not to just estimate gas without sending a tx.
+    #[arg(long)]
+    estimate_gas: bool,
 }
 
 #[derive(Args, Clone, Debug)]

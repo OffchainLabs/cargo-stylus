@@ -62,6 +62,22 @@ pub async fn activate_contract(cfg: &ActivateConfig) -> Result<()> {
         .value(data_fee)
         .data(data);
     let tx = TypedTransaction::Eip1559(tx);
+    if cfg.estimate_gas {
+        let gas = client.estimate_gas(&tx, None).await?;
+        let gas_price = client.get_gas_price().await?;
+        greyln!("estimates");
+        greyln!("activation tx gas: {}", gas.debug_lavender());
+        greyln!(
+            "gas price: {} gwei",
+            format_units(gas_price, "gwei")?.debug_lavender()
+        );
+        let total_cost = gas_price.checked_mul(gas).unwrap_or_default();
+        let eth_estimate = format_units(total_cost, "ether")?;
+        greyln!(
+            "activation tx total cost: {} ETH",
+            eth_estimate.debug_lavender()
+        );
+    }
     let tx = client.send_transaction(tx, None).await?;
     match tx.await? {
         Some(receipt) => {
