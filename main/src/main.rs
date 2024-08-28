@@ -232,15 +232,8 @@ pub struct VerifyConfig {
 
 #[derive(Args, Clone, Debug)]
 struct ReplayArgs {
-    /// RPC endpoint.
-    #[arg(short, long, default_value = "http://localhost:8547")]
-    endpoint: String,
-    /// Tx to replay.
-    #[arg(short, long)]
-    tx: TxHash,
-    /// Project path.
-    #[arg(short, long, default_value = ".")]
-    project: PathBuf,
+    #[command(flatten)]
+    trace: TraceArgs,
     /// Whether to use stable Rust. Note that nightly is needed to expand macros.
     #[arg(short, long)]
     stable_rust: bool,
@@ -260,6 +253,9 @@ struct TraceArgs {
     /// Project path.
     #[arg(short, long, default_value = ".")]
     project: PathBuf,
+    /// If set, use the native tracer instead of the JavaScript one. Notice the native tracer might not be available in the node.
+    #[arg(short, long, default_value_t = false)]
+    use_native_tracer: bool,
 }
 
 #[derive(Clone, Debug, Args)]
@@ -538,7 +534,7 @@ async fn main_impl(args: Opts) -> Result<()> {
 
 async fn trace(args: TraceArgs) -> Result<()> {
     let provider = sys::new_provider(&args.endpoint)?;
-    let trace = Trace::new(provider, args.tx).await?;
+    let trace = Trace::new(provider, args.tx, args.use_native_tracer).await?;
     println!("{}", trace.json);
     Ok(())
 }
@@ -576,11 +572,11 @@ async fn replay(args: ReplayArgs) -> Result<()> {
         bail!("failed to exec gdb {:?}", err);
     }
 
-    let provider = sys::new_provider(&args.endpoint)?;
-    let trace = Trace::new(provider, args.tx).await?;
+    let provider = sys::new_provider(&args.trace.endpoint)?;
+    let trace = Trace::new(provider, args.trace.tx, args.trace.use_native_tracer).await?;
 
-    build_so(&args.project)?;
-    let so = find_so(&args.project)?;
+    build_so(&args.trace.project)?;
+    let so = find_so(&args.trace.project)?;
 
     // TODO: don't assume the contract is top-level
     let args_len = trace.tx.input.len();
