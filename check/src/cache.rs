@@ -119,18 +119,21 @@ pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
     greyln!("Cache size: {}", cache_size.debug_grey());
     greyln!("Queue size: {}", queue_size.debug_grey());
     greyln!(
-        "Minimum bid for {} contract: {}",
+        "Minimum bid for {} {} {}",
         "8kb".debug_mint(),
+        "contract:".grey(),
         min_bid_smol.debug_lavender()
     );
     greyln!(
-        "Minimum bid for {} contract: {}",
+        "Minimum bid for {} {} {}",
         "16kb".debug_yellow(),
+        "contract:".grey(),
         min_bid_med.debug_lavender()
     );
     greyln!(
-        "Minimum bid for {} contract: {}",
+        "Minimum bid for {} {} {}",
         "24kb".debug_red(),
+        "contract:".grey(),
         min_bid_big.debug_lavender()
     );
     if queue_size < cache_size {
