@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use cargo_stylus_util::color::Color;
+use crate::util::color::Color;
 use eyre::{bail, eyre, Result};
 
 use crate::constants::TOOLCHAIN_FILE_NAME;
@@ -58,7 +58,7 @@ fn create_image(version: &str) -> Result<()> {
     write!(
         child.stdin.as_mut().unwrap(),
         "\
-            FROM --platform=linux/amd64 offchainlabs/cargo-stylus-base as base
+            FROM --platform=linux/amd64 offchainlabs/cargo-stylus-base:0.5.0 as base
             RUN rustup toolchain install {}-x86_64-unknown-linux-gnu 
             RUN rustup default {}-x86_64-unknown-linux-gnu
             RUN rustup target add wasm32-unknown-unknown

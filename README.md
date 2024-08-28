@@ -28,12 +28,6 @@ You should now have it available as a Cargo subcommand:
 cargo stylus --help
 
 Cargo command for developing Arbitrum Stylus projects
-
-Usage:
-    cargo stylus new
-    cargo stylus export-abi
-    cargo stylus check
-    cargo stylus deploy
 ```
 
 ### Building the Project Locally
@@ -106,7 +100,7 @@ Location:
     prover/src/binary.rs:493:9, data: None)
 ```
 
-To read more about what counts as valid vs. invalid user WASM contracts, see [VALID_WASM](./check/VALID_WASM.md).
+To read more about what counts as valid vs. invalid user WASM contracts, see [VALID_WASM](./main/VALID_WASM.md).
 
 If your contract succeeds, you'll see the following message:
 
@@ -124,7 +118,7 @@ First, we can estimate the gas required to perform our deployment and activation
 ```
 cargo stylus deploy \
   --private-key-path=<PRIVKEY_FILE_PATH> \
-  --estimate-gas-only
+  --estimate-gas
 ```
 
 and see:
@@ -222,7 +216,7 @@ Brotli-compressed, Stylus contract WASM binaries must fit within the **24Kb** [c
 
 We recommend optimizing your Stylus contract's sizes to smaller sizes, but keep in mind the safety tradeoffs of using some of the more advanced optimizations. However, some small contracts when compiled to much smaller sizes can suffer performance penalties.
 
-For a deep-dive into the different options for optimizing binary sizes using cargo stylus, see [OPTIMIZING_BINARIES.md](./check/OPTIMIZING_BINARIES.md).
+For a deep-dive into the different options for optimizing binary sizes using cargo stylus, see [OPTIMIZING_BINARIES.md](./main/OPTIMIZING_BINARIES.md).
 
 ## License
 

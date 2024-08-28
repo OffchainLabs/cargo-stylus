@@ -8,6 +8,13 @@ macro_rules! greyln {
     }};
 }
 
+macro_rules! mintln {
+    ($($msg:expr),*) => {{
+        let msg = format!($($msg),*);
+        println!("{}", msg.mint())
+    }};
+}
+
 macro_rules! egreyln {
     ($($msg:expr),*) => {{
         let msg = format!($($msg),*);
@@ -15,4 +22,4 @@ macro_rules! egreyln {
     }};
 }
 
-pub(crate) use {egreyln, greyln};
+pub(crate) use {egreyln, greyln, mintln};

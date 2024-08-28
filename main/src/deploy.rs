@@ -2,6 +2,10 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 #![allow(clippy::println_empty_string)]
+use crate::util::{
+    color::{Color, DebugColor},
+    sys,
+};
 use crate::{
     check::{self, ContractCheck},
     constants::ARB_WASM_H160,
@@ -11,10 +15,6 @@ use crate::{
 use alloy_primitives::{Address, U256 as AU256};
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
-use cargo_stylus_util::{
-    color::{Color, DebugColor},
-    sys,
-};
 use ethers::core::utils::format_units;
 use ethers::{
     core::k256::ecdsa::SigningKey,
@@ -99,13 +99,12 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         ContractCheck::Active { .. } => greyln!("wasm already activated!"),
     }
     println!("");
-    let note = format!(
-        r#"NOTE: We recommend running cargo stylus cache bid 0 {} to cache your activated contract in ArbOS.
+    let contract_addr = hex::encode(contract_addr);
+    mintln!(
+        r#"NOTE: We recommend running cargo stylus cache bid {contract_addr} 0 to cache your activated contract in ArbOS.
 Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
-https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#,
-        hex::encode(contract_addr),
-    ).debug_mint();
-    println!("{note}");
+https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#
+    );
     Ok(())
 }
 

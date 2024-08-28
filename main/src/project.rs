@@ -1,6 +1,7 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+use crate::util::{color::Color, sys};
 use crate::{
     constants::{
         BROTLI_COMPRESSION_LEVEL, EOF_PREFIX_NO_DICT, PROJECT_HASH_SECTION_NAME, RUST_TARGET,
@@ -9,7 +10,6 @@ use crate::{
     macros::*,
 };
 use brotli2::read::BrotliEncoder;
-use cargo_stylus_util::{color::Color, sys};
 use eyre::{bail, eyre, Result, WrapErr};
 use glob::glob;
 use std::{

@@ -2,7 +2,7 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use crate::constants::{GITHUB_TEMPLATE_REPO, GITHUB_TEMPLATE_REPO_MINIMAL};
-use cargo_stylus_util::{
+use crate::util::{
     color::{Color, GREY},
     sys,
 };

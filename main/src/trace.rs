@@ -3,8 +3,8 @@
 
 #![allow(clippy::redundant_closure_call)]
 
+use crate::util::color::{Color, DebugColor};
 use alloy_primitives::{Address, TxHash, B256, U256};
-use cargo_stylus_util::color::{Color, DebugColor};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
     types::{GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction},

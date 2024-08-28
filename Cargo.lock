@@ -1011,27 +1011,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus"
-version = "0.4.2"
-dependencies = [
- "cargo-stylus-util",
- "clap",
- "eyre",
-]
-
-[[package]]
-name = "cargo-stylus-cgen"
-version = "0.4.2"
-dependencies = [
- "alloy-json-abi",
- "clap",
- "eyre",
- "serde_json",
- "tiny-keccak",
-]
-
-[[package]]
-name = "cargo-stylus-check"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "alloy-contract",
  "alloy-ethers-typecast",
@@ -1046,15 +1026,19 @@ dependencies = [
  "brotli2",
  "bytes",
  "bytesize",
- "cargo-stylus-util",
  "clap",
  "ethers",
  "eyre",
+ "function_name",
  "glob",
  "hex",
  "lazy_static",
+ "libloading",
+ "parking_lot",
+ "rustc-host",
  "serde",
  "serde_json",
+ "sneks",
  "sys-info",
  "tempfile",
  "thiserror",
@@ -1069,41 +1053,9 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus-example"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "clap",
-]
-
-[[package]]
-name = "cargo-stylus-replay"
-version = "0.4.2"
-dependencies = [
- "alloy-primitives 0.7.7",
- "cargo-stylus-util",
- "clap",
- "ethers",
- "eyre",
- "function_name",
- "hex",
- "lazy_static",
- "libc",
- "libloading",
- "parking_lot",
- "rustc-host",
- "serde",
- "serde_json",
- "sneks",
- "tokio",
-]
-
-[[package]]
-name = "cargo-stylus-util"
-version = "0.4.2"
-dependencies = [
- "ethers",
- "eyre",
- "hex",
- "rustc-host",
 ]
 
 [[package]]

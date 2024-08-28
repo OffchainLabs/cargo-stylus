@@ -1,12 +1,12 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
+use crate::util::color::{Color, DebugColor};
 use alloy_contract::Error;
 use alloy_primitives::{keccak256, Address, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_sol_macro::sol;
 use bytesize::ByteSize;
-use cargo_stylus_util::color::{Color, DebugColor};
 use eyre::{bail, Result};
 use CacheManager::CacheManagerErrors;
 
@@ -119,21 +119,18 @@ pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
     greyln!("Cache size: {}", cache_size.debug_grey());
     greyln!("Queue size: {}", queue_size.debug_grey());
     greyln!(
-        "Minimum bid for {} {} {}",
+        "Minimum bid for {} contract: {}",
         "8kb".debug_mint(),
-        "contract:".grey(),
         min_bid_smol.debug_lavender()
     );
     greyln!(
-        "Minimum bid for {} {} {}",
+        "Minimum bid for {} contract: {}",
         "16kb".debug_yellow(),
-        "contract:".grey(),
         min_bid_med.debug_lavender()
     );
     greyln!(
-        "Minimum bid for {} {} {}",
+        "Minimum bid for {} contract: {}",
         "24kb".debug_red(),
-        "contract:".grey(),
         min_bid_big.debug_lavender()
     );
     if queue_size < cache_size {
@@ -229,7 +226,6 @@ where
 }
 
 fn format_gas(gas: u128) -> String {
-    let gas: u128 = gas.try_into().unwrap_or(u128::MAX);
     let text = format!("{gas} gas");
     if gas <= 3_000_000 {
         text.mint()

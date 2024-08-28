@@ -12,6 +12,7 @@ use ethers::types::H256;
 
 use serde::{Deserialize, Serialize};
 
+use crate::util::{color::Color, sys};
 use crate::{
     check,
     constants::TOOLCHAIN_FILE_NAME,
@@ -19,7 +20,6 @@ use crate::{
     project::{self, extract_toolchain_channel},
     CheckConfig, VerifyConfig,
 };
-use cargo_stylus_util::{color::Color, sys};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct RpcResult {
@@ -28,7 +28,7 @@ struct RpcResult {
 
 pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
-    let hash = cargo_stylus_util::text::decode0x(cfg.deployment_tx)?;
+    let hash = crate::util::text::decode0x(cfg.deployment_tx)?;
     if hash.len() != 32 {
         bail!("Invalid hash");
     }

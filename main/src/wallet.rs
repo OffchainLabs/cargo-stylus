@@ -1,12 +1,12 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+use crate::util::text::{self, decode0x};
 use crate::AuthOpts;
 use alloy_primitives::FixedBytes;
 use alloy_provider::network::EthereumWallet;
 use alloy_signer::Signer;
 use alloy_signer_local::PrivateKeySigner;
-use cargo_stylus_util::text::{self, decode0x};
 use ethers::signers::LocalWallet;
 use eyre::{eyre, Context, Result};
 use std::fs;
@@ -71,6 +71,6 @@ impl AuthOpts {
 
         let signer =
             PrivateKeySigner::decrypt_keystore(keystore, password)?.with_chain_id(Some(chain_id));
-        return Ok(EthereumWallet::new(signer));
+        Ok(EthereumWallet::new(signer))
     }
 }
