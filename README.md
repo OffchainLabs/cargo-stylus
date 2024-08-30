@@ -1,6 +1,6 @@
 # Cargo Stylus
 
-[![linux](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/linux.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/linux.yml) [![mac](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/mac.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/mac.yml) [![windows](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/windows.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/windows.yml) [![lint](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/check.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/check.yml)
+[![linux](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/linux.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/linux.yml) [![mac](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/mac.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/mac.yml) [![lint](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/check.yml/badge.svg)](https://github.com/OffchainLabs/cargo-stylus/actions/workflows/check.yml)
 
 A cargo subcommand for building, verifying, and deploying Arbitrum Stylus WASM contracts in Rust.
 
