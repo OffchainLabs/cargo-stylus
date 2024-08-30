@@ -213,21 +213,19 @@ pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
     let cargo_toml_contents = fs::read_to_string(cargo_toml_path)
         .context("expected to find a Cargo.toml file in project directory")?;
 
-    let cargo_tom: Value =
+    let cargo_toml: Value =
         toml::from_str(&cargo_toml_contents).context("failed to parse Cargo.toml")?;
 
-    // Extract the channel from the toolchain section
-    let Some(pkg) = toolchain_toml.get("package") else {
+    let Some(pkg) = cargo_toml.get("package") else {
         bail!("package section not found in Cargo.toml");
     };
-
     let Some(version) = pkg.get("version") else {
         bail!("could not find version in project's Cargo.toml [package] section");
     };
     let Some(version) = version.as_str() else {
         bail!("version in Cargo.toml's [package] section is not a string");
     };
-    Ok(version)
+    Ok(version.to_string())
 }
 
 pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
