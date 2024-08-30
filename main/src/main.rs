@@ -604,6 +604,7 @@ pub fn build_so(path: &Path) -> Result<()> {
         .current_dir(path)
         .arg("build")
         .arg("--lib")
+        .arg("--locked")
         .arg("--target")
         .arg(rustc_host::from_cli()?)
         .output()?;
