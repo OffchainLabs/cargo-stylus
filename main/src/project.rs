@@ -59,8 +59,14 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
 
     let mut cmd = sys::new_command("cargo");
 
+    // Enforce a version is included in the Cargo.toml file.
+    let cargo_toml_path = cwd.join(Path::new("Cargo.toml"));
+    let cargo_toml_version = extract_cargo_toml_version(&cargo_toml_path)?;
+    greyln!("Building project with Cargo.toml version: {cargo_toml_version}");
+
     cmd.arg("build");
     cmd.arg("--lib");
+    cmd.arg("--locked");
 
     if !cfg.stable {
         cmd.arg("-Z");
@@ -201,6 +207,25 @@ pub fn extract_toolchain_channel(toolchain_file_path: &PathBuf) -> Result<String
         .collect();
 
     Ok(channel)
+}
+
+pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
+    let cargo_toml_contents = fs::read_to_string(cargo_toml_path)
+        .context("expected to find a Cargo.toml file in project directory")?;
+
+    let cargo_toml: Value =
+        toml::from_str(&cargo_toml_contents).context("failed to parse Cargo.toml")?;
+
+    let Some(pkg) = cargo_toml.get("package") else {
+        bail!("package section not found in Cargo.toml");
+    };
+    let Some(version) = pkg.get("version") else {
+        bail!("could not find version in project's Cargo.toml [package] section");
+    };
+    let Some(version) = version.as_str() else {
+        bail!("version in Cargo.toml's [package] section is not a string");
+    };
+    Ok(version.to_string())
 }
 
 pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {

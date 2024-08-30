@@ -12,14 +12,11 @@ use crate::constants::TOOLCHAIN_FILE_NAME;
 use crate::macros::greyln;
 use crate::project::extract_toolchain_channel;
 
-fn version_to_image_name(version: &str) -> String {
-    format!("cargo-stylus-{}", version)
-}
-
-fn image_exists(name: &str) -> Result<bool> {
+fn image_exists() -> Result<bool> {
+    let image_name = format!("cargo-stylus-base:{}", env!("CARGO_PKG_VERSION"));
     let output = Command::new("docker")
         .arg("images")
-        .arg(name)
+        .arg(image_name)
         .output()
         .map_err(|e| eyre!("failed to execute Docker command: {e}"))?;
 
@@ -41,10 +38,11 @@ a reproducible deployment, or opt out by using the --no-verify flag for local bu
 }
 
 fn create_image(version: &str) -> Result<()> {
-    let name = version_to_image_name(version);
-    if image_exists(&name)? {
+    if image_exists()? {
         return Ok(());
     }
+    let pkg_version = env!("CARGO_PKG_VERSION");
+    let name = format!("cargo-stylus-base-{}-toolchain-{}", pkg_version, version);
     println!("Building Docker image for Rust toolchain {}", version,);
     let mut child = Command::new("docker")
         .arg("build")
@@ -58,12 +56,13 @@ fn create_image(version: &str) -> Result<()> {
     write!(
         child.stdin.as_mut().unwrap(),
         "\
-            FROM --platform=linux/amd64 offchainlabs/cargo-stylus-base:0.5.0 as base
+            FROM --platform=linux/amd64 offchainlabs/cargo-stylus-base:{} as base
             RUN rustup toolchain install {}-x86_64-unknown-linux-gnu 
             RUN rustup default {}-x86_64-unknown-linux-gnu
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup component add rust-src --toolchain {}-x86_64-unknown-linux-gnu
         ",
+        pkg_version,
         version,
         version,
         version,
@@ -73,10 +72,8 @@ fn create_image(version: &str) -> Result<()> {
 }
 
 fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
-    let name = version_to_image_name(version);
-    if !image_exists(&name)? {
-        bail!("Docker image {name} doesn't exist");
-    }
+    let pkg_version = env!("CARGO_PKG_VERSION");
+    let name = format!("cargo-stylus-base-{}-toolchain-{}", pkg_version, version);
     let dir =
         std::env::current_dir().map_err(|e| eyre!("failed to find current directory: {e}"))?;
     Command::new("docker")
