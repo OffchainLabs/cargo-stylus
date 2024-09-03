@@ -215,6 +215,10 @@ struct DeployConfig {
     /// builds, but at the risk of not having a reproducible contract for verification purposes.
     #[arg(long)]
     no_verify: bool,
+    /// Cargo stylus version when deploying reproducibly to downloads the corresponding cargo-stylus-base Docker image.
+    /// If not set, uses the default version of the local cargo stylus binary.
+    #[arg(long)]
+    cargo_stylus_version: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -228,6 +232,10 @@ pub struct VerifyConfig {
     /// If specified, will not run the command in a reproducible docker container. Useful for local
     /// builds, but at the risk of not having a reproducible contract for verification purposes.
     no_verify: bool,
+    /// Cargo stylus version when deploying reproducibly to downloads the corresponding cargo-stylus-base Docker image.
+    /// If not set, uses the default version of the local cargo stylus binary.
+    #[arg(long)]
+    cargo_stylus_version: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -324,7 +332,7 @@ impl fmt::Display for DeployConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} {} {} {}",
+            "{} {} {} {} {}",
             self.check_config,
             self.auth,
             match self.estimate_gas {
@@ -334,6 +342,10 @@ impl fmt::Display for DeployConfig {
             match self.no_verify {
                 true => "--no-verify".to_string(),
                 false => "".to_string(),
+            },
+            match self.cargo_stylus_version.as_ref() {
+                Some(version) => format!("--cargo-stylus-version={}", version),
+                None => "".to_string(),
             },
         )
     }
@@ -368,13 +380,17 @@ impl fmt::Display for VerifyConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} --deployment-tx={} {}",
+            "{} --deployment-tx={} {} {}",
             self.common_cfg,
             self.deployment_tx,
             match self.no_verify {
                 true => "--no-verify".to_string(),
                 false => "".to_string(),
-            }
+            },
+            match self.cargo_stylus_version.as_ref() {
+                Some(version) => format!("--cargo-stylus-version={}", version),
+                None => "".to_string(),
+            },
         )
     }
 }
@@ -501,7 +517,7 @@ async fn main_impl(args: Opts) -> Result<()> {
                     .collect::<Vec<String>>();
                 commands.extend(config_args);
                 run!(
-                    docker::run_reproducible(&commands),
+                    docker::run_reproducible(config.cargo_stylus_version, &commands),
                     "failed reproducible run"
                 );
             }
@@ -523,7 +539,7 @@ async fn main_impl(args: Opts) -> Result<()> {
                     .collect::<Vec<String>>();
                 commands.extend(config_args);
                 run!(
-                    docker::run_reproducible(&commands),
+                    docker::run_reproducible(config.cargo_stylus_version, &commands),
                     "failed reproducible run"
                 );
             }

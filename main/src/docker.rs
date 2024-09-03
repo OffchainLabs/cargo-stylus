@@ -12,8 +12,8 @@ use crate::constants::TOOLCHAIN_FILE_NAME;
 use crate::macros::greyln;
 use crate::project::extract_toolchain_channel;
 
-fn image_exists() -> Result<bool> {
-    let image_name = format!("cargo-stylus-base:{}", env!("CARGO_PKG_VERSION"));
+fn image_exists(cargo_stylus_version: &str) -> Result<bool> {
+    let image_name = format!("cargo-stylus-base:{}", cargo_stylus_version);
     let output = Command::new("docker")
         .arg("images")
         .arg(image_name)
@@ -37,12 +37,16 @@ a reproducible deployment, or opt out by using the --no-verify flag for local bu
     Ok(output.stdout.iter().filter(|c| **c == b'\n').count() > 1)
 }
 
-fn create_image(version: &str) -> Result<()> {
-    if image_exists()? {
+fn create_image(cargo_stylus_version: Option<String>, version: &str) -> Result<()> {
+    let cargo_stylus_version =
+        cargo_stylus_version.unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
+    if image_exists(&cargo_stylus_version)? {
         return Ok(());
     }
-    let pkg_version = env!("CARGO_PKG_VERSION");
-    let name = format!("cargo-stylus-base-{}-toolchain-{}", pkg_version, version);
+    let name = format!(
+        "cargo-stylus-base-{}-toolchain-{}",
+        cargo_stylus_version, version
+    );
     println!("Building Docker image for Rust toolchain {}", version,);
     let mut child = Command::new("docker")
         .arg("build")
@@ -62,7 +66,7 @@ fn create_image(version: &str) -> Result<()> {
             RUN rustup target add wasm32-unknown-unknown
             RUN rustup component add rust-src --toolchain {}-x86_64-unknown-linux-gnu
         ",
-        pkg_version,
+        cargo_stylus_version,
         version,
         version,
         version,
@@ -71,9 +75,17 @@ fn create_image(version: &str) -> Result<()> {
     Ok(())
 }
 
-fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
-    let pkg_version = env!("CARGO_PKG_VERSION");
-    let name = format!("cargo-stylus-base-{}-toolchain-{}", pkg_version, version);
+fn run_in_docker_container(
+    cargo_stylus_version: Option<String>,
+    toolchain_version: &str,
+    command_line: &[&str],
+) -> Result<()> {
+    let cargo_stylus_version =
+        cargo_stylus_version.unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
+    let name = format!(
+        "cargo-stylus-base-{}-toolchain-{}",
+        cargo_stylus_version, toolchain_version
+    );
     let dir =
         std::env::current_dir().map_err(|e| eyre!("failed to find current directory: {e}"))?;
     Command::new("docker")
@@ -93,7 +105,10 @@ fn run_in_docker_container(version: &str, command_line: &[&str]) -> Result<()> {
     Ok(())
 }
 
-pub fn run_reproducible(command_line: &[String]) -> Result<()> {
+pub fn run_reproducible(
+    cargo_stylus_version: Option<String>,
+    command_line: &[String],
+) -> Result<()> {
     verify_valid_host()?;
     let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
     let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
@@ -105,8 +120,8 @@ pub fn run_reproducible(command_line: &[String]) -> Result<()> {
     for s in command_line.iter() {
         command.push(s);
     }
-    create_image(&toolchain_channel)?;
-    run_in_docker_container(&toolchain_channel, &command)
+    create_image(cargo_stylus_version.clone(), &toolchain_channel)?;
+    run_in_docker_container(cargo_stylus_version, &toolchain_channel, &command)
 }
 
 fn verify_valid_host() -> Result<()> {
