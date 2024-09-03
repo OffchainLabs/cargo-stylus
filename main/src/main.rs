@@ -332,7 +332,7 @@ impl fmt::Display for DeployConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} {} {} {} {}",
+            "{} {} {} {}",
             self.check_config,
             self.auth,
             match self.estimate_gas {
@@ -342,11 +342,7 @@ impl fmt::Display for DeployConfig {
             match self.no_verify {
                 true => "--no-verify".to_string(),
                 false => "".to_string(),
-            },
-            match self.cargo_stylus_version.as_ref() {
-                Some(version) => format!("--cargo-stylus-version={}", version),
-                None => "".to_string(),
-            },
+            }
         )
     }
 }
@@ -380,17 +376,13 @@ impl fmt::Display for VerifyConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} --deployment-tx={} {} {}",
+            "{} --deployment-tx={} {}",
             self.common_cfg,
             self.deployment_tx,
             match self.no_verify {
                 true => "--no-verify".to_string(),
                 false => "".to_string(),
-            },
-            match self.cargo_stylus_version.as_ref() {
-                Some(version) => format!("--cargo-stylus-version={}", version),
-                None => "".to_string(),
-            },
+            }
         )
     }
 }
