@@ -4,6 +4,9 @@
 
 A cargo subcommand for building, verifying, and deploying Arbitrum Stylus WASM contracts in Rust.
 
+> [!NOTE]  
+> Stylus contract verification will only be supported on Arbiscan for contracts deployed using cargo stylus `v0.5.0` or higher. We highly recommend deploying on Arbitrum Sepolia and verify your contracts on Sepolia Arbiscan first before going to mainnet.
+
 ## Quick Start
 
 ![Image](./header.png)
