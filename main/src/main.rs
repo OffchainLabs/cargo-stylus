@@ -215,8 +215,8 @@ struct DeployConfig {
     /// builds, but at the risk of not having a reproducible contract for verification purposes.
     #[arg(long)]
     no_verify: bool,
-    /// Cargo stylus version when deploying reproducibly. If not set, uses the default version of the local
-    /// cargo stylus binary. TODO: sets in the Docker image.
+    /// Cargo stylus version when deploying reproducibly to downloads the corresponding cargo-stylus-base Docker image.
+    /// If not set, uses the default version of the local cargo stylus binary.
     #[arg(long)]
     cargo_stylus_version: Option<String>,
 }
@@ -232,8 +232,8 @@ pub struct VerifyConfig {
     /// If specified, will not run the command in a reproducible docker container. Useful for local
     /// builds, but at the risk of not having a reproducible contract for verification purposes.
     no_verify: bool,
-    /// Cargo stylus version when deploying reproducibly. If not set, uses the default version of the local
-    /// cargo stylus binary. TODO: sets in the Docker image.
+    /// Cargo stylus version when deploying reproducibly to downloads the corresponding cargo-stylus-base Docker image.
+    /// If not set, uses the default version of the local cargo stylus binary.
     #[arg(long)]
     cargo_stylus_version: Option<String>,
 }
