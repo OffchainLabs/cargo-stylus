@@ -45,4 +45,4 @@ pub const PROJECT_HASH_SECTION_NAME: &str = "project_hash";
 pub const TOOLCHAIN_FILE_NAME: &str = "rust-toolchain.toml";
 
 /// The default endpoint for connections to a Stylus-enabled Arbitrum node.
-pub const DEFAULT_ENDPOINT: &str = "https://sepolia-rollup.arbitrum.io/rpc";
+pub const DEFAULT_ENDPOINT: &str = "https://arb1.arbitrum.io/rpc";

@@ -415,9 +415,9 @@ fn main() -> Result<()> {
         _ => {}
     };
 
-    // see if custom extension exists
+    // see if custom extension exists and is not a deprecated extension
     let custom = format!("cargo-stylus-{arg}");
-    if sys::command_exists(&custom) {
+    if sys::command_exists(&custom) && !is_deprecated_extension(&arg) {
         let mut command = sys::new_command(&custom);
         command.arg(arg).args(args);
 
@@ -438,6 +438,16 @@ fn main() -> Result<()> {
     };
     let runtime = runtime.enable_all().build()?;
     runtime.block_on(main_impl(opts))
+}
+
+// Checks if a cargo stylus extension is an old, deprecated extension which is no longer
+// supported. These extensions are now incorporated as part of the `cargo-stylus` command itself and
+// will be the preferred method of running them.
+fn is_deprecated_extension(subcommand: &str) -> bool {
+    match subcommand {
+        "cargo-stylus-check" | "cargo-stylus-cgen" | "cargo-stylus-replay" => true,
+        _ => false,
+    }
 }
 
 async fn main_impl(args: Opts) -> Result<()> {
