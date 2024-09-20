@@ -104,8 +104,7 @@ impl Trace {
             tx_request = tx_request.value(value);
         }
         if let Some(data) = &args.data {
-            let data_bytes = hex::decode(data.trim_start_matches("0x"))?;
-            tx_request = tx_request.data(data_bytes);
+            tx_request = tx_request.data(data.clone());
         }
 
         // Use the same tracer as in Trace::new
@@ -153,15 +152,7 @@ impl Trace {
                 .unwrap_or_else(|| ethers::types::U256::zero()), // Default to 0 if no gas is provided
             gas_price: args.gas_price,
             value: args.value.unwrap_or_else(|| ethers::types::U256::zero()),
-            input: args
-                .data
-                .as_ref()
-                .map(|d| {
-                    hex::decode(d.strip_prefix("0x").unwrap_or(&d))
-                        .unwrap_or_default()
-                        .into()
-                })
-                .unwrap_or_default(),
+            input: args.data.clone().unwrap_or_default().into(),
             // Default values for other fields
             ..Default::default()
         };

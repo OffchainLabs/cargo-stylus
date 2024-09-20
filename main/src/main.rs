@@ -4,6 +4,7 @@
 use alloy_primitives::TxHash;
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
+use ethers::abi::Bytes;
 use ethers::types::{H160, U256};
 use eyre::{bail, eyre, Context, Result};
 use std::path::PathBuf;
@@ -297,7 +298,7 @@ pub struct SimulateArgs {
 
     /// Data to send with the transaction, as a hex string (with or without '0x' prefix).
     #[arg(short, long)]
-    data: Option<String>,
+    data: Option<Bytes>,
 
     /// Project path.
     #[arg(short, long, default_value = ".")]
