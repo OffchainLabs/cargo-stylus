@@ -4,10 +4,14 @@
 #![allow(clippy::redundant_closure_call)]
 
 use crate::util::color::{Color, DebugColor};
+use crate::SimulateArgs;
 use alloy_primitives::{Address, TxHash, B256, U256};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
-    types::{GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction},
+    types::{
+        BlockId, GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions,
+        GethTrace, Transaction, TransactionRequest,
+    },
     utils::__serde_json::{from_value, Value},
 };
 use eyre::{bail, OptionExt, Result, WrapErr};
@@ -76,6 +80,100 @@ impl Trace {
             steps: self.top_frame.steps.clone().into(),
             frame: self.top_frame,
         }
+    }
+    pub async fn simulate<T: JsonRpcClient>(
+        provider: Provider<T>,
+        args: &SimulateArgs,
+    ) -> Result<Self> {
+        // Build the transaction request
+        let mut tx_request = TransactionRequest::new();
+
+        if let Some(from) = args.from {
+            tx_request = tx_request.from(from);
+        }
+        if let Some(to) = args.to {
+            tx_request = tx_request.to(to);
+        }
+        if let Some(gas) = args.gas {
+            tx_request = tx_request.gas(gas);
+        }
+        if let Some(gas_price) = args.gas_price {
+            tx_request = tx_request.gas_price(gas_price);
+        }
+        if let Some(value) = args.value {
+            tx_request = tx_request.value(value);
+        }
+        if let Some(data) = &args.data {
+            let data_bytes = hex::decode(data.trim_start_matches("0x"))?;
+            tx_request = tx_request.data(data_bytes);
+        }
+
+        // Use the same tracer as in Trace::new
+        let query = if args.use_native_tracer {
+            "stylusTracer"
+        } else {
+            include_str!("query.js")
+        };
+
+        // Corrected construction of tracer_options
+        let tracer_options = GethDebugTracingCallOptions {
+            tracing_options: GethDebugTracingOptions {
+                tracer: Some(GethDebugTracerType::JsTracer(query.to_owned())),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Use the latest block; alternatively, this can be made configurable
+        let block_id = None::<BlockId>;
+
+        let GethTrace::Unknown(json) = provider
+            .debug_trace_call(tx_request, block_id, tracer_options)
+            .await?
+        else {
+            bail!("Malformed tracing result");
+        };
+
+        if let Value::Array(arr) = json.clone() {
+            if arr.is_empty() {
+                bail!("No trace frames found.");
+            }
+        }
+        // Since this is a simulated transaction, we create a dummy Transaction object
+        let tx = Transaction {
+            from: args.from.unwrap_or_default(),
+            to: args.to,
+            gas: args
+                .gas
+                .map(|gas| {
+                    let bytes = [0u8; 32]; // U256 in both libraries is 32 bytes
+                    gas.to_be_bytes().copy_from_slice(&bytes[..8]); // Convert alloy_primitives::U256 to bytes
+                    ethers::types::U256::from_big_endian(&bytes) // Convert bytes to ethers::types::U256
+                })
+                .unwrap_or_else(|| ethers::types::U256::zero()), // Default to 0 if no gas is provided
+            gas_price: args.gas_price,
+            value: args.value.unwrap_or_else(|| ethers::types::U256::zero()),
+            input: args
+                .data
+                .as_ref()
+                .map(|d| {
+                    hex::decode(d.strip_prefix("0x").unwrap_or(&d))
+                        .unwrap_or_default()
+                        .into()
+                })
+                .unwrap_or_default(),
+            // Default values for other fields
+            ..Default::default()
+        };
+
+        // Parse the trace frames
+        let top_frame = TraceFrame::parse_frame(None, json.clone())?;
+
+        Ok(Self {
+            top_frame,
+            tx,
+            json,
+        })
     }
 }
 
