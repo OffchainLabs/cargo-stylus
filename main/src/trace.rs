@@ -149,9 +149,9 @@ impl Trace {
                     gas.to_be_bytes().copy_from_slice(&bytes[..8]); // Convert alloy_primitives::U256 to bytes
                     ethers::types::U256::from_big_endian(&bytes) // Convert bytes to ethers::types::U256
                 })
-                .unwrap_or_else(|| ethers::types::U256::zero()), // Default to 0 if no gas is provided
+                .unwrap_or_else(ethers::types::U256::zero), // Default to 0 if no gas is provided
             gas_price: args.gas_price,
-            value: args.value.unwrap_or_else(|| ethers::types::U256::zero()),
+            value: args.value.unwrap_or_else(ethers::types::U256::zero),
             input: args.data.clone().unwrap_or_default().into(),
             // Default values for other fields
             ..Default::default()
