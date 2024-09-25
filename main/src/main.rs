@@ -4,7 +4,8 @@
 use alloy_primitives::TxHash;
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
-use ethers::types::H160;
+use ethers::abi::Bytes;
+use ethers::types::{H160, U256};
 use eyre::{bail, eyre, Context, Result};
 use std::path::PathBuf;
 use std::{fmt, path::Path};
@@ -97,6 +98,9 @@ enum Apis {
     /// Trace a transaction.
     #[command(visible_alias = "t")]
     Trace(TraceArgs),
+    /// Simulate a transaction.
+    #[command(visible_alias = "s")]
+    Simulate(SimulateArgs),
 }
 
 #[derive(Args, Clone, Debug)]
@@ -262,6 +266,45 @@ struct TraceArgs {
     #[arg(short, long, default_value = ".")]
     project: PathBuf,
     /// If set, use the native tracer instead of the JavaScript one. Notice the native tracer might not be available in the node.
+    #[arg(short, long, default_value_t = false)]
+    use_native_tracer: bool,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct SimulateArgs {
+    /// RPC endpoint.
+    #[arg(short, long, default_value = "http://localhost:8547")]
+    endpoint: String,
+
+    /// From address.
+    #[arg(short, long)]
+    from: Option<H160>,
+
+    /// To address.
+    #[arg(short, long)]
+    to: Option<H160>,
+
+    /// Gas limit.
+    #[arg(long)]
+    gas: Option<u64>,
+
+    /// Gas price.
+    #[arg(long)]
+    gas_price: Option<U256>,
+
+    /// Value to send with the transaction.
+    #[arg(short, long)]
+    value: Option<U256>,
+
+    /// Data to send with the transaction, as a hex string (with or without '0x' prefix).
+    #[arg(short, long)]
+    data: Option<Bytes>,
+
+    /// Project path.
+    #[arg(short, long, default_value = ".")]
+    project: PathBuf,
+
+    /// If set, use the native tracer instead of the JavaScript one.
     #[arg(short, long, default_value_t = false)]
     use_native_tracer: bool,
 }
@@ -473,6 +516,9 @@ async fn main_impl(args: Opts) -> Result<()> {
                 "stylus activate failed"
             );
         }
+        Apis::Simulate(args) => {
+            run!(simulate(args).await, "failed to simulate transaction");
+        }
         Apis::Cgen { input, out_dir } => {
             run!(gen::c_gen(&input, &out_dir), "failed to generate c code");
         }
@@ -553,6 +599,13 @@ async fn main_impl(args: Opts) -> Result<()> {
 async fn trace(args: TraceArgs) -> Result<()> {
     let provider = sys::new_provider(&args.endpoint)?;
     let trace = Trace::new(provider, args.tx, args.use_native_tracer).await?;
+    println!("{}", trace.json);
+    Ok(())
+}
+
+async fn simulate(args: SimulateArgs) -> Result<()> {
+    let provider = sys::new_provider(&args.endpoint)?;
+    let trace = Trace::simulate(provider, &args).await?;
     println!("{}", trace.json);
     Ok(())
 }
