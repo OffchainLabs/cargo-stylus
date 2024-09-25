@@ -487,10 +487,10 @@ fn main() -> Result<()> {
 // supported. These extensions are now incorporated as part of the `cargo-stylus` command itself and
 // will be the preferred method of running them.
 fn is_deprecated_extension(subcommand: &str) -> bool {
-    matches!(
-        subcommand,
-        "cargo-stylus-check" | "cargo-stylus-cgen" | "cargo-stylus-replay"
-    )
+    match subcommand {
+        "cargo-stylus-check" | "cargo-stylus-cgen" | "cargo-stylus-replay" => true,
+        _ => false,
+    }
 }
 
 async fn main_impl(args: Opts) -> Result<()> {
