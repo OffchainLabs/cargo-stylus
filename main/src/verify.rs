@@ -54,6 +54,7 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
         common_cfg: cfg.common_cfg.clone(),
         wasm_file: None,
         contract_address: None,
+        output: None,
     };
     let _ = check::check(&check_cfg)
         .await
