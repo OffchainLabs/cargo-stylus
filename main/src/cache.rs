@@ -168,9 +168,10 @@ pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
         .await?;
     let chain_id = provider.get_chain_id().await?;
     let wallet = cfg.auth.alloy_wallet(chain_id)?;
+    let from_address = wallet.default_signer().address();
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
-        .wallet(wallet.clone())
+        .wallet(wallet)
         .on_builtin(&cfg.endpoint)
         .await?;
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
@@ -183,7 +184,6 @@ pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
 
     greyln!("Checking if contract can be cached...");
 
-    let from_address = wallet.default_signer().address();
     let raw_output = place_bid_call.clone().from(from_address).call().await;
     if let Err(e) = raw_output {
         let Error::TransportError(tperr) = e else {
