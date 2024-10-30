@@ -149,8 +149,7 @@ fn verify_valid_host() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature="docker-test")]
-#[cfg(test)]
+#[cfg(all(test, feature = "docker-test"))]
 mod tests {
     use super::*;
 
