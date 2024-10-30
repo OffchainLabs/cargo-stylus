@@ -14,7 +14,7 @@ use crate::project::extract_toolchain_channel;
 
 fn image_name(cargo_stylus_version: &str, toolchain_version: &str) -> String {
     format!(
-        "cargo-stylus-base-{}-toolchain-{}",
+        "cargo-stylus:base-{}-toolchain-{}",
         cargo_stylus_version, toolchain_version
     )
 }
