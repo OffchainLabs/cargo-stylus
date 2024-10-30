@@ -148,3 +148,31 @@ fn verify_valid_host() -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_image_and_check_it_exists() {
+        let toolchain_version = "1.80.0";
+        let cargo_stylus_version = "0.5.3";
+        let image_name = image_name(&cargo_stylus_version, toolchain_version);
+        println!("image name: {}", image_name);
+
+        // Remove existing docker image
+        Command::new("docker")
+            .arg("image")
+            .arg("rm")
+            .arg("-f")
+            .arg(&image_name)
+            .spawn()
+            .expect("failed to spawn docker image rm")
+            .wait()
+            .expect("failed to run docker image rm");
+
+        assert!(!image_exists(&image_name).unwrap());
+        create_image(&cargo_stylus_version, toolchain_version).unwrap();
+        assert!(image_exists(&image_name).unwrap());
+    }
+}
