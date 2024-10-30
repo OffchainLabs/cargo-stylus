@@ -32,7 +32,7 @@ jobs:
 
     - name: install docker
       run: |
-        brew install docker colima
+        brew install docker
         colima start
 
     - name: Build and Test
