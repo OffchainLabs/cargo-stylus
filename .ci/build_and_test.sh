@@ -15,4 +15,11 @@ if [ "$CFG_RELEASE_CHANNEL" == "nightly" ]; then
 else
     cargo build --locked
 fi
-cargo test
+
+UNAME=$(uname -s)
+if [ "$UNAME" == "Darwin" ]; then
+    # Disable docker tests on MacOS CI
+    cargo test --no-default-features
+else
+    cargo test
+fi

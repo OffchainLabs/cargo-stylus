@@ -10,6 +10,10 @@ license.workspace = true
 version.workspace = true
 repository.workspace = true
 
+[features]
+default = ["docker-test"]
+docker-test = []
+
 [dependencies]
 alloy-primitives.workspace = true
 alloy-json-abi.workspace = true
