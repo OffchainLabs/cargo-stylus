@@ -405,9 +405,38 @@ fn strip_user_metadata(wasm_file_bytes: &[u8]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::fs::{self, File};
-    use std::io::Write;
+    use std::{
+        env,
+        fs::{self, File},
+        io::Write,
+        path::Path,
+    };
     use tempfile::tempdir;
+
+    fn write_valid_toolchain_file(toolchain_file_path: &Path) -> Result<()> {
+        let toolchain_contents = r#"
+            [toolchain]
+            channel = "nightly-2020-07-10"
+            components = [ "rustfmt", "rustc-dev" ]
+            targets = [ "wasm32-unknown-unknown", "thumbv2-none-eabi" ]
+            profile = "minimal"
+        "#;
+        fs::write(&toolchain_file_path, toolchain_contents)?;
+        Ok(())
+    }
+
+    fn write_mock_rust_files(base_path: &Path, num_files: usize, num_lines: u64) -> Result<()> {
+        fs::create_dir(base_path.join("src"))?;
+        let mut contents = String::new();
+        for _ in 0..num_lines {
+            contents.push_str("// foo");
+        }
+        for i in 0..num_files {
+            let file_path = base_path.join(format!("src/f{i}.rs"));
+            fs::write(&file_path, &contents)?;
+        }
+        Ok(())
+    }
 
     #[test]
     fn test_extract_toolchain_channel() -> Result<()> {
@@ -438,15 +467,7 @@ mod test {
         };
         assert!(err_details.to_string().contains("is not a string"),);
 
-        let toolchain_contents = r#"
-            [toolchain]
-            channel = "nightly-2020-07-10"
-            components = [ "rustfmt", "rustc-dev" ]
-            targets = [ "wasm32-unknown-unknown", "thumbv2-none-eabi" ]
-            profile = "minimal"
-        "#;
-        std::fs::write(&toolchain_file_path, toolchain_contents)?;
-
+        write_valid_toolchain_file(&toolchain_file_path)?;
         let channel = extract_toolchain_channel(&toolchain_file_path)?;
         assert_eq!(channel, "nightly-2020-07-10");
         Ok(())
@@ -494,6 +515,27 @@ mod test {
         assert!(!found_files.contains(&dir_path.join("Cargo.toml"))); // Not matching *.rs
         assert_eq!(found_files.len(), 2, "Should only find 2 Rust files.");
 
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_hash_files() -> Result<()> {
+        let dir = tempdir()?;
+        env::set_current_dir(dir.path())?;
+
+        let toolchain_file_path = dir.path().join(TOOLCHAIN_FILE_NAME);
+        write_valid_toolchain_file(&toolchain_file_path)?;
+        write_mock_rust_files(dir.path(), 10, 100)?;
+        fs::write(dir.path().join("Cargo.toml"), "")?;
+        fs::write(dir.path().join("Cargo.lock"), "")?;
+
+        let cfg = BuildConfig::new(false);
+        let hash = hash_files(vec![], cfg)?;
+
+        assert_eq!(
+            hex::encode(hash),
+            "06b50fcc53e0804f043eac3257c825226e59123018b73895cb946676148cb262"
+        );
         Ok(())
     }
 }
