@@ -179,7 +179,7 @@ See `--help` for all available flags and default values.
 
 ## Verifying Stylus Contracts
 
-See [here](https://hackmd.io/bpeMnrzbSvO4mohhvkrKqw)
+See the formal Arbitrum docs on verifying Stylus contracts [here](https://docs.arbitrum.io/stylus/how-tos/verifying-contracts#reproducible-verification)
 
 ## Deploying Non-Rust WASM Projects
 
