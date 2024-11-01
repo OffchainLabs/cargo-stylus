@@ -411,7 +411,10 @@ mod test {
         io::Write,
         path::Path,
     };
-    use tempfile::tempdir;
+    use tempfile::{tempdir, TempDir};
+
+    #[cfg(feature = "nightly")]
+    extern crate test;
 
     fn write_valid_toolchain_file(toolchain_file_path: &Path) -> Result<()> {
         let toolchain_contents = r#"
@@ -425,17 +428,26 @@ mod test {
         Ok(())
     }
 
-    fn write_mock_rust_files(base_path: &Path, num_files: usize, num_lines: u64) -> Result<()> {
-        fs::create_dir(base_path.join("src"))?;
+    fn write_hash_files(num_files: usize, num_lines: usize) -> Result<TempDir> {
+        let dir = tempdir()?;
+        env::set_current_dir(dir.path())?;
+
+        let toolchain_file_path = dir.path().join(TOOLCHAIN_FILE_NAME);
+        write_valid_toolchain_file(&toolchain_file_path)?;
+
+        fs::create_dir(dir.path().join("src"))?;
         let mut contents = String::new();
         for _ in 0..num_lines {
             contents.push_str("// foo");
         }
         for i in 0..num_files {
-            let file_path = base_path.join(format!("src/f{i}.rs"));
+            let file_path = dir.path().join(format!("src/f{i}.rs"));
             fs::write(&file_path, &contents)?;
         }
-        Ok(())
+        fs::write(dir.path().join("Cargo.toml"), "")?;
+        fs::write(dir.path().join("Cargo.lock"), "")?;
+
+        Ok(dir)
     }
 
     #[test]
@@ -520,22 +532,22 @@ mod test {
 
     #[test]
     pub fn test_hash_files() -> Result<()> {
-        let dir = tempdir()?;
-        env::set_current_dir(dir.path())?;
-
-        let toolchain_file_path = dir.path().join(TOOLCHAIN_FILE_NAME);
-        write_valid_toolchain_file(&toolchain_file_path)?;
-        write_mock_rust_files(dir.path(), 10, 100)?;
-        fs::write(dir.path().join("Cargo.toml"), "")?;
-        fs::write(dir.path().join("Cargo.lock"), "")?;
-
-        let cfg = BuildConfig::new(false);
-        let hash = hash_files(vec![], cfg)?;
-
+        let _dir = write_hash_files(10, 100)?;
+        let hash = hash_files(vec![], BuildConfig::new(false))?;
         assert_eq!(
             hex::encode(hash),
             "06b50fcc53e0804f043eac3257c825226e59123018b73895cb946676148cb262"
         );
+        Ok(())
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    pub fn bench_hash_files(b: &mut test::Bencher) -> Result<()> {
+        let _dir = write_hash_files(1000, 10000)?;
+        b.iter(|| {
+            hash_files(vec![], BuildConfig::new(false)).expect("failed to hash files");
+        });
         Ok(())
     }
 }
