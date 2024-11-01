@@ -18,6 +18,8 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process,
+    sync::mpsc,
+    thread,
 };
 use std::{ops::Range, process::Command};
 use tiny_keccak::{Hasher, Keccak};
@@ -228,6 +230,21 @@ pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
     Ok(version.to_string())
 }
 
+pub fn read_file_preimage(filename: &Path) -> Result<Vec<u8>> {
+    let mut contents = Vec::with_capacity(1024);
+    {
+        let filename = filename.as_os_str();
+        contents.extend_from_slice(&(filename.len() as u64).to_be_bytes());
+        contents.extend_from_slice(filename.as_encoded_bytes());
+    }
+    let mut file = std::fs::File::open(filename)
+        .map_err(|e| eyre!("failed to open file {}: {e}", filename.display()))?;
+    contents.extend_from_slice(&file.metadata().unwrap().len().to_be_bytes());
+    file.read_to_end(&mut contents)
+        .map_err(|e| eyre!("Unable to read file {}: {e}", filename.display()))?;
+    Ok(contents)
+}
+
 pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
     let mut keccak = Keccak::v256();
     let mut cmd = Command::new("cargo");
@@ -245,26 +262,6 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
         keccak.update(&[1]);
     }
 
-    let mut buf = vec![0u8; 0x100000];
-
-    let mut hash_file = |filename: &Path| -> Result<()> {
-        keccak.update(&(filename.as_os_str().len() as u64).to_be_bytes());
-        keccak.update(filename.as_os_str().as_encoded_bytes());
-        let mut file = std::fs::File::open(filename)
-            .map_err(|e| eyre!("failed to open file {}: {e}", filename.display()))?;
-        keccak.update(&file.metadata().unwrap().len().to_be_bytes());
-        loop {
-            let bytes_read = file
-                .read(&mut buf)
-                .map_err(|e| eyre!("Unable to read file {}: {e}", filename.display()))?;
-            if bytes_read == 0 {
-                break;
-            }
-            keccak.update(&buf[..bytes_read]);
-        }
-        Ok(())
-    };
-
     // Fetch the Rust toolchain toml file from the project root. Assert that it exists and add it to the
     // files in the directory to hash.
     let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
@@ -277,12 +274,20 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
     paths.push(toolchain_file_path);
     paths.sort();
 
-    for filename in paths.iter() {
-        greyln!(
-            "File used for deployment hash: {}",
-            filename.as_os_str().to_string_lossy()
-        );
-        hash_file(filename)?;
+    // Read the file contents in another thread and process the keccak in the main thread.
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        for filename in paths.iter() {
+            greyln!(
+                "File used for deployment hash: {}",
+                filename.as_os_str().to_string_lossy()
+            );
+            tx.send(read_file_preimage(&filename))
+                .expect("failed to send preimage (impossible)");
+        }
+    });
+    for result in rx {
+        keccak.update(result?.as_slice());
     }
 
     let mut hash = [0u8; 32];
