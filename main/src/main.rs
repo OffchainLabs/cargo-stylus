@@ -7,8 +7,7 @@ use constants::DEFAULT_ENDPOINT;
 use ethers::abi::Bytes;
 use ethers::types::{H160, U256};
 use eyre::{bail, eyre, Context, Result};
-use std::path::PathBuf;
-use std::{fmt, path::Path};
+use std::{fmt, path::{Path, PathBuf}};
 use tokio::runtime::Builder;
 use trace::Trace;
 use util::{color::Color, sys};
@@ -487,10 +486,7 @@ fn main() -> Result<()> {
 // supported. These extensions are now incorporated as part of the `cargo-stylus` command itself and
 // will be the preferred method of running them.
 fn is_deprecated_extension(subcommand: &str) -> bool {
-    match subcommand {
-        "cargo-stylus-check" | "cargo-stylus-cgen" | "cargo-stylus-replay" => true,
-        _ => false,
-    }
+    matches!(subcommand, "cargo-stylus-check" | "cargo-stylus-cgen" | "cargo-stylus-replay")
 }
 
 async fn main_impl(args: Opts) -> Result<()> {
@@ -612,35 +608,52 @@ async fn simulate(args: SimulateArgs) -> Result<()> {
 
 async fn replay(args: ReplayArgs) -> Result<()> {
     if !args.child {
-        let rust_gdb = sys::command_exists("rust-gdb");
-        if !rust_gdb {
-            println!(
-                "{} not installed, falling back to {}",
-                "rust-gdb".red(),
-                "gdb".red()
-            );
-        }
-
-        let mut cmd = match rust_gdb {
-            true => sys::new_command("rust-gdb"),
-            false => sys::new_command("gdb"),
+        let macos = cfg!(target_os = "macos");
+        let gdb_args = [
+            "--quiet",
+            "-ex=set breakpoint pending on",
+            "-ex=b user_entrypoint",
+            "-ex=r",
+            "--args",
+        ].as_slice();
+        let lldb_args = [
+            "--source-quietly",
+            "-o",
+            "b user_entrypoint",
+            "-o",
+            "r",
+            "--",
+        ].as_slice();
+        let (cmd_name, args) = if sys::command_exists("rust-gdb") && !macos {
+            ("rust-gdb", &gdb_args)
+        } else if sys::command_exists("rust-lldb") {
+            ("rust-lldb", &lldb_args)
+        } else {
+            println!("rust specific debugger not installed, falling back to generic debugger");
+            if sys::command_exists("gdb") && !macos {
+                ("gdb", &gdb_args)
+            } else if sys::command_exists("lldb") {
+                ("lldb", &lldb_args)
+            } else {
+                bail!("no debugger found")
+            }
         };
-        cmd.arg("--quiet");
-        cmd.arg("-ex=set breakpoint pending on");
-        cmd.arg("-ex=b user_entrypoint");
-        cmd.arg("-ex=r");
-        cmd.arg("--args");
+        let mut cmd = sys::new_command(cmd_name);
+        for arg in args.iter() {
+            cmd.arg(arg);
+        }
 
         for arg in std::env::args() {
             cmd.arg(arg);
         }
         cmd.arg("--child");
+
         #[cfg(unix)]
         let err = cmd.exec();
         #[cfg(windows)]
         let err = cmd.status();
 
-        bail!("failed to exec gdb {:?}", err);
+        bail!("failed to exec {cmd_name} {:?}", err);
     }
 
     let provider = sys::new_provider(&args.trace.endpoint)?;
