@@ -230,7 +230,7 @@ pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
     Ok(version.to_string())
 }
 
-pub fn read_file_preimage(filename: &Path) -> Result<(Vec<u8>, Option<memmap::Mmap>)> {
+pub fn read_file_preimage(filename: &Path) -> Result<Vec<u8>> {
     let mut contents = Vec::with_capacity(1024);
     {
         let filename = filename.as_os_str();
@@ -243,11 +243,11 @@ pub fn read_file_preimage(filename: &Path) -> Result<(Vec<u8>, Option<memmap::Mm
     contents.extend_from_slice(&len.to_be_bytes());
 
     if len > 0 {
+        contents.reserve_exact(contents.len() + len as usize);
         let mmap = unsafe { memmap::MmapOptions::new().map(&file)? };
-        Ok((contents, Some(mmap)))
-    } else {
-        Ok((contents, None))
+        contents.extend_from_slice(&mmap);
     }
+    Ok(contents)
 }
 
 pub fn hash_project(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
@@ -305,11 +305,8 @@ pub fn hash_files(
         }
     });
     for result in rx {
-        let (metadata, mmap) = result?;
+        let metadata = result?;
         keccak.update(metadata.as_slice());
-        if let Some(mmap) = mmap {
-            keccak.update(&mmap);
-        }
     }
 
     let mut hash = [0u8; 32];
