@@ -613,8 +613,8 @@ async fn simulate(args: SimulateArgs) -> Result<()> {
 }
 
 async fn replay(args: ReplayArgs) -> Result<()> {
+    let macos = cfg!(target_os = "macos");
     if !args.child {
-        let macos = cfg!(target_os = "macos");
         let gdb_args = [
             "--quiet",
             "-ex=set breakpoint pending on",
@@ -667,8 +667,9 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     let provider = sys::new_provider(&args.trace.endpoint)?;
     let trace = Trace::new(provider, args.trace.tx, args.trace.use_native_tracer).await?;
 
-    build_so(&args.trace.project)?;
-    let so = find_so(&args.trace.project)?;
+    build_shared_library(&args.trace.project)?;
+    let library_extension = if macos { ".dylib" } else { ".so" };
+    let shared_library = find_shared_library(&args.trace.project, library_extension)?;
 
     // TODO: don't assume the contract is top-level
     let args_len = trace.tx.input.len();
@@ -677,7 +678,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
         *hostio::FRAME.lock() = Some(trace.reader());
 
         type Entrypoint = unsafe extern "C" fn(usize) -> usize;
-        let lib = libloading::Library::new(so)?;
+        let lib = libloading::Library::new(shared_library)?;
         let main: libloading::Symbol<Entrypoint> = lib.get(b"user_entrypoint")?;
 
         match main(args_len) {
@@ -689,7 +690,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     Ok(())
 }
 
-pub fn build_so(path: &Path) -> Result<()> {
+pub fn build_shared_library(path: &Path) -> Result<()> {
     let mut cargo = sys::new_command("cargo");
 
     cargo
@@ -703,7 +704,7 @@ pub fn build_so(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn find_so(project: &Path) -> Result<PathBuf> {
+pub fn find_shared_library(project: &Path, extension: &str) -> Result<PathBuf> {
     let triple = rustc_host::from_cli()?;
     let so_dir = project.join(format!("target/{triple}/debug/"));
     let so_dir = std::fs::read_dir(&so_dir)
@@ -719,7 +720,7 @@ pub fn find_so(project: &Path) -> Result<PathBuf> {
         };
         let ext = ext.to_string_lossy();
 
-        if ext.contains(".so") {
+        if ext.contains(extension) {
             if let Some(other) = file {
                 let other = other.file_name().unwrap().to_string_lossy();
                 bail!("more than one .so found: {ext} and {other}",);
