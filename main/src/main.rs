@@ -7,7 +7,10 @@ use constants::DEFAULT_ENDPOINT;
 use ethers::abi::Bytes;
 use ethers::types::{H160, U256};
 use eyre::{bail, eyre, Context, Result};
-use std::{fmt, path::{Path, PathBuf}};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
 use tokio::runtime::Builder;
 use trace::Trace;
 use util::{color::Color, sys};
@@ -486,7 +489,10 @@ fn main() -> Result<()> {
 // supported. These extensions are now incorporated as part of the `cargo-stylus` command itself and
 // will be the preferred method of running them.
 fn is_deprecated_extension(subcommand: &str) -> bool {
-    matches!(subcommand, "cargo-stylus-check" | "cargo-stylus-cgen" | "cargo-stylus-replay")
+    matches!(
+        subcommand,
+        "cargo-stylus-check" | "cargo-stylus-cgen" | "cargo-stylus-replay"
+    )
 }
 
 async fn main_impl(args: Opts) -> Result<()> {
@@ -615,7 +621,8 @@ async fn replay(args: ReplayArgs) -> Result<()> {
             "-ex=b user_entrypoint",
             "-ex=r",
             "--args",
-        ].as_slice();
+        ]
+        .as_slice();
         let lldb_args = [
             "--source-quietly",
             "-o",
@@ -623,7 +630,8 @@ async fn replay(args: ReplayArgs) -> Result<()> {
             "-o",
             "r",
             "--",
-        ].as_slice();
+        ]
+        .as_slice();
         let (cmd_name, args) = if sys::command_exists("rust-gdb") && !macos {
             ("rust-gdb", &gdb_args)
         } else if sys::command_exists("rust-lldb") {
