@@ -230,19 +230,24 @@ pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
     Ok(version.to_string())
 }
 
-pub fn read_file_preimage(filename: &Path) -> Result<Vec<u8>> {
+pub fn read_file_preimage(filename: &Path) -> Result<(Vec<u8>, Option<memmap::Mmap>)> {
     let mut contents = Vec::with_capacity(1024);
     {
         let filename = filename.as_os_str();
         contents.extend_from_slice(&(filename.len() as u64).to_be_bytes());
         contents.extend_from_slice(filename.as_encoded_bytes());
     }
-    let mut file = std::fs::File::open(filename)
+    let file = std::fs::File::open(filename)
         .map_err(|e| eyre!("failed to open file {}: {e}", filename.display()))?;
-    contents.extend_from_slice(&file.metadata().unwrap().len().to_be_bytes());
-    file.read_to_end(&mut contents)
-        .map_err(|e| eyre!("Unable to read file {}: {e}", filename.display()))?;
-    Ok(contents)
+    let len = file.metadata().unwrap().len();
+    contents.extend_from_slice(&len.to_be_bytes());
+
+    if len > 0 {
+        let mmap = unsafe { memmap::MmapOptions::new().map(&file)? };
+        Ok((contents, Some(mmap)))
+    } else {
+        Ok((contents, None))
+    }
 }
 
 pub fn hash_project(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
@@ -300,7 +305,11 @@ pub fn hash_files(
         }
     });
     for result in rx {
-        keccak.update(result?.as_slice());
+        let (metadata, mmap) = result?;
+        keccak.update(metadata.as_slice());
+        if let Some(mmap) = mmap {
+            keccak.update(&mmap);
+        }
     }
 
     let mut hash = [0u8; 32];
