@@ -10,7 +10,7 @@ test:
 
 .PHONY: bench
 bench:
-	rustup run nightly cargo bench -F nightly
+	cargo +nightly bench -F nightly
 
 .PHONY: fmt
 fmt:
