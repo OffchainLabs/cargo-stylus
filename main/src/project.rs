@@ -264,10 +264,6 @@ pub fn hash_files(
     cfg: BuildConfig,
 ) -> Result<[u8; 32]> {
     let mut keccak = Keccak::v256();
-    println!(
-        "> {}",
-        String::from_utf8(cargo_version_output.into()).unwrap()
-    );
     keccak.update(cargo_version_output);
     if cfg.opt_level == OptLevel::Z {
         keccak.update(&[0]);
