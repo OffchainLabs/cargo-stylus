@@ -245,8 +245,7 @@ pub fn read_file_preimage(filename: &Path) -> Result<Vec<u8>> {
     Ok(contents)
 }
 
-pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
-    let mut keccak = Keccak::v256();
+pub fn hash_project(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
     let mut cmd = Command::new("cargo");
     cmd.arg("--version");
     let output = cmd
@@ -255,7 +254,21 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
     if !output.status.success() {
         bail!("cargo version command failed");
     }
-    keccak.update(&output.stdout);
+
+    hash_files(&output.stdout, source_file_patterns, cfg)
+}
+
+pub fn hash_files(
+    cargo_version_output: &[u8],
+    source_file_patterns: Vec<String>,
+    cfg: BuildConfig,
+) -> Result<[u8; 32]> {
+    let mut keccak = Keccak::v256();
+    println!(
+        "> {}",
+        String::from_utf8(cargo_version_output.into()).unwrap()
+    );
+    keccak.update(cargo_version_output);
     if cfg.opt_level == OptLevel::Z {
         keccak.update(&[0]);
     } else {
@@ -282,7 +295,7 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
                 "File used for deployment hash: {}",
                 filename.as_os_str().to_string_lossy()
             );
-            tx.send(read_file_preimage(&filename))
+            tx.send(read_file_preimage(filename))
                 .expect("failed to send preimage (impossible)");
         }
     });
@@ -538,7 +551,8 @@ mod test {
     #[test]
     pub fn test_hash_files() -> Result<()> {
         let _dir = write_hash_files(10, 100)?;
-        let hash = hash_files(vec![], BuildConfig::new(false))?;
+        let rust_version = "cargo 1.80.0 (376290515 2024-07-16)\n".as_bytes();
+        let hash = hash_files(rust_version, vec![], BuildConfig::new(false))?;
         assert_eq!(
             hex::encode(hash),
             "06b50fcc53e0804f043eac3257c825226e59123018b73895cb946676148cb262"
@@ -550,8 +564,10 @@ mod test {
     #[bench]
     pub fn bench_hash_files(b: &mut test::Bencher) -> Result<()> {
         let _dir = write_hash_files(1000, 10000)?;
+        let rust_version = "cargo 1.80.0 (376290515 2024-07-16)\n".as_bytes();
         b.iter(|| {
-            hash_files(vec![], BuildConfig::new(false)).expect("failed to hash files");
+            hash_files(rust_version, vec![], BuildConfig::new(false))
+                .expect("failed to hash files");
         });
         Ok(())
     }
