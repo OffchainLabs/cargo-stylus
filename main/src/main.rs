@@ -225,6 +225,9 @@ struct DeployConfig {
     /// If not set, uses the default version of the local cargo stylus binary.
     #[arg(long)]
     cargo_stylus_version: Option<String>,
+    /// If set, do not activate the program after deploying it
+    #[arg(long)]
+    no_activate: bool,
 }
 
 #[derive(Args, Clone, Debug)]
