@@ -39,20 +39,13 @@ pub type SignerClient = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
 /// Deploys a stylus contract, activating if needed.
 pub async fn deploy(cfg: DeployConfig) -> Result<()> {
-    macro_rules! run {
-        ($expr:expr) => {
-            $expr.await?
-        };
-        ($expr:expr, $($msg:expr),+) => {
-            $expr.await.wrap_err_with(|| eyre!($($msg),+))?
-        };
-    }
-
-    let contract = run!(check::check(&cfg.check_config), "cargo stylus check failed");
+    let contract = check::check(&cfg.check_config)
+        .await
+        .expect("cargo stylus check failed");
     let verbose = cfg.check_config.common_cfg.verbose;
 
     let client = sys::new_provider(&cfg.check_config.common_cfg.endpoint)?;
-    let chain_id = run!(client.get_chainid(), "failed to get chain id");
+    let chain_id = client.get_chainid().await.expect("failed to get chain id");
 
     let wallet = cfg.auth.wallet().wrap_err("failed to load wallet")?;
     let wallet = wallet.with_chain_id(chain_id.as_u64());
@@ -67,7 +60,10 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
 
     if let ContractCheck::Ready { .. } = &contract {
         // check balance early
-        let balance = run!(client.get_balance(sender, None), "failed to get balance");
+        let balance = client
+            .get_balance(sender, None)
+            .await
+            .expect("failed to get balance");
         let balance = alloy_ethers_typecast::ethers_u256_to_alloy(balance);
 
         if balance < data_fee && !cfg.estimate_gas {
@@ -94,7 +90,9 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     if cfg.no_activate {
         mintln!(
             r#"NOTE: You must activate the stylus contract before calling it. To do so, we recommend running:
-cargo stylus activate --address {}"#, hex::encode(contract_addr));
+cargo stylus activate --address {}"#,
+            hex::encode(contract_addr)
+        );
         return Ok(());
     }
 
