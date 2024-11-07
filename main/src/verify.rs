@@ -18,7 +18,7 @@ use crate::{
     constants::TOOLCHAIN_FILE_NAME,
     deploy::{self, extract_compressed_wasm, extract_contract_evm_deployment_prelude},
     project::{self, extract_toolchain_channel},
-    CheckConfig, VerifyConfig,
+    CheckConfig, DataFeeOpts, VerifyConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -52,6 +52,9 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     }
     let check_cfg = CheckConfig {
         common_cfg: cfg.common_cfg.clone(),
+        data_fee: DataFeeOpts {
+            data_fee_bump_percent: 20,
+        },
         wasm_file: None,
         contract_address: None,
     };
