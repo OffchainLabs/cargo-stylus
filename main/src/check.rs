@@ -6,7 +6,10 @@ use crate::{
     constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME},
     macros::*,
     project::{self, extract_toolchain_channel, BuildConfig},
-    util::{color::Color, sys, text},
+    util::{
+        color::{Color, GREY, LAVENDER},
+        sys, text,
+    },
     CheckConfig, DataFeeOpts,
 };
 use alloy_primitives::{Address, B256, U256};
@@ -267,11 +270,11 @@ pub async fn check_activate(
 
     let bump = opts.data_fee_bump_percent;
     let adjusted_data_fee = data_fee * U256::from(100 + bump) / U256::from(100);
-    print!("{}", "wasm data fee: ".grey());
-    print!("{}", format_data_fee(adjusted_data_fee));
-    print!("{}", " (originally ".grey());
-    print!("{}", format_data_fee(data_fee));
-    greyln!(" with {bump}% bump)");
+    greyln!(
+        "wasm data fee: {} {GREY}(originally {}{GREY} with {LAVENDER}{bump}%{GREY} bump)",
+        format_data_fee(adjusted_data_fee),
+        format_data_fee(data_fee)
+    );
 
     Ok(adjusted_data_fee)
 }
