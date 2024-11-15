@@ -1,6 +1,9 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+// Enable unstable test feature for benchmarks when nightly is available
+#![cfg_attr(feature = "nightly", feature(test))]
+
 use alloy_primitives::TxHash;
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
