@@ -17,7 +17,7 @@ use crate::check::check_activate;
 use crate::constants::ARB_WASM_H160;
 use crate::macros::greyln;
 
-use crate::ActivateConfig;
+use crate::{ActivateConfig, ActivationTxConfig};
 
 sol! {
     interface ArbWasm {
@@ -93,6 +93,17 @@ pub async fn activate_contract(cfg: &ActivateConfig) -> Result<()> {
                 cfg.address
             );
         }
+    }
+    Ok(())
+}
+
+pub async fn write_activation_tx(cfg: &ActivationTxConfig) -> Result<()> {
+    let contract: Address = cfg.address.to_fixed_bytes().into();
+    let data = ArbWasm::activateProgramCall { program: contract }.abi_encode();
+    let mut out = sys::file_or_stdout(cfg.output.clone())?;
+    out.write_all(hex::encode(&data).as_bytes())?;
+    if cfg.output.is_none() {
+        println!();
     }
     Ok(())
 }

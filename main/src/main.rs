@@ -80,6 +80,8 @@ enum Apis {
     /// Activate an already deployed contract.
     #[command(visible_alias = "a")]
     Activate(ActivateConfig),
+    /// Generate Activation Tx.
+    ActivationTx(ActivationTxConfig),
     #[command(subcommand)]
     /// Cache a contract using the Stylus CacheManager for Arbitrum chains.
     Cache(Cache),
@@ -196,6 +198,16 @@ pub struct ActivateConfig {
 }
 
 #[derive(Args, Clone, Debug)]
+pub struct ActivationTxConfig {
+    /// Deployed Stylus contract address to activate.
+    #[arg(long)]
+    address: H160,
+    /// The activation transaction hex data file (defaults to stdout).
+    #[arg(long)]
+    output: Option<PathBuf>,
+}
+
+#[derive(Args, Clone, Debug)]
 pub struct CheckConfig {
     #[command(flatten)]
     common_cfg: CommonConfig,
@@ -205,6 +217,9 @@ pub struct CheckConfig {
     /// Where to deploy and activate the contract (defaults to a random address).
     #[arg(long)]
     contract_address: Option<H160>,
+    /// The deployment transaction hex data file.
+    #[arg(long)]
+    output: Option<PathBuf>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -516,6 +531,12 @@ async fn main_impl(args: Opts) -> Result<()> {
             run!(
                 activate::activate_contract(&config).await,
                 "stylus activate failed"
+            );
+        }
+        Apis::ActivationTx(config) => {
+            run!(
+                activate::write_activation_tx(&config).await,
+                "stylus activation tx writing failed"
             );
         }
         Apis::Simulate(args) => {
