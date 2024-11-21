@@ -16,10 +16,10 @@ else
     cargo build --locked
 fi
 
-UNAME=$(uname -s)
-if [ "$UNAME" == "Darwin" ]; then
-    # Disable docker tests on MacOS CI
-    cargo test --no-default-features
-else
-    cargo test
+cargo test
+
+if [ "$(uname -s)" != "Darwin" ]; then
+    # The MacOS CI doesn't support Docker because of licensing issues, so only run them on Linux.
+    # Also, run the docker tests on a single thread to avoid concurrency issues.
+    cargo test -F docker-test -- --test-threads 1 docker
 fi
