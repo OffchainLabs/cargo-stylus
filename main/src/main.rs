@@ -184,15 +184,14 @@ pub struct CacheSuggestionsConfig {
 pub struct ActivateConfig {
     #[command(flatten)]
     common_cfg: CommonConfig,
+    #[command(flatten)]
+    data_fee: DataFeeOpts,
     /// Wallet source to use.
     #[command(flatten)]
     auth: AuthOpts,
     /// Deployed Stylus contract address to activate.
     #[arg(long)]
     address: H160,
-    /// Percent to bump the estimated activation data fee by. Default of 20%
-    #[arg(long, default_value = "20")]
-    data_fee_bump_percent: u64,
     /// Whether or not to just estimate gas without sending a tx.
     #[arg(long)]
     estimate_gas: bool,
@@ -202,6 +201,8 @@ pub struct ActivateConfig {
 pub struct CheckConfig {
     #[command(flatten)]
     common_cfg: CommonConfig,
+    #[command(flatten)]
+    data_fee: DataFeeOpts,
     /// The WASM to check (defaults to any found in the current directory).
     #[arg(long)]
     wasm_file: Option<PathBuf>,
@@ -228,6 +229,9 @@ struct DeployConfig {
     /// If not set, uses the default version of the local cargo stylus binary.
     #[arg(long)]
     cargo_stylus_version: Option<String>,
+    /// If set, do not activate the program after deploying it
+    #[arg(long)]
+    no_activate: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -312,6 +316,13 @@ pub struct SimulateArgs {
     /// If set, use the native tracer instead of the JavaScript one.
     #[arg(short, long, default_value_t = false)]
     use_native_tracer: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+struct DataFeeOpts {
+    /// Percent to bump the estimated activation data fee by.
+    #[arg(long, default_value = "20")]
+    data_fee_bump_percent: u64,
 }
 
 #[derive(Clone, Debug, Args)]

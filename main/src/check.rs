@@ -1,13 +1,16 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use crate::util::{color::Color, sys, text};
 use crate::{
     check::ArbWasm::ArbWasmErrors,
     constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME},
     macros::*,
     project::{self, extract_toolchain_channel, BuildConfig},
-    CheckConfig,
+    util::{
+        color::{Color, GREY, LAVENDER},
+        sys, text,
+    },
+    CheckConfig, DataFeeOpts,
 };
 use alloy_primitives::{Address, B256, U256};
 use alloy_sol_macro::sol;
@@ -87,9 +90,7 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
     }
 
     let address = cfg.contract_address.unwrap_or(H160::random());
-    let fee = check_activate(code.clone().into(), address, &provider).await?;
-    let visual_fee = format_data_fee(fee).unwrap_or("???".red());
-    greyln!("wasm data fee: {visual_fee} ETH");
+    let fee = check_activate(code.clone().into(), address, &cfg.data_fee, &provider).await?;
     Ok(ContractCheck::Ready { code, fee })
 }
 
@@ -112,7 +113,7 @@ impl ContractCheck {
     pub fn suggest_fee(&self) -> U256 {
         match self {
             Self::Active { .. } => U256::default(),
-            Self::Ready { fee, .. } => fee * U256::from(120) / U256::from(100),
+            Self::Ready { fee, .. } => *fee,
         }
     }
 }
@@ -148,17 +149,19 @@ pub fn format_file_size(len: usize, mid: u64, max: u64) -> String {
 }
 
 /// Pretty-prints a data fee.
-fn format_data_fee(fee: U256) -> Result<String> {
-    let fee: u64 = (fee / U256::from(1e9)).try_into()?;
+fn format_data_fee(fee: U256) -> String {
+    let Ok(fee): Result<u64, _> = (fee / U256::from(1e9)).try_into() else {
+        return ("???").red();
+    };
     let fee: f64 = fee as f64 / 1e9;
-    let text = format!("{fee:.6}");
-    Ok(if fee <= 5e14 {
+    let text = format!("{fee:.6} ETH");
+    if fee <= 5e14 {
         text.mint()
     } else if fee <= 5e15 {
         text.yellow()
     } else {
         text.pink()
-    })
+    }
 }
 
 pub struct EthCallError {
@@ -247,7 +250,12 @@ Perhaps the Arbitrum node for the endpoint you are connecting to has not yet upg
 }
 
 /// Checks contract activation, returning the data fee.
-pub async fn check_activate(code: Bytes, address: H160, provider: &Provider<Http>) -> Result<U256> {
+pub async fn check_activate(
+    code: Bytes,
+    address: H160,
+    opts: &DataFeeOpts,
+    provider: &Provider<Http>,
+) -> Result<U256> {
     let contract = Address::from(address.to_fixed_bytes());
     let data = ArbWasm::activateProgramCall { program: contract }.abi_encode();
     let tx = Eip1559TransactionRequest::new()
@@ -256,8 +264,17 @@ pub async fn check_activate(code: Bytes, address: H160, provider: &Provider<Http
         .value(ONE_ETH);
     let state = spoof::code(address, code);
     let outs = eth_call(tx, state, provider).await??;
-    let ArbWasm::activateProgramReturn { dataFee, .. } =
-        ArbWasm::activateProgramCall::abi_decode_returns(&outs, true)?;
+    let ArbWasm::activateProgramReturn {
+        dataFee: data_fee, ..
+    } = ArbWasm::activateProgramCall::abi_decode_returns(&outs, true)?;
 
-    Ok(dataFee)
+    let bump = opts.data_fee_bump_percent;
+    let adjusted_data_fee = data_fee * U256::from(100 + bump) / U256::from(100);
+    greyln!(
+        "wasm data fee: {} {GREY}(originally {}{GREY} with {LAVENDER}{bump}%{GREY} bump)",
+        format_data_fee(adjusted_data_fee),
+        format_data_fee(data_fee)
+    );
+
+    Ok(adjusted_data_fee)
 }
