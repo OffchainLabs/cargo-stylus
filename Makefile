@@ -8,6 +8,10 @@ build:
 test:
 	cargo test
 
+.PHONY: bench
+bench:
+	cargo +nightly bench -F nightly
+
 .PHONY: fmt
 fmt:
 	cargo fmt
