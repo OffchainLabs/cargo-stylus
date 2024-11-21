@@ -129,7 +129,7 @@ impl CheckConfig {
         let cfg = BuildConfig::new(rust_stable);
         let wasm = project::build_dylib(cfg.clone())?;
         let project_hash =
-            project::hash_files(self.common_cfg.source_files_for_project_hash.clone(), cfg)?;
+            project::hash_project(self.common_cfg.source_files_for_project_hash.clone(), cfg)?;
         Ok((wasm, project_hash))
     }
 }
