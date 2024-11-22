@@ -1,23 +1,21 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
+use crate::check::check_activate;
+use crate::constants::ARB_WASM_H160;
+use crate::macros::greyln;
 use crate::util::color::{Color, DebugColor};
 use crate::util::sys;
+use crate::ActivateConfig;
 use alloy_primitives::Address;
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
 use ethers::middleware::{Middleware, SignerMiddleware};
 use ethers::signers::Signer;
 use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{Eip1559TransactionRequest, U256};
+use ethers::types::Eip1559TransactionRequest;
 use ethers::utils::format_units;
 use eyre::{bail, Context, Result};
-
-use crate::check::check_activate;
-use crate::constants::ARB_WASM_H160;
-use crate::macros::greyln;
-
-use crate::ActivateConfig;
 
 sol! {
     interface ArbWasm {
@@ -41,25 +39,14 @@ pub async fn activate_contract(cfg: &ActivateConfig) -> Result<()> {
     let client = SignerMiddleware::new(provider.clone(), wallet);
 
     let code = client.get_code(cfg.address, None).await?;
-    let data_fee = check_activate(code, cfg.address, &provider).await?;
-    let mut data_fee = alloy_ethers_typecast::alloy_u256_to_ethers(data_fee);
-
-    greyln!(
-        "obtained estimated activation data fee {}",
-        format_units(data_fee, "ether")?.debug_lavender()
-    );
-    greyln!(
-        "bumping estimated activation data fee by {}%",
-        cfg.data_fee_bump_percent.debug_lavender()
-    );
-    data_fee = bump_data_fee(data_fee, cfg.data_fee_bump_percent);
+    let data_fee = check_activate(code, cfg.address, &cfg.data_fee, &provider).await?;
 
     let contract: Address = cfg.address.to_fixed_bytes().into();
     let data = ArbWasm::activateProgramCall { program: contract }.abi_encode();
     let tx = Eip1559TransactionRequest::new()
         .from(client.address())
         .to(*ARB_WASM_H160)
-        .value(data_fee)
+        .value(alloy_ethers_typecast::alloy_u256_to_ethers(data_fee))
         .data(data);
     let tx = TypedTransaction::Eip1559(tx);
     if cfg.estimate_gas {
@@ -95,9 +82,4 @@ pub async fn activate_contract(cfg: &ActivateConfig) -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn bump_data_fee(fee: U256, pct: u64) -> U256 {
-    let num = 100 + pct;
-    fee * U256::from(num) / U256::from(100)
 }
