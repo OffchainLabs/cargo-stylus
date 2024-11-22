@@ -1,6 +1,6 @@
 ARG BUILD_PLATFORM=linux/amd64
 ARG RUST_VERSION=1.80
-ARG CARGO_STYLUS_VERSION
+ARG CARGO_STYLUS_VERSION=0.5.6
 
 FROM --platform=${BUILD_PLATFORM} rust:${RUST_VERSION} AS builder
 RUN apt-get update && apt-get install -y git
