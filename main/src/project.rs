@@ -117,6 +117,8 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
                 }
 
                 // Split by dash and check if the last segment before .wasm looks like a hash
+                // The deps folder contains many wasm files with hashes in their names, as deps, but we
+                // only want the wasm file from the project that does not have a hash in it as the final wasm to deploy.
                 let parts: Vec<&str> = filename_str
                     .split(".wasm")
                     .next()
