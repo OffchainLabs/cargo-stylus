@@ -343,11 +343,8 @@ fn expand_glob_patterns(patterns: Vec<String>) -> Result<Vec<PathBuf>> {
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
 pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>)> {
-    println!("Loading: {:?}", wasm.as_os_str().to_str());
-    let wasm_path = replace_dashes_in_last_element(&wasm);
-    println!("Edited: {:?}", wasm_path.as_os_str().to_str());
-    let wasm = fs::read(wasm_path)
-        .wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
+    let wasm =
+        fs::read(wasm).wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
 
     let wat_str =
         wasmprinter::print_bytes(&wasm).map_err(|e| eyre!("failed to convert Wasm to Wat: {e}"))?;
@@ -372,16 +369,6 @@ pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>,
     contract_code.extend(compressed_bytes);
 
     Ok((wasm.to_vec(), contract_code))
-}
-
-fn replace_dashes_in_last_element(path: &Path) -> PathBuf {
-    let parent = path.parent().unwrap_or(Path::new(""));
-    let filename = path
-        .file_name()
-        .map(|f| f.to_string_lossy().replace('-', "_"))
-        .unwrap_or_default();
-
-    parent.join(filename)
 }
 
 // Adds the hash of the project's source files to the wasm as a custom section
