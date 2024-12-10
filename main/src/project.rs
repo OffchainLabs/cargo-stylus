@@ -110,10 +110,30 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let wasm_file_path = release_files
         .into_iter()
         .find(|p| {
-            if let Some(ext) = p.file_name() {
-                return ext.to_string_lossy().contains(".wasm");
+            if let Some(filename) = p.file_name() {
+                let filename_str = filename.to_string_lossy();
+                if !filename_str.ends_with(".wasm") {
+                    return false;
+                }
+
+                // Split by dash and check if the last segment before .wasm looks like a hash
+                let parts: Vec<&str> = filename_str
+                    .split(".wasm")
+                    .next()
+                    .unwrap_or("")
+                    .split('-')
+                    .collect();
+
+                if parts.len() <= 1 {
+                    return true; // No dashes at all
+                }
+
+                // Check if last part looks like a hex hash (e.g., 8b44a775cbf5c93f)
+                let last_part = parts.last().unwrap_or(&"");
+                !last_part.chars().all(|c| c.is_ascii_hexdigit()) || last_part.len() != 16
+            } else {
+                false
             }
-            false
         })
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
@@ -323,8 +343,16 @@ fn expand_glob_patterns(patterns: Vec<String>) -> Result<Vec<PathBuf>> {
 
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
 pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>)> {
-    let wasm =
-        fs::read(wasm).wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
+    println!("Loading: {:?}", wasm.as_os_str().to_str());
+    let wasm_path = replace_dashes_in_last_element(&wasm);
+    println!("Edited: {:?}", wasm_path.as_os_str().to_str());
+    let wasm = fs::read(wasm_path)
+        .wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
+
+    let wat_str =
+        wasmprinter::print_bytes(&wasm).map_err(|e| eyre!("failed to convert Wasm to Wat: {e}"))?;
+    let wasm = wasmer::wat2wasm(&wat_str.as_bytes())
+        .map_err(|e| eyre!("failed to convert Wat to Wasm: {e}"))?;
 
     let wasm = add_project_hash_to_wasm_file(&wasm, project_hash)
         .wrap_err("failed to add project hash to wasm file as custom section")?;
@@ -344,6 +372,16 @@ pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>,
     contract_code.extend(compressed_bytes);
 
     Ok((wasm.to_vec(), contract_code))
+}
+
+fn replace_dashes_in_last_element(path: &Path) -> PathBuf {
+    let parent = path.parent().unwrap_or(Path::new(""));
+    let filename = path
+        .file_name()
+        .map(|f| f.to_string_lossy().replace('-', "_"))
+        .unwrap_or_default();
+
+    parent.join(filename)
 }
 
 // Adds the hash of the project's source files to the wasm as a custom section
