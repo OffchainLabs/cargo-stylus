@@ -7,31 +7,18 @@ use crate::util::{
     sys,
 };
 use eyre::{bail, Context, Result};
-use std::{env::current_dir, path::Path};
+use std::{env, fs, path::Path};
 
-/// Creates a new Stylus project in the current directory
-pub fn new(name: &Path, minimal: bool) -> Result<()> {
-    let repo = match minimal {
-        true => GITHUB_TEMPLATE_REPO_MINIMAL,
-        false => GITHUB_TEMPLATE_REPO,
-    };
-    let output = sys::new_command("git")
-        .arg("clone")
-        .arg(repo)
-        .arg(name)
-        .output()
-        .wrap_err("git clone failed")?;
-
-    if !output.status.success() {
-        bail!("git clone command failed");
-    }
-    let path = current_dir().wrap_err("no current dir")?.join(name);
-    println!("{GREY}new project at: {}", path.to_string_lossy().mint());
-    Ok(())
+/// Creates a new directory given the path and then initialize a stylus project.
+pub fn new(path: &Path, minimal: bool) -> Result<()> {
+    fs::create_dir_all(path).wrap_err("failed to create project dir")?;
+    env::set_current_dir(path).wrap_err("failed to set project dir")?;
+    init(minimal)
 }
 
+/// Creates a new Stylus project in the current directory.
 pub fn init(minimal: bool) -> Result<()> {
-    let current_dir = current_dir().wrap_err("no current dir")?;
+    let current_dir = env::current_dir().wrap_err("no current dir")?;
     let repo = if minimal {
         GITHUB_TEMPLATE_REPO_MINIMAL
     } else {
@@ -49,6 +36,17 @@ pub fn init(minimal: bool) -> Result<()> {
 
     if !output.status.success() {
         bail!("git clone command failed");
+    }
+
+    let output = sys::new_command("git")
+        .arg("remote")
+        .arg("remove")
+        .arg("origin")
+        .output()
+        .wrap_err("git remote remove failed")?;
+
+    if !output.status.success() {
+        bail!("git remote remove command failed");
     }
 
     println!(

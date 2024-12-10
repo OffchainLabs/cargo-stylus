@@ -4,11 +4,12 @@ resolver = "2"
 
 [workspace.package]
 authors = ["Offchain Labs"]
-version = "0.5.5"
+version = "0.5.6"
 edition = "2021"
 homepage = "https://arbitrum.io"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/OffchainLabs/cargo-stylus"
+readme = "README.md"
 
 [workspace.dependencies]
 alloy-primitives = "=0.7.7"

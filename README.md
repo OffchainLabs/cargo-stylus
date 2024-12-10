@@ -36,9 +36,9 @@ Cargo command for developing Arbitrum Stylus projects
 ### Building the Project Locally
 Install [Rust](https://www.rust-lang.org/tools/install)
 
-Clone the repo to your local device
+Clone the current released version to your local device
 ```
-git clone https://github.com/OffchainLabs/cargo-stylus.git
+git clone --branch v0.5.6 https://github.com/OffchainLabs/cargo-stylus.git
 cd cargo-stylus
 ```
 
@@ -179,7 +179,7 @@ See `--help` for all available flags and default values.
 
 ## Verifying Stylus Contracts
 
-See [here](https://hackmd.io/bpeMnrzbSvO4mohhvkrKqw)
+See the formal Arbitrum docs on verifying Stylus contracts [here](https://docs.arbitrum.io/stylus/how-tos/verifying-contracts#reproducible-verification)
 
 ## Deploying Non-Rust WASM Projects
 

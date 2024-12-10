@@ -1,14 +1,19 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
+// Enable unstable test feature for benchmarks when nightly is available
+#![cfg_attr(feature = "nightly", feature(test))]
+
 use alloy_primitives::TxHash;
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
 use ethers::abi::Bytes;
 use ethers::types::{H160, U256};
 use eyre::{bail, eyre, Context, Result};
-use std::path::PathBuf;
-use std::{fmt, path::Path};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
 use tokio::runtime::Builder;
 use trace::Trace;
 use util::{color::Color, sys};
@@ -179,15 +184,14 @@ pub struct CacheSuggestionsConfig {
 pub struct ActivateConfig {
     #[command(flatten)]
     common_cfg: CommonConfig,
+    #[command(flatten)]
+    data_fee: DataFeeOpts,
     /// Wallet source to use.
     #[command(flatten)]
     auth: AuthOpts,
     /// Deployed Stylus contract address to activate.
     #[arg(long)]
     address: H160,
-    /// Percent to bump the estimated activation data fee by. Default of 20%
-    #[arg(long, default_value = "20")]
-    data_fee_bump_percent: u64,
     /// Whether or not to just estimate gas without sending a tx.
     #[arg(long)]
     estimate_gas: bool,
@@ -197,6 +201,8 @@ pub struct ActivateConfig {
 pub struct CheckConfig {
     #[command(flatten)]
     common_cfg: CommonConfig,
+    #[command(flatten)]
+    data_fee: DataFeeOpts,
     /// The WASM to check (defaults to any found in the current directory).
     #[arg(long)]
     wasm_file: Option<PathBuf>,
@@ -223,6 +229,9 @@ struct DeployConfig {
     /// If not set, uses the default version of the local cargo stylus binary.
     #[arg(long)]
     cargo_stylus_version: Option<String>,
+    /// If set, do not activate the program after deploying it
+    #[arg(long)]
+    no_activate: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -307,6 +316,13 @@ pub struct SimulateArgs {
     /// If set, use the native tracer instead of the JavaScript one.
     #[arg(short, long, default_value_t = false)]
     use_native_tracer: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+struct DataFeeOpts {
+    /// Percent to bump the estimated activation data fee by.
+    #[arg(long, default_value = "20")]
+    data_fee_bump_percent: u64,
 }
 
 #[derive(Clone, Debug, Args)]
@@ -611,43 +627,63 @@ async fn simulate(args: SimulateArgs) -> Result<()> {
 }
 
 async fn replay(args: ReplayArgs) -> Result<()> {
+    let macos = cfg!(target_os = "macos");
     if !args.child {
-        let rust_gdb = sys::command_exists("rust-gdb");
-        if !rust_gdb {
-            println!(
-                "{} not installed, falling back to {}",
-                "rust-gdb".red(),
-                "gdb".red()
-            );
-        }
-
-        let mut cmd = match rust_gdb {
-            true => sys::new_command("rust-gdb"),
-            false => sys::new_command("gdb"),
+        let gdb_args = [
+            "--quiet",
+            "-ex=set breakpoint pending on",
+            "-ex=b user_entrypoint",
+            "-ex=r",
+            "--args",
+        ]
+        .as_slice();
+        let lldb_args = [
+            "--source-quietly",
+            "-o",
+            "b user_entrypoint",
+            "-o",
+            "r",
+            "--",
+        ]
+        .as_slice();
+        let (cmd_name, args) = if sys::command_exists("rust-gdb") && !macos {
+            ("rust-gdb", &gdb_args)
+        } else if sys::command_exists("rust-lldb") {
+            ("rust-lldb", &lldb_args)
+        } else {
+            println!("rust specific debugger not installed, falling back to generic debugger");
+            if sys::command_exists("gdb") && !macos {
+                ("gdb", &gdb_args)
+            } else if sys::command_exists("lldb") {
+                ("lldb", &lldb_args)
+            } else {
+                bail!("no debugger found")
+            }
         };
-        cmd.arg("--quiet");
-        cmd.arg("-ex=set breakpoint pending on");
-        cmd.arg("-ex=b user_entrypoint");
-        cmd.arg("-ex=r");
-        cmd.arg("--args");
+        let mut cmd = sys::new_command(cmd_name);
+        for arg in args.iter() {
+            cmd.arg(arg);
+        }
 
         for arg in std::env::args() {
             cmd.arg(arg);
         }
         cmd.arg("--child");
+
         #[cfg(unix)]
         let err = cmd.exec();
         #[cfg(windows)]
         let err = cmd.status();
 
-        bail!("failed to exec gdb {:?}", err);
+        bail!("failed to exec {cmd_name} {:?}", err);
     }
 
     let provider = sys::new_provider(&args.trace.endpoint)?;
     let trace = Trace::new(provider, args.trace.tx, args.trace.use_native_tracer).await?;
 
-    build_so(&args.trace.project)?;
-    let so = find_so(&args.trace.project)?;
+    build_shared_library(&args.trace.project)?;
+    let library_extension = if macos { ".dylib" } else { ".so" };
+    let shared_library = find_shared_library(&args.trace.project, library_extension)?;
 
     // TODO: don't assume the contract is top-level
     let args_len = trace.tx.input.len();
@@ -656,7 +692,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
         *hostio::FRAME.lock() = Some(trace.reader());
 
         type Entrypoint = unsafe extern "C" fn(usize) -> usize;
-        let lib = libloading::Library::new(so)?;
+        let lib = libloading::Library::new(shared_library)?;
         let main: libloading::Symbol<Entrypoint> = lib.get(b"user_entrypoint")?;
 
         match main(args_len) {
@@ -668,7 +704,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     Ok(())
 }
 
-pub fn build_so(path: &Path) -> Result<()> {
+pub fn build_shared_library(path: &Path) -> Result<()> {
     let mut cargo = sys::new_command("cargo");
 
     cargo
@@ -682,7 +718,7 @@ pub fn build_so(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn find_so(project: &Path) -> Result<PathBuf> {
+pub fn find_shared_library(project: &Path, extension: &str) -> Result<PathBuf> {
     let triple = rustc_host::from_cli()?;
     let so_dir = project.join(format!("target/{triple}/debug/"));
     let so_dir = std::fs::read_dir(&so_dir)
@@ -698,7 +734,7 @@ pub fn find_so(project: &Path) -> Result<PathBuf> {
         };
         let ext = ext.to_string_lossy();
 
-        if ext.contains(".so") {
+        if ext.contains(extension) {
             if let Some(other) = file {
                 let other = other.file_name().unwrap().to_string_lossy();
                 bail!("more than one .so found: {ext} and {other}",);

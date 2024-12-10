@@ -18,6 +18,8 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process,
+    sync::mpsc,
+    thread,
 };
 use std::{ops::Range, process::Command};
 use tiny_keccak::{Hasher, Keccak};
@@ -228,8 +230,22 @@ pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
     Ok(version.to_string())
 }
 
-pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
-    let mut keccak = Keccak::v256();
+pub fn read_file_preimage(filename: &Path) -> Result<Vec<u8>> {
+    let mut contents = Vec::with_capacity(1024);
+    {
+        let filename = filename.as_os_str();
+        contents.extend_from_slice(&(filename.len() as u64).to_be_bytes());
+        contents.extend_from_slice(filename.as_encoded_bytes());
+    }
+    let mut file = std::fs::File::open(filename)
+        .map_err(|e| eyre!("failed to open file {}: {e}", filename.display()))?;
+    contents.extend_from_slice(&file.metadata().unwrap().len().to_be_bytes());
+    file.read_to_end(&mut contents)
+        .map_err(|e| eyre!("Unable to read file {}: {e}", filename.display()))?;
+    Ok(contents)
+}
+
+pub fn hash_project(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result<[u8; 32]> {
     let mut cmd = Command::new("cargo");
     cmd.arg("--version");
     let output = cmd
@@ -238,32 +254,22 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
     if !output.status.success() {
         bail!("cargo version command failed");
     }
-    keccak.update(&output.stdout);
+
+    hash_files(&output.stdout, source_file_patterns, cfg)
+}
+
+pub fn hash_files(
+    cargo_version_output: &[u8],
+    source_file_patterns: Vec<String>,
+    cfg: BuildConfig,
+) -> Result<[u8; 32]> {
+    let mut keccak = Keccak::v256();
+    keccak.update(cargo_version_output);
     if cfg.opt_level == OptLevel::Z {
         keccak.update(&[0]);
     } else {
         keccak.update(&[1]);
     }
-
-    let mut buf = vec![0u8; 0x100000];
-
-    let mut hash_file = |filename: &Path| -> Result<()> {
-        keccak.update(&(filename.as_os_str().len() as u64).to_be_bytes());
-        keccak.update(filename.as_os_str().as_encoded_bytes());
-        let mut file = std::fs::File::open(filename)
-            .map_err(|e| eyre!("failed to open file {}: {e}", filename.display()))?;
-        keccak.update(&file.metadata().unwrap().len().to_be_bytes());
-        loop {
-            let bytes_read = file
-                .read(&mut buf)
-                .map_err(|e| eyre!("Unable to read file {}: {e}", filename.display()))?;
-            if bytes_read == 0 {
-                break;
-            }
-            keccak.update(&buf[..bytes_read]);
-        }
-        Ok(())
-    };
 
     // Fetch the Rust toolchain toml file from the project root. Assert that it exists and add it to the
     // files in the directory to hash.
@@ -277,12 +283,20 @@ pub fn hash_files(source_file_patterns: Vec<String>, cfg: BuildConfig) -> Result
     paths.push(toolchain_file_path);
     paths.sort();
 
-    for filename in paths.iter() {
-        greyln!(
-            "File used for deployment hash: {}",
-            filename.as_os_str().to_string_lossy()
-        );
-        hash_file(filename)?;
+    // Read the file contents in another thread and process the keccak in the main thread.
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        for filename in paths.iter() {
+            greyln!(
+                "File used for deployment hash: {}",
+                filename.as_os_str().to_string_lossy()
+            );
+            tx.send(read_file_preimage(filename))
+                .expect("failed to send preimage (impossible)");
+        }
+    });
+    for result in rx {
+        keccak.update(result?.as_slice());
     }
 
     let mut hash = [0u8; 32];
@@ -405,9 +419,50 @@ fn strip_user_metadata(wasm_file_bytes: &[u8]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::fs::{self, File};
-    use std::io::Write;
-    use tempfile::tempdir;
+    use std::{
+        env,
+        fs::{self, File},
+        io::Write,
+        path::Path,
+    };
+    use tempfile::{tempdir, TempDir};
+
+    #[cfg(feature = "nightly")]
+    extern crate test;
+
+    fn write_valid_toolchain_file(toolchain_file_path: &Path) -> Result<()> {
+        let toolchain_contents = r#"
+            [toolchain]
+            channel = "nightly-2020-07-10"
+            components = [ "rustfmt", "rustc-dev" ]
+            targets = [ "wasm32-unknown-unknown", "thumbv2-none-eabi" ]
+            profile = "minimal"
+        "#;
+        fs::write(&toolchain_file_path, toolchain_contents)?;
+        Ok(())
+    }
+
+    fn write_hash_files(num_files: usize, num_lines: usize) -> Result<TempDir> {
+        let dir = tempdir()?;
+        env::set_current_dir(dir.path())?;
+
+        let toolchain_file_path = dir.path().join(TOOLCHAIN_FILE_NAME);
+        write_valid_toolchain_file(&toolchain_file_path)?;
+
+        fs::create_dir(dir.path().join("src"))?;
+        let mut contents = String::new();
+        for _ in 0..num_lines {
+            contents.push_str("// foo");
+        }
+        for i in 0..num_files {
+            let file_path = dir.path().join(format!("src/f{i}.rs"));
+            fs::write(&file_path, &contents)?;
+        }
+        fs::write(dir.path().join("Cargo.toml"), "")?;
+        fs::write(dir.path().join("Cargo.lock"), "")?;
+
+        Ok(dir)
+    }
 
     #[test]
     fn test_extract_toolchain_channel() -> Result<()> {
@@ -438,15 +493,7 @@ mod test {
         };
         assert!(err_details.to_string().contains("is not a string"),);
 
-        let toolchain_contents = r#"
-            [toolchain]
-            channel = "nightly-2020-07-10"
-            components = [ "rustfmt", "rustc-dev" ]
-            targets = [ "wasm32-unknown-unknown", "thumbv2-none-eabi" ]
-            profile = "minimal"
-        "#;
-        std::fs::write(&toolchain_file_path, toolchain_contents)?;
-
+        write_valid_toolchain_file(&toolchain_file_path)?;
         let channel = extract_toolchain_channel(&toolchain_file_path)?;
         assert_eq!(channel, "nightly-2020-07-10");
         Ok(())
@@ -494,6 +541,30 @@ mod test {
         assert!(!found_files.contains(&dir_path.join("Cargo.toml"))); // Not matching *.rs
         assert_eq!(found_files.len(), 2, "Should only find 2 Rust files.");
 
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_hash_files() -> Result<()> {
+        let _dir = write_hash_files(10, 100)?;
+        let rust_version = "cargo 1.80.0 (376290515 2024-07-16)\n".as_bytes();
+        let hash = hash_files(rust_version, vec![], BuildConfig::new(false))?;
+        assert_eq!(
+            hex::encode(hash),
+            "06b50fcc53e0804f043eac3257c825226e59123018b73895cb946676148cb262"
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    pub fn bench_hash_files(b: &mut test::Bencher) -> Result<()> {
+        let _dir = write_hash_files(1000, 10000)?;
+        let rust_version = "cargo 1.80.0 (376290515 2024-07-16)\n".as_bytes();
+        b.iter(|| {
+            hash_files(rust_version, vec![], BuildConfig::new(false))
+                .expect("failed to hash files");
+        });
         Ok(())
     }
 }
