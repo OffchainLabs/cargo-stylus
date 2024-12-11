@@ -66,6 +66,10 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let cargo_toml_version = extract_cargo_toml_version(&cargo_toml_path)?;
     greyln!("Building project with Cargo.toml version: {cargo_toml_version}");
 
+    let project_name = extract_cargo_project_name(&cargo_toml_path)?
+        .replace("-", "_")
+        .replace("\"", "");
+
     cmd.arg("build");
     cmd.arg("--lib");
     cmd.arg("--locked");
@@ -101,38 +105,21 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
 
     // Gets the files in the release folder.
     let release_files: Vec<PathBuf> = fs::read_dir(&release_path)
-        .map_err(|e| eyre!("could not read deps dir: {e}"))?
+        .map_err(|e| eyre!("could not read release deps dir: {e}"))?
         .filter_map(|r| r.ok())
         .map(|r| r.path())
         .filter(|r| r.is_file())
         .collect();
 
+    println!("Checking project name {}", project_name);
     let wasm_file_path = release_files
         .into_iter()
         .find(|p| {
             if let Some(filename) = p.file_name() {
-                let filename_str = filename.to_string_lossy();
-                if !filename_str.ends_with(".wasm") {
-                    return false;
-                }
+                let mut expected_name = project_name.clone();
+                expected_name.push_str(".wasm");
 
-                // Split by dash and check if the last segment before .wasm looks like a hash
-                // The deps folder contains many wasm files with hashes in their names, as deps, but we
-                // only want the wasm file from the project that does not have a hash in it as the final wasm to deploy.
-                let parts: Vec<&str> = filename_str
-                    .split(".wasm")
-                    .next()
-                    .unwrap_or("")
-                    .split('-')
-                    .collect();
-
-                if parts.len() <= 1 {
-                    return true; // No dashes at all
-                }
-
-                // Check if last part looks like a hex hash (e.g., 8b44a775cbf5c93f)
-                let last_part = parts.last().unwrap_or(&"");
-                !last_part.chars().all(|c| c.is_ascii_hexdigit()) || last_part.len() != 16
+                filename.to_string_lossy().ends_with(&expected_name)
             } else {
                 false
             }
@@ -250,6 +237,22 @@ pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
         bail!("version in Cargo.toml's [package] section is not a string");
     };
     Ok(version.to_string())
+}
+
+pub fn extract_cargo_project_name(cargo_toml_path: &PathBuf) -> Result<String> {
+    let cargo_toml_contents = fs::read_to_string(cargo_toml_path)
+        .context("expected to find a Cargo.toml file in project directory")?;
+
+    let cargo_toml: Value =
+        toml::from_str(&cargo_toml_contents).context("failed to parse Cargo.toml")?;
+
+    let Some(pkg) = cargo_toml.get("package") else {
+        bail!("package section not found in Cargo.toml");
+    };
+    let Some(name) = pkg.get("name") else {
+        bail!("could not find name in project's Cargo.toml [package] section");
+    };
+    Ok(name.to_string())
 }
 
 pub fn read_file_preimage(filename: &Path) -> Result<Vec<u8>> {
