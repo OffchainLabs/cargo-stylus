@@ -111,7 +111,6 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
         .filter(|r| r.is_file())
         .collect();
 
-    println!("Checking project name {}", project_name);
     let wasm_file_path = release_files
         .into_iter()
         .find(|p| {
