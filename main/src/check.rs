@@ -62,12 +62,6 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
         greyln!("reading wasm file at {}", wasm.to_string_lossy().lavender());
     }
 
-    // Next, we include the project's hash as a custom section
-    // in the user's WASM so it can be verified by Cargo stylus'
-    // reproducible verification. This hash is added as a section that is
-    // ignored by WASM runtimes, so it will only exist in the file
-    // for metadata purposes.
-    // add_project_hash_to_wasm_file(wasm, project_hash)
     let (wasm_file_bytes, code) =
         project::compress_wasm(&wasm, project_hash).wrap_err("failed to compress WASM")?;
 

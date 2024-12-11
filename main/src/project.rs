@@ -66,6 +66,10 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let cargo_toml_version = extract_cargo_toml_version(&cargo_toml_path)?;
     greyln!("Building project with Cargo.toml version: {cargo_toml_version}");
 
+    let project_name = extract_cargo_project_name(&cargo_toml_path)?
+        .replace("-", "_")
+        .replace("\"", "");
+
     cmd.arg("build");
     cmd.arg("--lib");
     cmd.arg("--locked");
@@ -101,7 +105,7 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
 
     // Gets the files in the release folder.
     let release_files: Vec<PathBuf> = fs::read_dir(&release_path)
-        .map_err(|e| eyre!("could not read deps dir: {e}"))?
+        .map_err(|e| eyre!("could not read release deps dir: {e}"))?
         .filter_map(|r| r.ok())
         .map(|r| r.path())
         .filter(|r| r.is_file())
@@ -110,10 +114,14 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let wasm_file_path = release_files
         .into_iter()
         .find(|p| {
-            if let Some(ext) = p.file_name() {
-                return ext.to_string_lossy().contains(".wasm");
+            if let Some(filename) = p.file_name() {
+                let mut expected_name = project_name.clone();
+                expected_name.push_str(".wasm");
+
+                filename.to_string_lossy().ends_with(&expected_name)
+            } else {
+                false
             }
-            false
         })
         .ok_or(BuildError::NoWasmFound { path: release_path })?;
 
@@ -230,6 +238,22 @@ pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
     Ok(version.to_string())
 }
 
+pub fn extract_cargo_project_name(cargo_toml_path: &PathBuf) -> Result<String> {
+    let cargo_toml_contents = fs::read_to_string(cargo_toml_path)
+        .context("expected to find a Cargo.toml file in project directory")?;
+
+    let cargo_toml: Value =
+        toml::from_str(&cargo_toml_contents).context("failed to parse Cargo.toml")?;
+
+    let Some(pkg) = cargo_toml.get("package") else {
+        bail!("package section not found in Cargo.toml");
+    };
+    let Some(name) = pkg.get("name") else {
+        bail!("could not find name in project's Cargo.toml [package] section");
+    };
+    Ok(name.to_string())
+}
+
 pub fn read_file_preimage(filename: &Path) -> Result<Vec<u8>> {
     let mut contents = Vec::with_capacity(1024);
     {
@@ -326,6 +350,18 @@ pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>,
     let wasm =
         fs::read(wasm).wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
 
+    // We convert the WASM from binary to text and back to binary as this trick removes any dangling
+    // mentions of reference types in the wasm body, which are not yet supported by Arbitrum chain backends.
+    let wat_str =
+        wasmprinter::print_bytes(&wasm).map_err(|e| eyre!("failed to convert Wasm to Wat: {e}"))?;
+    let wasm = wasmer::wat2wasm(wat_str.as_bytes())
+        .map_err(|e| eyre!("failed to convert Wat to Wasm: {e}"))?;
+
+    // We include the project's hash as a custom section
+    // in the user's WASM so it can be verified by Cargo stylus'
+    // reproducible verification. This hash is added as a section that is
+    // ignored by WASM runtimes, so it will only exist in the file
+    // for metadata purposes.
     let wasm = add_project_hash_to_wasm_file(&wasm, project_hash)
         .wrap_err("failed to add project hash to wasm file as custom section")?;
 
