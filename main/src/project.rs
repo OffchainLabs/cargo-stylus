@@ -353,7 +353,7 @@ pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>,
 
     let wat_str =
         wasmprinter::print_bytes(&wasm).map_err(|e| eyre!("failed to convert Wasm to Wat: {e}"))?;
-    let wasm = wasmer::wat2wasm(&wat_str.as_bytes())
+    let wasm = wasmer::wat2wasm(wat_str.as_bytes())
         .map_err(|e| eyre!("failed to convert Wat to Wasm: {e}"))?;
 
     let wasm = add_project_hash_to_wasm_file(&wasm, project_hash)
