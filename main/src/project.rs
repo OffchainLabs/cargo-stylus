@@ -351,11 +351,18 @@ pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>,
     let wasm =
         fs::read(wasm).wrap_err_with(|| eyre!("failed to read Wasm {}", wasm.to_string_lossy()))?;
 
+    // We convert the WASM from binary to text and back to binary as this trick removes any dangling
+    // mentions of reference types in the wasm body, which are not yet supported by Arbitrum chain backends.
     let wat_str =
         wasmprinter::print_bytes(&wasm).map_err(|e| eyre!("failed to convert Wasm to Wat: {e}"))?;
     let wasm = wasmer::wat2wasm(wat_str.as_bytes())
         .map_err(|e| eyre!("failed to convert Wat to Wasm: {e}"))?;
 
+    // We include the project's hash as a custom section
+    // in the user's WASM so it can be verified by Cargo stylus'
+    // reproducible verification. This hash is added as a section that is
+    // ignored by WASM runtimes, so it will only exist in the file
+    // for metadata purposes.
     let wasm = add_project_hash_to_wasm_file(&wasm, project_hash)
         .wrap_err("failed to add project hash to wasm file as custom section")?;
 
