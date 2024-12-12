@@ -75,8 +75,8 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     cmd.arg("--lib");
     cmd.arg("--locked");
 
-    if cfg.features.is_some() {
-        cmd.arg(format!("--features={}", cfg.features.clone().unwrap()));
+    if let Some(features) = cfg.features {
+        cmd.arg(format!("--features={}", features.clone()));
     }
 
     if !cfg.stable {
