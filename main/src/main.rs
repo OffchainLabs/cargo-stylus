@@ -126,6 +126,9 @@ struct CommonConfig {
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
     max_fee_per_gas_gwei: Option<u128>,
+    /// Specifies the features to use when building the Stylus binary.
+    #[arg(long)]
+    features: Option<String>,
 }
 
 #[derive(Subcommand, Clone, Debug)]
@@ -687,7 +690,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     let provider = sys::new_provider(&args.trace.endpoint)?;
     let trace = Trace::new(provider, args.trace.tx, args.trace.use_native_tracer).await?;
 
-    build_shared_library(&args.trace.project, args.package, args.feature)?;
+    build_shared_library(&args.trace.project, args.package, args.features)?;
     let library_extension = if macos { ".dylib" } else { ".so" };
     let shared_library = find_shared_library(&args.trace.project, library_extension)?;
 
