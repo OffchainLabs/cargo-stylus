@@ -1,5 +1,6 @@
-// Copyright 2020-2023, Offchain Labs, Inc.
+// Copyright 2020-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
 #![allow(dead_code)]
 
 use std::fmt::{Debug, Display};
@@ -13,6 +14,7 @@ pub const RED: &str = "\x1b[31;1m";
 pub const CLEAR: &str = "\x1b[0;0m";
 pub const WHITE: &str = "\x1b[0;1m";
 pub const YELLOW: &str = "\x1b[33;1m";
+pub const LAVENDER: &str = "\x1b[38;5;183;1m";
 
 pub trait Color {
     fn color(&self, color: &str) -> String;
@@ -26,24 +28,26 @@ pub trait Color {
     fn red(&self) -> String;
     fn white(&self) -> String;
     fn yellow(&self) -> String;
+    fn lavender(&self) -> String;
 }
 
 #[rustfmt::skip]
 impl<T> Color for T where T: Display {
 
     fn color(&self, color: &str) -> String {
-        format!("{}{}{}", color, self, CLEAR)
+        format!("{color}{}{CLEAR}", self)
     }
 
-    fn blue(&self)   -> String { self.color(BLUE)   }
-    fn dim(&self)    -> String { self.color(DIM)    }
-    fn clear(&self)  -> String { self.color(CLEAR)  }
-    fn grey(&self)   -> String { self.color(GREY)   }
-    fn mint(&self)   -> String { self.color(MINT)   }
-    fn pink(&self)   -> String { self.color(PINK)   }
-    fn red(&self)    -> String { self.color(RED)    }
-    fn white(&self)  -> String { self.color(WHITE)  }
-    fn yellow(&self) -> String { self.color(YELLOW) }
+    fn blue(&self)     -> String { self.color(BLUE)     }
+    fn dim(&self)      -> String { self.color(DIM)      }
+    fn clear(&self)    -> String { self.color(CLEAR)    }
+    fn grey(&self)     -> String { self.color(GREY)     }
+    fn mint(&self)     -> String { self.color(MINT)     }
+    fn pink(&self)     -> String { self.color(PINK)     }
+    fn red(&self)      -> String { self.color(RED)      }
+    fn white(&self)    -> String { self.color(WHITE)    }
+    fn yellow(&self)   -> String { self.color(YELLOW)   }
+    fn lavender(&self) -> String { self.color(LAVENDER) }
 }
 
 pub fn when<T: Display>(cond: bool, text: T, when_color: &str) -> String {
@@ -65,22 +69,24 @@ pub trait DebugColor {
     fn debug_red(&self) -> String;
     fn debug_white(&self) -> String;
     fn debug_yellow(&self) -> String;
+    fn debug_lavender(&self) -> String;
 }
 
 #[rustfmt::skip]
 impl<T> DebugColor for T where T: Debug {
 
     fn debug_color(&self, color: &str) -> String {
-        format!("{}{:?}{}", color, self, CLEAR)
+        format!("{color}{:?}{CLEAR}", self)
     }
 
-    fn debug_blue(&self)   -> String { self.debug_color(BLUE)   }
-    fn debug_dim(&self)    -> String { self.debug_color(DIM)    }
-    fn debug_clear(&self)  -> String { self.debug_color(CLEAR)  }
-    fn debug_grey(&self)   -> String { self.debug_color(GREY)   }
-    fn debug_mint(&self)   -> String { self.debug_color(MINT)   }
-    fn debug_pink(&self)   -> String { self.debug_color(PINK)   }
-    fn debug_red(&self)    -> String { self.debug_color(RED)    }
-    fn debug_white(&self)  -> String { self.debug_color(WHITE)  }
-    fn debug_yellow(&self) -> String { self.debug_color(YELLOW) }
+    fn debug_blue(&self)     -> String { self.debug_color(BLUE)     }
+    fn debug_dim(&self)      -> String { self.debug_color(DIM)      }
+    fn debug_clear(&self)    -> String { self.debug_color(CLEAR)    }
+    fn debug_grey(&self)     -> String { self.debug_color(GREY)     }
+    fn debug_mint(&self)     -> String { self.debug_color(MINT)     }
+    fn debug_pink(&self)     -> String { self.debug_color(PINK)     }
+    fn debug_red(&self)      -> String { self.debug_color(RED)      }
+    fn debug_white(&self)    -> String { self.debug_color(WHITE)    }
+    fn debug_yellow(&self)   -> String { self.debug_color(YELLOW)   }
+    fn debug_lavender(&self) -> String { self.debug_color(LAVENDER) }
 }

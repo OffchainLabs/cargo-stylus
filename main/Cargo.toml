@@ -1,0 +1,54 @@
+[package]
+name = "cargo-stylus"
+keywords = ["arbitrum", "ethereum", "stylus", "alloy", "cargo"]
+description = "CLI tool for building Stylus contracts on Arbitrum chains"
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+version.workspace = true
+repository.workspace = true
+
+[features]
+docker-test = []
+nightly = []
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-json-abi.workspace = true
+alloy-sol-macro.workspace = true
+alloy-sol-types.workspace = true
+alloy-ethers-typecast.workspace = true
+function_name.workspace = true
+clap.workspace = true
+eyre.workspace = true
+hex.workspace = true
+lazy_static.workspace = true
+ethers.workspace = true
+tokio.workspace = true
+rustc-host.workspace = true
+libloading.workspace = true
+parking_lot.workspace = true
+sneks.workspace = true
+serde = { version = "1.0.203", features = ["derive"] }
+brotli2 = "0.3.2"
+bytes = "1.4.0"
+bytesize = "1.2.0"
+serde_json = "1.0.103"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+thiserror = "1.0.47"
+wasmer = "3.1.0"
+glob = "0.3.1"
+tempfile = "3.10.1"
+wasmparser = "0.213.0"
+wasm-encoder = "0.213.0"
+wasm-gen = "0.1.4"
+toml = "0.8.14"
+sys-info = "0.9.1"
+alloy-contract = "0.2.1"
+alloy-provider = "0.2.1"
+alloy-signer-local = { version = "0.2.1", features = ["keystore"] }
+alloy-signer = "0.2.1"
+alloy-transport = "0.2.1"
+wasmprinter = "0.221.2"

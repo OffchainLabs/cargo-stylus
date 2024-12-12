@@ -3,29 +3,35 @@
 
 #![allow(clippy::redundant_closure_call)]
 
-use crate::color::{Color, DebugColor};
+use crate::util::color::{Color, DebugColor};
+use crate::SimulateArgs;
 use alloy_primitives::{Address, TxHash, B256, U256};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
     types::{
-        GethDebugTracerType, GethDebugTracingOptions, GethTrace, Transaction, TransactionReceipt,
+        BlockId, GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions,
+        GethTrace, Transaction, TransactionRequest,
     },
-    utils::__serde_json::Value,
+    utils::__serde_json::{from_value, Value},
 };
-use eyre::{bail, Result};
+use eyre::{bail, OptionExt, Result, WrapErr};
+use serde::{Deserialize, Serialize};
 use sneks::SimpleSnakeNames;
 use std::{collections::VecDeque, mem};
 
 #[derive(Debug)]
 pub struct Trace {
-    top_frame: TraceFrame,
-    pub receipt: TransactionReceipt,
+    pub top_frame: TraceFrame,
     pub tx: Transaction,
     pub json: Value,
 }
 
 impl Trace {
-    pub async fn new<T: JsonRpcClient>(provider: Provider<T>, tx: TxHash) -> Result<Self> {
+    pub async fn new<T: JsonRpcClient>(
+        provider: Provider<T>,
+        tx: TxHash,
+        use_native_tracer: bool,
+    ) -> Result<Self> {
         let hash = tx.0.into();
 
         let Some(receipt) = provider.get_transaction_receipt(hash).await? else {
@@ -35,7 +41,11 @@ impl Trace {
             bail!("failed to get tx data: {}", hash)
         };
 
-        let query = include_str!("query.js");
+        let query = if use_native_tracer {
+            "stylusTracer"
+        } else {
+            include_str!("query.js")
+        };
         let tracer = GethDebugTracingOptions {
             tracer: Some(GethDebugTracerType::JsTracer(query.to_owned())),
             ..GethDebugTracingOptions::default()
@@ -44,12 +54,22 @@ impl Trace {
             bail!("malformed tracing result")
         };
 
+        if let Value::Array(arr) = json.clone() {
+            if arr.is_empty() {
+                bail!("No trace frames found, perhaps you are attempting to trace the contract deployment transaction");
+            }
+        }
+
+        let maybe_activation_trace: Result<Vec<ActivationTraceFrame>, _> = from_value(json.clone());
+        if maybe_activation_trace.is_ok() {
+            bail!("Your tx was a contract activation transaction. It has no trace frames");
+        }
+
         let to = receipt.to.map(|x| Address::from(x.0));
         let top_frame = TraceFrame::parse_frame(to, json.clone())?;
 
         Ok(Self {
             top_frame,
-            receipt,
             tx,
             json,
         })
@@ -61,9 +81,99 @@ impl Trace {
             frame: self.top_frame,
         }
     }
+    pub async fn simulate<T: JsonRpcClient>(
+        provider: Provider<T>,
+        args: &SimulateArgs,
+    ) -> Result<Self> {
+        // Build the transaction request
+        let mut tx_request = TransactionRequest::new();
+
+        if let Some(from) = args.from {
+            tx_request = tx_request.from(from);
+        }
+        if let Some(to) = args.to {
+            tx_request = tx_request.to(to);
+        }
+        if let Some(gas) = args.gas {
+            tx_request = tx_request.gas(gas);
+        }
+        if let Some(gas_price) = args.gas_price {
+            tx_request = tx_request.gas_price(gas_price);
+        }
+        if let Some(value) = args.value {
+            tx_request = tx_request.value(value);
+        }
+        if let Some(data) = &args.data {
+            tx_request = tx_request.data(data.clone());
+        }
+
+        // Use the same tracer as in Trace::new
+        let query = if args.use_native_tracer {
+            "stylusTracer"
+        } else {
+            include_str!("query.js")
+        };
+
+        // Corrected construction of tracer_options
+        let tracer_options = GethDebugTracingCallOptions {
+            tracing_options: GethDebugTracingOptions {
+                tracer: Some(GethDebugTracerType::JsTracer(query.to_owned())),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Use the latest block; alternatively, this can be made configurable
+        let block_id = None::<BlockId>;
+
+        let GethTrace::Unknown(json) = provider
+            .debug_trace_call(tx_request, block_id, tracer_options)
+            .await?
+        else {
+            bail!("Malformed tracing result");
+        };
+
+        if let Value::Array(arr) = json.clone() {
+            if arr.is_empty() {
+                bail!("No trace frames found.");
+            }
+        }
+        // Since this is a simulated transaction, we create a dummy Transaction object
+        let tx = Transaction {
+            from: args.from.unwrap_or_default(),
+            to: args.to,
+            gas: args
+                .gas
+                .map(|gas| {
+                    let bytes = [0u8; 32]; // U256 in both libraries is 32 bytes
+                    gas.to_be_bytes().copy_from_slice(&bytes[..8]); // Convert alloy_primitives::U256 to bytes
+                    ethers::types::U256::from_big_endian(&bytes) // Convert bytes to ethers::types::U256
+                })
+                .unwrap_or_else(ethers::types::U256::zero), // Default to 0 if no gas is provided
+            gas_price: args.gas_price,
+            value: args.value.unwrap_or_else(ethers::types::U256::zero),
+            input: args.data.clone().unwrap_or_default().into(),
+            // Default values for other fields
+            ..Default::default()
+        };
+
+        // Parse the trace frames
+        let top_frame = TraceFrame::parse_frame(None, json.clone())?;
+
+        Ok(Self {
+            top_frame,
+            tx,
+            json,
+        })
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct ActivationTraceFrame {
+    address: Value,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceFrame {
     steps: Vec<Hostio>,
     address: Option<Address>,
@@ -104,45 +214,48 @@ impl TraceFrame {
                     get_typed!(keys, Number, $name).as_u64().unwrap()
                 };
             }
+            macro_rules! get_hex {
+                ($name:expr) => {{
+                    let data = get_typed!(keys, String, $name);
+                    let data = data
+                        .strip_prefix("0x")
+                        .ok_or_eyre(concat!($name, " does not contain 0x prefix"))?;
+                    hex::decode(data)
+                        .wrap_err(concat!("failed to parse ", $name))?
+                        .into_boxed_slice()
+                }};
+            }
 
             let name = get_typed!(keys, String, "name");
-            let args = get_typed!(keys, Array, "args");
-            let outs = get_typed!(keys, Array, "outs");
-
-            let mut args = args.as_slice();
-            let mut outs = outs.as_slice();
+            let mut args = get_hex!("args");
+            let mut outs = get_hex!("outs");
 
             let start_ink = get_int!("startInk");
             let end_ink = get_int!("endInk");
 
-            fn read_data(values: &[Value]) -> Result<Box<[u8]>> {
-                let mut vec = vec![];
-                for value in values {
-                    let Value::Number(byte) = value else {
-                        bail!("expected a byte but found {value}");
-                    };
-                    let byte = byte.as_u64().unwrap();
-                    if byte > 255 {
-                        bail!("expected a byte but found {byte}");
-                    };
-                    vec.push(byte as u8);
-                }
-                Ok(vec.into_boxed_slice())
-            }
-
             macro_rules! read_data {
                 ($src:ident) => {{
-                    let data = read_data(&$src)?;
-                    $src = &[];
+                    let data = $src;
+                    $src = Box::new([]);
                     data
                 }};
             }
             macro_rules! read_ty {
                 ($src:ident, $ty:ident, $conv:expr) => {{
                     let size = mem::size_of::<$ty>();
-                    let data = read_data(&$src[..size])?;
-                    $src = &$src[size..];
-                    $conv(&data[..])
+                    let len = $src.len();
+                    if size > len {
+                        bail!(
+                            "parse {}: want {} bytes; got {}",
+                            stringify!($src),
+                            size,
+                            len
+                        );
+                    }
+                    let (left, right) = $src.split_at(size);
+                    let result = $conv(left);
+                    $src = right.to_vec().into_boxed_slice();
+                    result
                 }};
             }
             macro_rules! read_string {
@@ -192,24 +305,12 @@ impl TraceFrame {
                     read_num!($src, u64)
                 };
             }
-            macro_rules! read_usize {
-                ($src:ident) => {
-                    read_num!($src, usize)
-                };
-            }
 
             macro_rules! frame {
                 () => {{
-                    let mut info = get_typed!(keys, Object, "info");
-
-                    // geth uses the pattern { "0": Number, "1": Number, ... }
-                    let address = get_typed!(info, Object, "address");
-                    let mut address: Vec<_> = address.into_iter().collect();
-                    address.sort_by_key(|x| x.0.parse::<u8>().unwrap());
-                    let address: Vec<_> = address.into_iter().map(|x| x.1).collect();
-                    let address = Address::from_slice(&*read_data(&address)?);
-
-                    let steps = info.remove("steps").unwrap();
+                    let address = get_hex!("address");
+                    let address = Address::from_slice(&address);
+                    let steps = keys.remove("steps").unwrap();
                     TraceFrame::parse_frame(Some(address), steps)?
                 }};
             }
@@ -228,17 +329,41 @@ impl TraceFrame {
                 "write_result" => WriteResult {
                     result: read_data!(args),
                 },
+                "exit_early" => ExitEarly {
+                    status: read_u32!(args),
+                },
                 "storage_load_bytes32" => StorageLoadBytes32 {
                     key: read_b256!(args),
                     value: read_b256!(outs),
                 },
-                "storage_store_bytes32" => StorageStoreBytes32 {
+                "storage_cache_bytes32" => StorageCacheBytes32 {
+                    key: read_b256!(args),
+                    value: read_b256!(args),
+                },
+                "storage_flush_cache" => StorageFlushCache {
+                    clear: read_u8!(args),
+                },
+                "transient_load_bytes32" => TransientLoadBytes32 {
+                    key: read_b256!(args),
+                    value: read_b256!(outs),
+                },
+                "transient_store_bytes32" => TransientStoreBytes32 {
                     key: read_b256!(args),
                     value: read_b256!(args),
                 },
                 "account_balance" => AccountBalance {
                     address: read_address!(args),
                     balance: read_u256!(outs),
+                },
+                "account_code" => AccountCode {
+                    address: read_address!(args),
+                    offset: read_u32!(args),
+                    size: read_u32!(args),
+                    code: read_data!(outs),
+                },
+                "account_code_size" => AccountCodeSize {
+                    address: read_address!(args),
+                    size: read_u32!(outs),
                 },
                 "account_codehash" => AccountCodehash {
                     address: read_address!(args),
@@ -271,6 +396,33 @@ impl TraceFrame {
                 "evm_ink_left" => EvmInkLeft {
                     ink_left: read_u64!(outs),
                 },
+                "math_div" => MathDiv {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    result: read_u256!(outs),
+                },
+                "math_mod" => MathMod {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    result: read_u256!(outs),
+                },
+                "math_pow" => MathPow {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    result: read_u256!(outs),
+                },
+                "math_add_mod" => MathAddMod {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    c: read_u256!(args),
+                    result: read_u256!(outs),
+                },
+                "math_mul_mod" => MathMulMod {
+                    a: read_u256!(args),
+                    b: read_u256!(args),
+                    c: read_u256!(args),
+                    result: read_u256!(outs),
+                },
                 "msg_reentrant" => MsgReentrant {
                     reentrant: read_u32!(outs) != 0,
                 },
@@ -293,7 +445,7 @@ impl TraceFrame {
                 "tx_origin" => TxOrigin {
                     origin: read_address!(outs),
                 },
-                "memory_grow" => MemoryGrow {
+                "pay_for_memory_grow" => PayForMemoryGrow {
                     pages: read_u16!(args),
                 },
                 "call_contract" => CallContract {
@@ -325,26 +477,26 @@ impl TraceFrame {
                     endowment: read_u256!(args),
                     code: read_data!(args),
                     address: read_address!(outs),
-                    revert_data_len: read_usize!(outs),
+                    revert_data_len: read_u32!(outs),
                 },
                 "create2" => Create2 {
                     endowment: read_u256!(args),
                     salt: read_b256!(args),
                     code: read_data!(args),
                     address: read_address!(outs),
-                    revert_data_len: read_usize!(outs),
+                    revert_data_len: read_u32!(outs),
                 },
                 "emit_log" => EmitLog {
-                    topics: read_usize!(args),
+                    topics: read_u32!(args),
                     data: read_data!(args),
                 },
                 "read_return_data" => ReadReturnData {
-                    offset: read_usize!(args),
-                    size: read_usize!(args),
+                    offset: read_u32!(args),
+                    size: read_u32!(args),
                     data: read_data!(outs),
                 },
                 "return_data_size" => ReturnDataSize {
-                    size: read_usize!(outs),
+                    size: read_u32!(outs),
                 },
                 "console_log_text" => ConsoleLogText {
                     text: read_data!(args),
@@ -352,7 +504,16 @@ impl TraceFrame {
                 "console_log" => ConsoleLog {
                     text: read_string!(args),
                 },
-                x => todo!("Missing hostio {x}"),
+                x => {
+                    if x.starts_with("evm_") {
+                        EVMCall {
+                            name: x.to_owned(),
+                            frame: frame!(),
+                        }
+                    } else {
+                        todo!("Missing hostio details {x}")
+                    }
+                }
             };
 
             assert!(args.is_empty(), "{name}");
@@ -368,14 +529,15 @@ impl TraceFrame {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Hostio {
     pub kind: HostioKind,
     pub start_ink: u64,
     pub end_ink: u64,
 }
 
-#[derive(Clone, Debug, SimpleSnakeNames)]
+#[allow(dead_code)]
+#[derive(Clone, Debug, Eq, PartialEq, SimpleSnakeNames)]
 pub enum HostioKind {
     UserEntrypoint {
         args_len: u32,
@@ -389,17 +551,41 @@ pub enum HostioKind {
     WriteResult {
         result: Box<[u8]>,
     },
+    ExitEarly {
+        status: u32,
+    },
     StorageLoadBytes32 {
         key: B256,
         value: B256,
     },
-    StorageStoreBytes32 {
+    StorageCacheBytes32 {
+        key: B256,
+        value: B256,
+    },
+    StorageFlushCache {
+        clear: u8,
+    },
+    TransientLoadBytes32 {
+        key: B256,
+        value: B256,
+    },
+    TransientStoreBytes32 {
         key: B256,
         value: B256,
     },
     AccountBalance {
         address: Address,
         balance: U256,
+    },
+    AccountCode {
+        address: Address,
+        offset: u32,
+        size: u32,
+        code: Box<[u8]>,
+    },
+    AccountCodeSize {
+        address: Address,
+        size: u32,
     },
     AccountCodehash {
         address: Address,
@@ -432,8 +618,35 @@ pub enum HostioKind {
     EvmInkLeft {
         ink_left: u64,
     },
-    MemoryGrow {
+    PayForMemoryGrow {
         pages: u16,
+    },
+    MathDiv {
+        a: U256,
+        b: U256,
+        result: U256,
+    },
+    MathMod {
+        a: U256,
+        b: U256,
+        result: U256,
+    },
+    MathPow {
+        a: U256,
+        b: U256,
+        result: U256,
+    },
+    MathAddMod {
+        a: U256,
+        b: U256,
+        c: U256,
+        result: U256,
+    },
+    MathMulMod {
+        a: U256,
+        b: U256,
+        c: U256,
+        result: U256,
     },
     MsgReentrant {
         reentrant: bool,
@@ -492,26 +705,30 @@ pub enum HostioKind {
         code: Box<[u8]>,
         endowment: U256,
         address: Address,
-        revert_data_len: usize,
+        revert_data_len: u32,
     },
     Create2 {
         code: Box<[u8]>,
         endowment: U256,
         salt: B256,
         address: Address,
-        revert_data_len: usize,
+        revert_data_len: u32,
     },
     EmitLog {
         data: Box<[u8]>,
-        topics: usize,
+        topics: u32,
     },
     ReadReturnData {
-        offset: usize,
-        size: usize,
+        offset: u32,
+        size: u32,
         data: Box<[u8]>,
     },
     ReturnDataSize {
-        size: usize,
+        size: u32,
+    },
+    EVMCall {
+        name: String,
+        frame: TraceFrame,
     },
 }
 
@@ -555,7 +772,7 @@ impl FrameReader {
             let kind = hostio.kind;
             let name = kind.name();
             match name {
-                "memory_grow" | "user_entrypoint" | "user_returned" => continue,
+                "pay_for_memory_grow" | "user_entrypoint" | "user_returned" => continue,
                 _ => {
                     detected(self, expected);
                     println!("However, onchain there's a call to {name}. Are you sure this the right contract?\n");
@@ -565,5 +782,135 @@ impl FrameReader {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::{address, fixed_bytes};
+
+    #[test]
+    fn parse_simple() {
+        let trace = r#"
+        [
+          {
+            "name": "storage_load_bytes32",
+            "args": "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+            "outs": "0xebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebeb",
+            "startInk": 1000,
+            "endInk": 900 
+          }
+        ]"#;
+        let json = serde_json::from_str(trace).expect("failed to parse json");
+        let top_frame = TraceFrame::parse_frame(None, json).expect("failed to parse frame");
+        assert_eq!(
+            top_frame.steps,
+            vec![Hostio {
+                kind: HostioKind::StorageLoadBytes32 {
+                    key: fixed_bytes!(
+                        "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
+                    ),
+                    value: fixed_bytes!(
+                        "ebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebeb"
+                    ),
+                },
+                start_ink: 1000,
+                end_ink: 900,
+            },]
+        );
+    }
+
+    #[test]
+    fn parse_call() {
+        let trace = r#"
+        [
+          {
+            "name": "call_contract",
+            "args": "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead00000000000000ff000000000000000000000000000000000000000000000000000000000000ffffbeef",
+            "outs": "0x0000000f00",
+            "startInk": 1000,
+            "endInk": 500,
+            "address": "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead",
+            "steps": [
+              {
+                "name": "user_entrypoint",
+                "args": "0x00000001",
+                "outs": "0x",
+                "startInk": 900,
+                "endInk": 600
+              }
+            ]
+          }
+        ]"#;
+        let json = serde_json::from_str(trace).expect("failed to parse json");
+        let top_frame = TraceFrame::parse_frame(None, json).expect("failed to parse frame");
+        assert_eq!(
+            top_frame.steps,
+            vec![Hostio {
+                kind: HostioKind::CallContract {
+                    address: address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead"),
+                    data: Box::new([0xbe, 0xef]),
+                    gas: 255,
+                    value: U256::from(65535),
+                    outs_len: 15,
+                    status: 0,
+                    frame: TraceFrame {
+                        steps: vec![Hostio {
+                            kind: HostioKind::UserEntrypoint { args_len: 1 },
+                            start_ink: 900,
+                            end_ink: 600,
+                        },],
+                        address: Some(address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead"),),
+                    },
+                },
+                start_ink: 1000,
+                end_ink: 500,
+            },],
+        );
+    }
+
+    #[test]
+    fn parse_evm_call() {
+        let trace = r#"
+        [
+          {
+            "name": "evm_call_contract",
+            "args": "0x",
+            "outs": "0x",
+            "startInk": 0,
+            "endInk": 0,
+            "address": "0x457b1ba688e9854bdbed2f473f7510c476a3da09",
+            "steps": [
+              {
+                "name": "user_entrypoint",
+                "args": "0x00000001",
+                "outs": "0x",
+                "startInk": 0,
+                "endInk": 0
+              }
+            ]
+          }
+        ]"#;
+        let json = serde_json::from_str(trace).expect("failed to parse json");
+        let top_frame = TraceFrame::parse_frame(None, json).expect("failed to parse frame");
+        assert_eq!(
+            top_frame.steps,
+            vec![Hostio {
+                kind: HostioKind::EVMCall {
+                    name: String::from("evm_call_contract"),
+                    frame: TraceFrame {
+                        steps: vec![Hostio {
+                            kind: HostioKind::UserEntrypoint { args_len: 1 },
+                            start_ink: 0,
+                            end_ink: 0,
+                        },],
+                        address: Some(address!("457b1ba688e9854bdbed2f473f7510c476a3da09")),
+                    },
+                },
+                start_ink: 0,
+                end_ink: 0,
+            },],
+        );
     }
 }
