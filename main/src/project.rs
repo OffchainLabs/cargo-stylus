@@ -38,6 +38,7 @@ pub enum OptLevel {
 pub struct BuildConfig {
     pub opt_level: OptLevel,
     pub stable: bool,
+    pub features: Option<String>,
 }
 
 impl BuildConfig {
@@ -73,6 +74,10 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     cmd.arg("build");
     cmd.arg("--lib");
     cmd.arg("--locked");
+
+    if let Some(features) = cfg.features {
+        cmd.arg(format!("--features={}", features.clone()));
+    }
 
     if !cfg.stable {
         cmd.arg("-Z");

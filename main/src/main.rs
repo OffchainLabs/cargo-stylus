@@ -126,6 +126,9 @@ struct CommonConfig {
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
     max_fee_per_gas_gwei: Option<u128>,
+    /// Specifies the features to use when building the Stylus binary.
+    #[arg(long)]
+    features: Option<String>,
 }
 
 #[derive(Subcommand, Clone, Debug)]
@@ -258,6 +261,12 @@ struct ReplayArgs {
     /// Whether to use stable Rust. Note that nightly is needed to expand macros.
     #[arg(short, long)]
     stable_rust: bool,
+    /// Any features that should be passed to cargo build.
+    #[arg(short, long)]
+    features: Option<Vec<String>>,
+    /// Which specific package to build during replay, if any.
+    #[arg(long)]
+    package: Option<String>,
     /// Whether this process is the child of another.
     #[arg(short, long, hide(true))]
     child: bool,
@@ -681,7 +690,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     let provider = sys::new_provider(&args.trace.endpoint)?;
     let trace = Trace::new(provider, args.trace.tx, args.trace.use_native_tracer).await?;
 
-    build_shared_library(&args.trace.project)?;
+    build_shared_library(&args.trace.project, args.package, args.features)?;
     let library_extension = if macos { ".dylib" } else { ".so" };
     let shared_library = find_shared_library(&args.trace.project, library_extension)?;
 
@@ -704,12 +713,23 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     Ok(())
 }
 
-pub fn build_shared_library(path: &Path) -> Result<()> {
+pub fn build_shared_library(
+    path: &Path,
+    package: Option<String>,
+    features: Option<Vec<String>>,
+) -> Result<()> {
     let mut cargo = sys::new_command("cargo");
 
+    cargo.current_dir(path).arg("build");
+
+    if let Some(f) = features {
+        cargo.arg("--features").arg(f.join(","));
+    }
+    if let Some(p) = package {
+        cargo.arg("--package").arg(p);
+    }
+
     cargo
-        .current_dir(path)
-        .arg("build")
         .arg("--lib")
         .arg("--locked")
         .arg("--target")
