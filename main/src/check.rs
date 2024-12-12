@@ -121,7 +121,7 @@ impl CheckConfig {
         let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
         let rust_stable = !toolchain_channel.contains("nightly");
         let mut cfg = BuildConfig::new(rust_stable);
-        cfg.features = self.common_cfg.features;
+        cfg.features = self.common_cfg.features.clone();
         let wasm = project::build_dylib(cfg.clone())?;
         let project_hash =
             project::hash_project(self.common_cfg.source_files_for_project_hash.clone(), cfg)?;
