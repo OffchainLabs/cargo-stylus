@@ -36,7 +36,7 @@ Cargo command for developing Arbitrum Stylus projects
 ### Building the Project Locally
 Install [Rust](https://www.rust-lang.org/tools/install)
 
-Clone the repo to your local device
+Clone the repo to your local device with
 ```
 git clone https://github.com/OffchainLabs/cargo-stylus.git
 cd cargo-stylus
