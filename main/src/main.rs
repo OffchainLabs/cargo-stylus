@@ -606,7 +606,6 @@ async fn main_impl(args: Opts) -> Result<()> {
                     .filter(|s| !s.is_empty())
                     .collect::<Vec<String>>();
                 commands.extend(config_args);
-                println!("Running with commands: {:?}", &commands);
                 run!(
                     docker::run_reproducible(
                         config.cargo_stylus_version,

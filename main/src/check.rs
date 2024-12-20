@@ -122,10 +122,6 @@ impl CheckConfig {
             || find_workspace_root().map_err(|e| eyre!("failed to find workspace root: {e}")),
             |s| Ok(PathBuf::from(s)),
         )?;
-        println!(
-            "Found workspace root in check: {}",
-            workspace_root.to_str().unwrap()
-        );
         let toolchain_file_path = workspace_root.join(TOOLCHAIN_FILE_NAME);
         let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
         let rust_stable = !toolchain_channel.contains("nightly");
