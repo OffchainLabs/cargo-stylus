@@ -4,6 +4,7 @@
 use crate::{
     check::ArbWasm::ArbWasmErrors,
     constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME},
+    docker::find_workspace_root,
     macros::*,
     project::{self, extract_toolchain_channel, BuildConfig},
     util::{
@@ -117,7 +118,15 @@ impl CheckConfig {
         if let Some(wasm) = self.wasm_file.clone() {
             return Ok((wasm, [0u8; 32]));
         }
-        let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+        let workspace_root = self.workspace_root.clone().map_or_else(
+            || find_workspace_root().map_err(|e| eyre!("failed to find workspace root: {e}")),
+            |s| Ok(PathBuf::from(s)),
+        )?;
+        println!(
+            "Found workspace root in check: {}",
+            workspace_root.to_str().unwrap()
+        );
+        let toolchain_file_path = workspace_root.join(TOOLCHAIN_FILE_NAME);
         let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
         let rust_stable = !toolchain_channel.contains("nightly");
         let mut cfg = BuildConfig::new(rust_stable);

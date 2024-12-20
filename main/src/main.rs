@@ -212,6 +212,9 @@ pub struct CheckConfig {
     /// Where to deploy and activate the contract (defaults to a random address).
     #[arg(long)]
     contract_address: Option<H160>,
+    /// Workspace root directory. Will default to the current directory based on Cargo metadata.
+    #[arg(long)]
+    workspace_root: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -252,6 +255,9 @@ pub struct VerifyConfig {
     /// If not set, uses the default version of the local cargo stylus binary.
     #[arg(long)]
     cargo_stylus_version: Option<String>,
+    /// Workspace root directory. Will default to the current directory based on Cargo metadata.
+    #[arg(long)]
+    workspace_root: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -382,8 +388,9 @@ impl fmt::Display for CheckConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} {} {}",
+            "{} {} {} {}",
             self.common_cfg,
+            self.data_fee,
             match &self.wasm_file {
                 Some(path) => format!("--wasm-file={}", path.display()),
                 None => "".to_string(),
@@ -392,6 +399,16 @@ impl fmt::Display for CheckConfig {
                 Some(addr) => format!("--contract-address={:?}", addr),
                 None => "".to_string(),
             },
+        )
+    }
+}
+
+impl fmt::Display for DataFeeOpts {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            format!("--data-fee-bump-percent={}", self.data_fee_bump_percent),
         )
     }
 }
@@ -450,7 +467,7 @@ impl fmt::Display for VerifyConfig {
             match self.no_verify {
                 true => "--no-verify".to_string(),
                 false => "".to_string(),
-            }
+            },
         )
     }
 }
@@ -589,8 +606,13 @@ async fn main_impl(args: Opts) -> Result<()> {
                     .filter(|s| !s.is_empty())
                     .collect::<Vec<String>>();
                 commands.extend(config_args);
+                println!("Running with commands: {:?}", &commands);
                 run!(
-                    docker::run_reproducible(config.cargo_stylus_version, &commands),
+                    docker::run_reproducible(
+                        config.cargo_stylus_version,
+                        &commands,
+                        config.check_config.workspace_root
+                    ),
                     "failed reproducible run"
                 );
             }
@@ -612,7 +634,11 @@ async fn main_impl(args: Opts) -> Result<()> {
                     .collect::<Vec<String>>();
                 commands.extend(config_args);
                 run!(
-                    docker::run_reproducible(config.cargo_stylus_version, &commands),
+                    docker::run_reproducible(
+                        config.cargo_stylus_version,
+                        &commands,
+                        config.workspace_root
+                    ),
                     "failed reproducible run"
                 );
             }

@@ -24,6 +24,7 @@ function_name.workspace = true
 clap.workspace = true
 eyre.workspace = true
 hex.workspace = true
+cargo_metadata.workspace = true
 lazy_static.workspace = true
 ethers.workspace = true
 tokio.workspace = true
