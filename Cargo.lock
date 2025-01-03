@@ -1039,6 +1039,7 @@ name = "cargo-stylus"
 version = "0.5.7"
 dependencies = [
  "alloy-contract",
+ "alloy-dyn-abi",
  "alloy-ethers-typecast",
  "alloy-json-abi",
  "alloy-primitives 0.7.7",

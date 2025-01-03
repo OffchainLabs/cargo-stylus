@@ -2,14 +2,15 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 #![allow(clippy::println_empty_string)]
-use crate::util::{
-    color::{Color, DebugColor},
-    sys,
-};
 use crate::{
     check::{self, ContractCheck},
     constants::ARB_WASM_H160,
+    export_abi,
     macros::*,
+    util::{
+        color::{Color, DebugColor},
+        sys,
+    },
     DeployConfig,
 };
 use alloy_primitives::{Address, U256 as AU256};
@@ -25,6 +26,8 @@ use ethers::{
     types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, H160, U256, U64},
 };
 use eyre::{bail, eyre, Result, WrapErr};
+
+mod factory;
 
 sol! {
     interface ArbWasm {
@@ -44,6 +47,11 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         .expect("cargo stylus check failed");
     let verbose = cfg.check_config.common_cfg.verbose;
 
+    let constructor = export_abi::get_constructor_signature()?;
+    let factory_args = constructor
+        .map(|constructor| factory::parse_constructor_args(&cfg, &constructor, &contract))
+        .transpose()?;
+
     let client = sys::new_provider(&cfg.check_config.common_cfg.endpoint)?;
     let chain_id = client.get_chainid().await.expect("failed to get chain id");
 
@@ -56,7 +64,8 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         greyln!("sender address: {}", sender.debug_lavender());
     }
 
-    let data_fee = contract.suggest_fee();
+    let data_fee = contract.suggest_fee()
+        + alloy_ethers_typecast::ethers_u256_to_alloy(cfg.experimental_constructor_value);
 
     if let ContractCheck::Ready { .. } = &contract {
         // check balance early
@@ -77,6 +86,10 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
                 "https://docs.arbitrum.io/stylus/stylus-quickstart".yellow(),
             );
         }
+    }
+
+    if let Some(factory_args) = factory_args {
+        return factory::deploy(&cfg, factory_args, sender, &client).await;
     }
 
     let contract_addr = cfg
@@ -102,13 +115,7 @@ cargo stylus activate --address {}"#,
         }
         ContractCheck::Active { .. } => greyln!("wasm already activated!"),
     }
-    println!("");
-    let contract_addr = hex::encode(contract_addr);
-    mintln!(
-        r#"NOTE: We recommend running cargo stylus cache bid {contract_addr} 0 to cache your activated contract in ArbOS.
-Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
-https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#
-    );
+    print_cache_notice(contract_addr);
     Ok(())
 }
 
@@ -131,19 +138,7 @@ impl DeployConfig {
             .await?;
 
         if self.check_config.common_cfg.verbose || self.estimate_gas {
-            let gas_price = client.get_gas_price().await?;
-            greyln!("estimates");
-            greyln!("deployment tx gas: {}", gas.debug_lavender());
-            greyln!(
-                "gas price: {} gwei",
-                format_units(gas_price, "gwei")?.debug_lavender()
-            );
-            let total_cost = gas_price.checked_mul(gas).unwrap_or_default();
-            let eth_estimate = format_units(total_cost, "ether")?;
-            greyln!(
-                "deployment tx total cost: {} ETH",
-                eth_estimate.debug_lavender()
-            );
+            print_gas_estimate("deployment", client, gas).await?;
         }
         if self.estimate_gas {
             let nonce = client.get_transaction_count(sender, None).await?;
@@ -227,6 +222,34 @@ impl DeployConfig {
         );
         Ok(())
     }
+}
+
+pub async fn print_gas_estimate(name: &str, client: &SignerClient, gas: U256) -> Result<()> {
+    let gas_price = client.get_gas_price().await?;
+    greyln!("estimates");
+    greyln!("{} tx gas: {}", name, gas.debug_lavender());
+    greyln!(
+        "gas price: {} gwei",
+        format_units(gas_price, "gwei")?.debug_lavender()
+    );
+    let total_cost = gas_price.checked_mul(gas).unwrap_or_default();
+    let eth_estimate = format_units(total_cost, "ether")?;
+    greyln!(
+        "{} tx total cost: {} ETH",
+        name,
+        eth_estimate.debug_lavender()
+    );
+    Ok(())
+}
+
+pub fn print_cache_notice(contract_addr: H160) {
+    let contract_addr = hex::encode(contract_addr);
+    println!("");
+    mintln!(
+        r#"NOTE: We recommend running cargo stylus cache bid {contract_addr} 0 to cache your activated contract in ArbOS.
+Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
+https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#
+    );
 }
 
 pub async fn run_tx(

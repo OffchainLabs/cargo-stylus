@@ -235,6 +235,20 @@ struct DeployConfig {
     /// If set, do not activate the program after deploying it
     #[arg(long)]
     no_activate: bool,
+    /// The address of the factory contract that deploys, activates, and executes the stylus constructor.
+    #[arg(long, value_name = "FACTORY_ADDRESS")]
+    experimental_factory_address: Option<H160>,
+    /// The constructor arguments.
+    #[arg(
+        long,
+        num_args(0..),
+        value_name = "ARGS",
+        allow_hyphen_values = true,
+    )]
+    experimental_constructor_args: Vec<String>,
+    /// The amount of Ether sent to the contract through the constructor.
+    #[arg(long, default_value = "0")]
+    experimental_constructor_value: U256,
 }
 
 #[derive(Args, Clone, Debug)]
