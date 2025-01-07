@@ -485,7 +485,7 @@ fn main() -> Result<()> {
 
     // see if custom extension exists and is not a deprecated extension
     let custom = format!("cargo-stylus-{arg}");
-    if sys::command_exists(&custom) && !is_deprecated_extension(&arg) {
+    if sys::command_exists(&custom) && !is_deprecated_extension(&custom) {
         let mut command = sys::new_command(&custom);
         command.arg(arg).args(args);
 
