@@ -52,3 +52,7 @@ alloy-signer-local = { version = "0.2.1", features = ["keystore"] }
 alloy-signer = "0.2.1"
 alloy-transport = "0.2.1"
 wasmprinter = "0.221.2"
+
+[profile.release]
+# Do not strip symbols in the release binary so the replay command can link to the HostIO symbols.
+strip = "none"
