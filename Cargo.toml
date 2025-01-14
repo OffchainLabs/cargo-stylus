@@ -33,7 +33,3 @@ libc = "0.2.148"
 libloading = "0.8.0"
 parking_lot = "0.12.1"
 sneks = "0.1.2"
-
-[profile.release]
-# Do not strip symbols in the release binary so the replay command can link to the HostIO symbols.
-strip = "none"
