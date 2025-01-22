@@ -36,9 +36,9 @@ Cargo command for developing Arbitrum Stylus projects
 ### Building the Project Locally
 Install [Rust](https://www.rust-lang.org/tools/install)
 
-Clone the current released version to your local device
+Clone the latest [released version](https://github.com/OffchainLabs/cargo-stylus/releases) to your local device.
 ```
-git clone --branch v0.5.6 https://github.com/OffchainLabs/cargo-stylus.git
+git clone --branch [VERSION_TAG] https://github.com/OffchainLabs/cargo-stylus.git
 cd cargo-stylus
 ```
 
