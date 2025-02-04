@@ -258,7 +258,19 @@ pub async fn check_activate(
         .data(data)
         .value(ONE_ETH);
     let state = spoof::code(address, code);
-    let outs = eth_call(tx, state, provider).await??;
+    let eth_call_result = eth_call(tx, state, provider).await?;
+    let outs = match eth_call_result {
+        Ok(outs) => outs,
+        Err(e) => {
+            if e.msg.contains("pay_for_memory_grow") {
+                let msg = "Contract could not be activated as it is missing an entrypoint. \
+                Please ensure that your contract has an #[entrypoint] defined on your main struct";
+                bail!(msg);
+            } else {
+                return Err(e.into());
+            }
+        }
+    };
     let ArbWasm::activateProgramReturn {
         dataFee: data_fee, ..
     } = ArbWasm::activateProgramCall::abi_decode_returns(&outs, true)?;
