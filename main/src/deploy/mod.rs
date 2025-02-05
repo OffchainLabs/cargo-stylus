@@ -27,7 +27,7 @@ use ethers::{
 };
 use eyre::{bail, eyre, Result, WrapErr};
 
-mod factory;
+mod deployer;
 
 sol! {
     interface ArbWasm {
@@ -48,8 +48,8 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     let verbose = cfg.check_config.common_cfg.verbose;
 
     let constructor = export_abi::get_constructor_signature()?;
-    let factory_args = constructor
-        .map(|constructor| factory::parse_constructor_args(&cfg, &constructor, &contract))
+    let deployer_args = constructor
+        .map(|constructor| deployer::parse_constructor_args(&cfg, &constructor, &contract))
         .transpose()?;
 
     let client = sys::new_provider(&cfg.check_config.common_cfg.endpoint)?;
@@ -88,8 +88,8 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         }
     }
 
-    if let Some(factory_args) = factory_args {
-        return factory::deploy(&cfg, factory_args, sender, &client).await;
+    if let Some(deployer_args) = deployer_args {
+        return deployer::deploy(&cfg, deployer_args, sender, &client).await;
     }
 
     let contract_addr = cfg

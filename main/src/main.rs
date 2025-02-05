@@ -4,7 +4,7 @@
 // Enable unstable test feature for benchmarks when nightly is available
 #![cfg_attr(feature = "nightly", feature(test))]
 
-use alloy_primitives::TxHash;
+use alloy_primitives::{TxHash, B256};
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
 use ethers::abi::Bytes;
@@ -235,9 +235,12 @@ struct DeployConfig {
     /// If set, do not activate the program after deploying it
     #[arg(long)]
     no_activate: bool,
-    /// The address of the factory contract that deploys, activates, and executes the stylus constructor.
-    #[arg(long, value_name = "FACTORY_ADDRESS")]
-    experimental_factory_address: Option<H160>,
+    /// The address of the deployer contract that deploys, activates, and initializes the stylus constructor.
+    #[arg(long, value_name = "DEPLOYER_ADDRESS")]
+    experimental_deployer_address: Option<H160>,
+    /// The salt passed to the stylus deployer.
+    #[arg(long, default_value_t = B256::ZERO)]
+    experimental_deployer_salt: B256,
     /// The constructor arguments.
     #[arg(
         long,

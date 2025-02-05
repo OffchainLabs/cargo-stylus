@@ -22,25 +22,21 @@ use ethers::{
 use eyre::{bail, eyre, Context, Result};
 
 sol! {
-    interface CargoStylusFactory {
-        event ContractDeployed(address indexed deployedContract, address indexed deployer);
+    interface StylusDeployer {
+        event ContractDeployed(address deployedContract);
 
-        function deployActivateInit(
+        function deploy(
             bytes calldata bytecode,
-            bytes calldata constructorCalldata,
-            uint256 constructorValue
-        ) public payable returns (address);
-
-        function deployInit(
-            bytes calldata bytecode,
-            bytes calldata constructorCalldata
+            bytes calldata initData,
+            uint256 initValue,
+            bytes32 salt
         ) public payable returns (address);
     }
 
     function stylus_constructor();
 }
 
-pub struct FactoryArgs {
+pub struct DeployerArgs {
     /// Factory address
     address: H160,
     /// Value to be sent in the tx
@@ -49,14 +45,14 @@ pub struct FactoryArgs {
     tx_calldata: Vec<u8>,
 }
 
-/// Parses the constructor arguments and returns the data to deploy the contract using the factory.
+/// Parses the constructor arguments and returns the data to deploy the contract using the deployer.
 pub fn parse_constructor_args(
     cfg: &DeployConfig,
     constructor: &Constructor,
     contract: &ContractCheck,
-) -> Result<FactoryArgs> {
-    let Some(address) = cfg.experimental_factory_address else {
-        bail!("missing factory address");
+) -> Result<DeployerArgs> {
+    let Some(address) = cfg.experimental_deployer_address else {
+        bail!("missing deployer address");
     };
 
     let constructor_value =
@@ -92,55 +88,48 @@ pub fn parse_constructor_args(
     constructor_calldata.extend(calldata_args);
 
     let bytecode = super::contract_deployment_calldata(contract.code());
-    let tx_calldata = if contract.suggest_fee().is_zero() {
-        CargoStylusFactory::deployInitCall {
-            bytecode: bytecode.into(),
-            constructorCalldata: constructor_calldata.into(),
-        }
-        .abi_encode()
-    } else {
-        CargoStylusFactory::deployActivateInitCall {
-            bytecode: bytecode.into(),
-            constructorCalldata: constructor_calldata.into(),
-            constructorValue: constructor_value,
-        }
-        .abi_encode()
-    };
+    let tx_calldata = StylusDeployer::deployCall {
+        bytecode: bytecode.into(),
+        initData: constructor_calldata.into(),
+        initValue: constructor_value,
+        salt: cfg.experimental_deployer_salt,
+    }
+    .abi_encode();
 
-    Ok(FactoryArgs {
+    Ok(DeployerArgs {
         address,
         tx_value,
         tx_calldata,
     })
 }
 
-/// Deploys, activates, and initializes the contract using the Stylus factory.
+/// Deploys, activates, and initializes the contract using the Stylus deployer.
 pub async fn deploy(
     cfg: &DeployConfig,
-    factory: FactoryArgs,
+    deployer: DeployerArgs,
     sender: H160,
     client: &SignerClient,
 ) -> Result<()> {
     if cfg.check_config.common_cfg.verbose {
         greyln!(
-            "deploying contract using factory at address: {}",
-            factory.address.debug_lavender()
+            "deploying contract using deployer at address: {}",
+            deployer.address.debug_lavender()
         );
     }
 
     let tx = Eip1559TransactionRequest::new()
-        .to(factory.address)
+        .to(deployer.address)
         .from(sender)
         .value(alloy_ethers_typecast::alloy_u256_to_ethers(
-            factory.tx_value,
+            deployer.tx_value,
         ))
-        .data(factory.tx_calldata);
+        .data(deployer.tx_calldata);
 
     let gas = client
         .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
         .await?;
     if cfg.check_config.common_cfg.verbose || cfg.estimate_gas {
-        super::print_gas_estimate("factory deploy, activate, and init", client, gas).await?;
+        super::print_gas_estimate("deployer deploy, activate, and init", client, gas).await?;
     }
     if cfg.estimate_gas {
         return Ok(());
@@ -173,17 +162,16 @@ pub async fn deploy(
     Ok(())
 }
 
-/// Gets the Stylus-contract address that was deployed using the factory.
+/// Gets the Stylus-contract address that was deployed using the deployer.
 fn get_address_from_receipt(receipt: &TransactionReceipt) -> Result<H160> {
     for log in receipt.logs.iter() {
         if let Some(topic) = log.topics.first() {
-            if topic.0 == CargoStylusFactory::ContractDeployed::SIGNATURE_HASH {
-                let address = log
-                    .topics
-                    .get(1)
-                    .ok_or(eyre!("address missing from ContractDeployed log"))?;
+            if topic.0 == StylusDeployer::ContractDeployed::SIGNATURE_HASH {
+                if log.data.len() != 32 {
+                    bail!("address missing from ContractDeployed log");
+                }
                 return Ok(ethers::types::Address::from_slice(
-                    &address.as_bytes()[12..32],
+                    &log.data[12..32],
                 ));
             }
         }
