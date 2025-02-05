@@ -170,9 +170,7 @@ fn get_address_from_receipt(receipt: &TransactionReceipt) -> Result<H160> {
                 if log.data.len() != 32 {
                     bail!("address missing from ContractDeployed log");
                 }
-                return Ok(ethers::types::Address::from_slice(
-                    &log.data[12..32],
-                ));
+                return Ok(ethers::types::Address::from_slice(&log.data[12..32]));
             }
         }
     }
