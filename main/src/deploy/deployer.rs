@@ -52,7 +52,7 @@ pub fn parse_constructor_args(
     contract: &ContractCheck,
 ) -> Result<DeployerArgs> {
     let Some(address) = cfg.experimental_deployer_address else {
-        bail!("missing deployer address");
+        bail!("this contract has a constructor so it requires the deployer address for deployment");
     };
 
     let constructor_value =
