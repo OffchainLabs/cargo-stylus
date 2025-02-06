@@ -127,7 +127,8 @@ pub async fn deploy(
 
     let gas = client
         .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
-        .await?;
+        .await
+        .wrap_err("deployment failed during gas estimation")?;
     if cfg.check_config.common_cfg.verbose || cfg.estimate_gas {
         super::print_gas_estimate("deployer deploy, activate, and init", client, gas).await?;
     }
