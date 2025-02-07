@@ -5,7 +5,7 @@ use super::SignerClient;
 use crate::{
     check::ContractCheck,
     macros::*,
-    util::color::{Color, DebugColor},
+    util::color::{Color, DebugColor, GREY},
     DeployConfig,
 };
 use alloy_dyn_abi::{DynSolValue, JsonAbiExt, Specifier};
@@ -18,6 +18,7 @@ use ethers::{
     types::{
         transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt, H160,
     },
+    utils::format_ether,
 };
 use eyre::{bail, eyre, Context, Result};
 
@@ -55,6 +56,12 @@ pub fn parse_constructor_args(
         bail!("this contract has a constructor so it requires the deployer address for deployment");
     };
 
+    if !cfg.experimental_constructor_value.is_zero() {
+        greyln!(
+            "value sent to the constructor: {} {GREY}Ether",
+            format_ether(cfg.experimental_constructor_value).debug_lavender()
+        );
+    }
     let constructor_value =
         alloy_ethers_typecast::ethers_u256_to_alloy(cfg.experimental_constructor_value);
     if constructor.state_mutability != StateMutability::Payable && !constructor_value.is_zero() {

@@ -250,7 +250,7 @@ struct DeployConfig {
     )]
     experimental_constructor_args: Vec<String>,
     /// The amount of Ether sent to the contract through the constructor.
-    #[arg(long, default_value = "0")]
+    #[arg(long, value_parser = parse_ether, default_value = "0")]
     experimental_constructor_value: U256,
 }
 
@@ -783,4 +783,8 @@ pub fn find_shared_library(project: &Path, extension: &str) -> Result<PathBuf> {
         bail!("failed to find .so");
     };
     Ok(file)
+}
+
+fn parse_ether(s: &str) -> Result<U256> {
+    Ok(ethers::utils::parse_ether(s)?)
 }
