@@ -1036,7 +1036,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "alloy-contract",
  "alloy-ethers-typecast",
@@ -1079,7 +1079,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus-example"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "clap",
 ]
