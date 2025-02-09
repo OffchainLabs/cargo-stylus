@@ -260,6 +260,7 @@ pub async fn run_tx(
     tx.max_fee_per_gas = Some(U256::from(max_fee_per_gas_wei));
     tx.max_priority_fee_per_gas = Some(U256::from(0));
 
+    let tx = TypedTransaction::Eip1559(tx);
     let tx = client.send_transaction(tx, None).await?;
     let tx_hash = tx.tx_hash();
     if verbose {
