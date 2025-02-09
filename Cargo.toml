@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 authors = ["Offchain Labs"]
-version = "0.5.8"
+version = "0.5.7"
 edition = "2021"
 homepage = "https://arbitrum.io"
 license = "MIT OR Apache-2.0"

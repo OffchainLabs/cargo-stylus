@@ -2,15 +2,18 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 #![allow(clippy::println_empty_string)]
-use crate::util::{
-    color::{Color, DebugColor},
-    sys,
-};
 use crate::{
     check::{self, ContractCheck},
     constants::ARB_WASM_H160,
     macros::*,
     DeployConfig,
+};
+use crate::{
+    util::{
+        color::{Color, DebugColor},
+        sys,
+    },
+    GasFeeConfig,
 };
 use alloy_primitives::{Address, U256 as AU256};
 use alloy_sol_macro::sol;
@@ -129,9 +132,9 @@ impl DeployConfig {
         let gas = client
             .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
             .await?;
+        let gas_price = client.get_gas_price().await?;
 
         if self.check_config.common_cfg.verbose || self.estimate_gas {
-            let gas_price = client.get_gas_price().await?;
             greyln!("estimates");
             greyln!("deployment tx gas: {}", gas.debug_lavender());
             greyln!(
@@ -150,11 +153,16 @@ impl DeployConfig {
             return Ok(ethers::utils::get_contract_address(sender, nonce));
         }
 
+        let fee_per_gas = match self.check_config.common_cfg.get_max_fee_per_gas_wei()? {
+            Some(wei) => wei,
+            None => gas_price.try_into().unwrap_or_default(),
+        };
+
         let receipt = run_tx(
             "deploy",
             tx,
             Some(gas),
-            self.check_config.common_cfg.max_fee_per_gas_gwei,
+            fee_per_gas,
             client,
             self.check_config.common_cfg.verbose,
         )
@@ -203,15 +211,22 @@ impl DeployConfig {
             .await
             .map_err(|e| eyre!("did not estimate correctly: {e}"))?;
 
+        let gas_price = client.get_gas_price().await?;
+
         if self.check_config.common_cfg.verbose || self.estimate_gas {
             greyln!("activation gas estimate: {}", format_gas(gas));
         }
+
+        let fee_per_gas = match self.check_config.common_cfg.get_max_fee_per_gas_wei()? {
+            Some(wei) => wei,
+            None => gas_price.try_into().unwrap_or_default(),
+        };
 
         let receipt = run_tx(
             "activate",
             tx,
             Some(gas),
-            self.check_config.common_cfg.max_fee_per_gas_gwei,
+            fee_per_gas,
             client,
             self.check_config.common_cfg.verbose,
         )
@@ -233,7 +248,7 @@ pub async fn run_tx(
     name: &str,
     tx: Eip1559TransactionRequest,
     gas: Option<U256>,
-    max_fee_per_gas_gwei: Option<u128>,
+    max_fee_per_gas_wei: u128,
     client: &SignerClient,
     verbose: bool,
 ) -> Result<TransactionReceipt> {
@@ -241,10 +256,10 @@ pub async fn run_tx(
     if let Some(gas) = gas {
         tx.gas = Some(gas);
     }
-    if let Some(max_fee) = max_fee_per_gas_gwei {
-        tx.max_fee_per_gas = Some(U256::from(gwei_to_wei(max_fee)?));
-    }
-    let tx = TypedTransaction::Eip1559(tx);
+
+    tx.max_fee_per_gas = Some(U256::from(max_fee_per_gas_wei));
+    tx.max_priority_fee_per_gas = Some(U256::from(0));
+
     let tx = client.send_transaction(tx, None).await?;
     let tx_hash = tx.tx_hash();
     if verbose {
@@ -303,13 +318,5 @@ pub fn format_gas(gas: U256) -> String {
         text.yellow()
     } else {
         text.pink()
-    }
-}
-
-pub fn gwei_to_wei(gwei: u128) -> Result<u128> {
-    let wei_per_gwei: u128 = 10u128.pow(9);
-    match gwei.checked_mul(wei_per_gwei) {
-        Some(wei) => Ok(wei),
-        None => bail!("overflow occurred while converting gwei to wei"),
     }
 }
