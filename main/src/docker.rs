@@ -5,12 +5,13 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::util::color::Color;
+use cargo_metadata::MetadataCommand;
 use eyre::{bail, eyre, Result};
 
 use crate::constants::TOOLCHAIN_FILE_NAME;
 use crate::macros::greyln;
 use crate::project::extract_toolchain_channel;
+use crate::util::color::Color;
 
 fn image_name(cargo_stylus_version: &str, toolchain_version: &str) -> String {
     format!(
@@ -84,10 +85,9 @@ fn run_in_docker_container(
     cargo_stylus_version: &str,
     toolchain_version: &str,
     command_line: &[&str],
+    workspace_root: PathBuf,
 ) -> Result<()> {
     let image_name = image_name(cargo_stylus_version, toolchain_version);
-    let dir =
-        std::env::current_dir().map_err(|e| eyre!("failed to find current directory: {e}"))?;
     Command::new("docker")
         .arg("run")
         .arg("--network")
@@ -95,7 +95,7 @@ fn run_in_docker_container(
         .arg("-w")
         .arg("/source")
         .arg("-v")
-        .arg(format!("{}:/source", dir.as_os_str().to_str().unwrap()))
+        .arg(format!("{}:/source", workspace_root.to_str().unwrap()))
         .arg(image_name)
         .args(command_line)
         .spawn()
@@ -108,9 +108,14 @@ fn run_in_docker_container(
 pub fn run_reproducible(
     cargo_stylus_version: Option<String>,
     command_line: &[String],
+    workspace_root: Option<String>,
 ) -> Result<()> {
     verify_valid_host()?;
-    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
+    let workspace_root = workspace_root.map_or_else(
+        || find_workspace_root().map_err(|e| eyre!("failed to find workspace root: {e}")),
+        |s| Ok(PathBuf::from(s)),
+    )?;
+    let toolchain_file_path = workspace_root.join(TOOLCHAIN_FILE_NAME);
     let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
     greyln!(
         "Running reproducible Stylus command with toolchain {}",
@@ -123,7 +128,17 @@ pub fn run_reproducible(
         command.push(s);
     }
     create_image(&cargo_stylus_version, &toolchain_channel)?;
-    run_in_docker_container(&cargo_stylus_version, &toolchain_channel, &command)
+    run_in_docker_container(
+        &cargo_stylus_version,
+        &toolchain_channel,
+        &command,
+        workspace_root,
+    )
+}
+
+pub fn find_workspace_root() -> Result<std::path::PathBuf> {
+    let metadata = MetadataCommand::new().no_deps().exec()?;
+    Ok(metadata.workspace_root.clone().into_std_path_buf())
 }
 
 fn verify_valid_host() -> Result<()> {
