@@ -6,7 +6,7 @@ use crate::{
     check::ContractCheck,
     macros::*,
     util::color::{Color, DebugColor, GREY},
-    DeployConfig,
+    DeployConfig, GasFeeConfig,
 };
 use alloy_dyn_abi::{DynSolValue, JsonAbiExt, Specifier};
 use alloy_json_abi::{Constructor, StateMutability};
@@ -136,18 +136,32 @@ pub async fn deploy(
         .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
         .await
         .wrap_err("deployment failed during gas estimation")?;
+
+    let gas_price = client.get_gas_price().await?;
+
     if cfg.check_config.common_cfg.verbose || cfg.estimate_gas {
-        super::print_gas_estimate("deployer deploy, activate, and init", client, gas).await?;
+        super::print_gas_estimate(
+            "deployer deploy, activate, and init",
+            client,
+            gas,
+            gas_price,
+        )
+        .await?;
     }
     if cfg.estimate_gas {
         return Ok(());
     }
 
+    let fee_per_gas: u128 = match cfg.check_config.common_cfg.get_max_fee_per_gas_wei()? {
+        Some(wei) => wei,
+        None => gas_price.try_into().unwrap_or_default(),
+    };
+
     let receipt = super::run_tx(
         "deploy_activate_init",
         tx,
         Some(gas),
-        cfg.check_config.common_cfg.max_fee_per_gas_gwei,
+        fee_per_gas,
         client,
         cfg.check_config.common_cfg.verbose,
     )
