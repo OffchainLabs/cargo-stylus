@@ -4,7 +4,7 @@
 // Enable unstable test feature for benchmarks when nightly is available
 #![cfg_attr(feature = "nightly", feature(test))]
 
-use alloy_primitives::TxHash;
+use alloy_primitives::{TxHash, B256};
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
 use ethers::abi::Bytes;
@@ -235,6 +235,23 @@ struct DeployConfig {
     /// If set, do not activate the program after deploying it
     #[arg(long)]
     no_activate: bool,
+    /// The address of the deployer contract that deploys, activates, and initializes the stylus constructor.
+    #[arg(long, value_name = "DEPLOYER_ADDRESS")]
+    experimental_deployer_address: Option<H160>,
+    /// The salt passed to the stylus deployer.
+    #[arg(long, default_value_t = B256::ZERO)]
+    experimental_deployer_salt: B256,
+    /// The constructor arguments.
+    #[arg(
+        long,
+        num_args(0..),
+        value_name = "ARGS",
+        allow_hyphen_values = true,
+    )]
+    experimental_constructor_args: Vec<String>,
+    /// The amount of Ether sent to the contract through the constructor.
+    #[arg(long, value_parser = parse_ether, default_value = "0")]
+    experimental_constructor_value: U256,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -820,4 +837,8 @@ pub fn find_shared_library(project: &Path, extension: &str) -> Result<PathBuf> {
         bail!("failed to find .so");
     };
     Ok(file)
+}
+
+fn parse_ether(s: &str) -> Result<U256> {
+    Ok(ethers::utils::parse_ether(s)?)
 }
