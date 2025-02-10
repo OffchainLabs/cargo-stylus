@@ -140,12 +140,7 @@ pub async fn deploy(
     let gas_price = client.get_gas_price().await?;
 
     if cfg.check_config.common_cfg.verbose || cfg.estimate_gas {
-        super::print_gas_estimate(
-            "deployer deploy, activate, and init",
-            gas,
-            gas_price,
-        )
-        .await?;
+        super::print_gas_estimate("deployer deploy, activate, and init", gas, gas_price).await?;
     }
     if cfg.estimate_gas {
         return Ok(());

@@ -238,11 +238,7 @@ impl DeployConfig {
     }
 }
 
-pub async fn print_gas_estimate(
-    name: &str,
-    gas: U256,
-    gas_price: U256,
-) -> Result<()> {
+pub async fn print_gas_estimate(name: &str, gas: U256, gas_price: U256) -> Result<()> {
     greyln!("estimates");
     greyln!("{} tx gas: {}", name, gas.debug_lavender());
     greyln!(
