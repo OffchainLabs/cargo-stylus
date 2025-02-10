@@ -4,9 +4,10 @@
 use super::SignerClient;
 use crate::{
     check::ContractCheck,
+    deploy::calculate_fee_per_gas,
     macros::*,
     util::color::{Color, DebugColor, GREY},
-    DeployConfig, GasFeeConfig,
+    DeployConfig,
 };
 use alloy_dyn_abi::{DynSolValue, JsonAbiExt, Specifier};
 use alloy_json_abi::{Constructor, StateMutability};
@@ -146,10 +147,7 @@ pub async fn deploy(
         return Ok(());
     }
 
-    let fee_per_gas: u128 = match cfg.check_config.common_cfg.get_max_fee_per_gas_wei()? {
-        Some(wei) => wei,
-        None => gas_price.try_into().unwrap_or_default(),
-    };
+    let fee_per_gas = calculate_fee_per_gas(&cfg.check_config.common_cfg, gas_price)?;
 
     let receipt = super::run_tx(
         "deploy_activate_init",

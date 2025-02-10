@@ -147,10 +147,7 @@ impl DeployConfig {
             return Ok(ethers::utils::get_contract_address(sender, nonce));
         }
 
-        let fee_per_gas: u128 = match self.check_config.common_cfg.get_max_fee_per_gas_wei()? {
-            Some(wei) => wei,
-            None => gas_price.try_into().unwrap_or_default(),
-        };
+        let fee_per_gas = calculate_fee_per_gas(&self.check_config.common_cfg, gas_price)?;
 
         let receipt = run_tx(
             "deploy",
@@ -211,10 +208,7 @@ impl DeployConfig {
             greyln!("activation gas estimate: {}", format_gas(gas));
         }
 
-        let fee_per_gas: u128 = match self.check_config.common_cfg.get_max_fee_per_gas_wei()? {
-            Some(wei) => wei,
-            None => gas_price.try_into().unwrap_or_default(),
-        };
+        let fee_per_gas = calculate_fee_per_gas(&self.check_config.common_cfg, gas_price)?;
 
         let receipt = run_tx(
             "activate",
@@ -341,4 +335,12 @@ pub fn format_gas(gas: U256) -> String {
     } else {
         text.pink()
     }
+}
+
+pub fn calculate_fee_per_gas<T: GasFeeConfig>(config: &T, gas_price: U256) -> Result<u128> {
+    let fee_per_gas = match config.get_max_fee_per_gas_wei()? {
+        Some(wei) => wei,
+        None => gas_price.try_into().unwrap(),
+    };
+    Ok(fee_per_gas)
 }
