@@ -140,7 +140,7 @@ impl DeployConfig {
         let gas_price = client.get_gas_price().await?;
 
         if self.check_config.common_cfg.verbose || self.estimate_gas {
-            print_gas_estimate("deployment", client, gas, gas_price).await?;
+            print_gas_estimate("deployment", gas, gas_price).await?;
         }
         if self.estimate_gas {
             let nonce = client.get_transaction_count(sender, None).await?;
@@ -240,7 +240,6 @@ impl DeployConfig {
 
 pub async fn print_gas_estimate(
     name: &str,
-    client: &SignerClient,
     gas: U256,
     gas_price: U256,
 ) -> Result<()> {
