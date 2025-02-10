@@ -413,7 +413,7 @@ fn convert_gwei_to_wei(fee_str: &str) -> Result<u128> {
 
     let wei = gwei * 1e9;
     if !wei.is_finite() {
-        bail!("Overflow occurred in floating point multiplication");
+        bail!("Overflow occurred in floating point multiplication of --max-fee-per-gas-gwei converting");
     }
 
     if wei < 0.0 || wei >= u128::MAX as f64 {
