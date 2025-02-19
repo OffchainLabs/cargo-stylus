@@ -248,7 +248,7 @@ pub fn print_cache_notice(contract_addr: H160) {
     mintln!(
         r#"NOTE: We recommend running cargo stylus cache bid {contract_addr} 0 to cache your activated contract in ArbOS.
 Cached contracts benefit from cheaper calls. To read more about the Stylus contract cache, see
-https://docs.arbitrum.io/stylus/concepts/stylus-cache-manager"#
+https://docs.arbitrum.io/stylus/how-tos/caching-contracts"#
     );
 }
 
