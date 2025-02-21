@@ -12,13 +12,18 @@ use std::{
 };
 
 /// Exports Solidity ABIs by running the contract natively.
-pub fn export_abi(file: Option<PathBuf>, json: bool) -> Result<()> {
+pub fn export_abi(
+    file: Option<PathBuf>,
+    json: bool,
+    rust_features: Option<Vec<String>>,
+) -> Result<()> {
     if json && !sys::command_exists("solc") {
         let link = "https://docs.soliditylang.org/en/latest/installing-solidity.html".red();
         bail!("solc not found. Please see\n{link}");
     }
 
-    let mut output = run_export("abi")?;
+    let features = rust_features.map(|feature_list| feature_list.join(","));
+    let mut output = run_export("abi", features)?;
 
     // convert the ABI to a JSON file via solc
     if json {
@@ -44,18 +49,20 @@ pub fn export_abi(file: Option<PathBuf>, json: bool) -> Result<()> {
 /// Gets the constructor signature of the Stylus contract using the export binary.
 /// If the contract doesn't have a constructor, returns None.
 pub fn get_constructor_signature() -> Result<Option<Constructor>> {
-    let output = run_export("constructor")?;
+    let output = run_export("constructor", None)?;
     let output = String::from_utf8(output)?;
     parse_constructor(&output)
 }
 
-fn run_export(command: &str) -> Result<Vec<u8>> {
+fn run_export(command: &str, features: Option<String>) -> Result<Vec<u8>> {
     let target = format!("--target={}", sys::host_arch()?);
+    let features = format!("--features=export-abi,{}", features.unwrap_or_default());
+
     let output = Command::new("cargo")
         .stderr(Stdio::inherit())
         .arg("run")
         .arg("--quiet")
-        .arg("--features=export-abi")
+        .arg(features)
         .arg(target)
         .arg("--")
         .arg(command)
