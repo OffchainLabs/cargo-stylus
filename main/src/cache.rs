@@ -11,9 +11,8 @@ use eyre::{bail, Result};
 use CacheManager::CacheManagerErrors;
 
 use crate::constants::ARB_WASM_CACHE_ADDRESS;
-use crate::deploy::gwei_to_wei;
 use crate::macros::greyln;
-use crate::{CacheBidConfig, CacheStatusConfig, CacheSuggestionsConfig};
+use crate::{CacheBidConfig, CacheStatusConfig, CacheSuggestionsConfig, GasFeeConfig};
 
 sol! {
     #[sol(rpc)]
@@ -178,8 +177,9 @@ pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
     let addr = cfg.address.to_fixed_bytes().into();
     let mut place_bid_call = cache_manager.placeBid(addr).value(U256::from(cfg.bid));
-    if let Some(max_fee) = cfg.max_fee_per_gas_gwei {
-        place_bid_call = place_bid_call.max_fee_per_gas(gwei_to_wei(max_fee)?);
+    if let Some(max_fee) = cfg.get_max_fee_per_gas_wei()? {
+        place_bid_call = place_bid_call.max_fee_per_gas(max_fee);
+        place_bid_call = place_bid_call.max_priority_fee_per_gas(0);
     };
 
     greyln!("Checking if contract can be cached...");
