@@ -128,7 +128,7 @@ struct CommonConfig {
     source_files_for_project_hash: Vec<String>,
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
-    max_fee_per_gas_gwei: Option<u128>,
+    max_fee_per_gas_gwei: Option<String>,
     /// Specifies the features to use when building the Stylus binary.
     #[arg(long)]
     features: Option<String>,
@@ -164,7 +164,7 @@ pub struct CacheBidConfig {
     bid: u64,
     #[arg(long)]
     /// Optional max fee per gas in gwei units.
-    max_fee_per_gas_gwei: Option<u128>,
+    max_fee_per_gas_gwei: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -395,6 +395,60 @@ impl fmt::Display for CommonConfig {
                 None => "".to_string(),
             }
         )
+    }
+}
+
+pub trait GasFeeConfig {
+    fn get_max_fee_per_gas_wei(&self) -> Result<Option<u128>>;
+    fn get_fee_str(&self) -> &Option<String>;
+}
+
+fn convert_gwei_to_wei(fee_str: &str) -> Result<u128> {
+    let gwei = match fee_str.parse::<f64>() {
+        Ok(fee) if fee >= 0.0 => fee,
+        Ok(_) => bail!("Max fee per gas must be non-negative"),
+        Err(_) => bail!("Invalid max fee per gas value: {}", fee_str),
+    };
+
+    if !gwei.is_finite() {
+        bail!("Invalid gwei value: must be finite");
+    }
+
+    let wei = gwei * 1e9;
+    if !wei.is_finite() {
+        bail!("Overflow occurred in floating point multiplication of --max-fee-per-gas-gwei converting");
+    }
+
+    if wei < 0.0 || wei >= u128::MAX as f64 {
+        bail!("Result outside valid range for wei");
+    }
+
+    Ok(wei as u128)
+}
+
+impl GasFeeConfig for CommonConfig {
+    fn get_fee_str(&self) -> &Option<String> {
+        &self.max_fee_per_gas_gwei
+    }
+
+    fn get_max_fee_per_gas_wei(&self) -> Result<Option<u128>> {
+        match self.get_fee_str() {
+            Some(fee_str) => Ok(Some(convert_gwei_to_wei(fee_str)?)),
+            None => Ok(None),
+        }
+    }
+}
+
+impl GasFeeConfig for CacheBidConfig {
+    fn get_fee_str(&self) -> &Option<String> {
+        &self.max_fee_per_gas_gwei
+    }
+
+    fn get_max_fee_per_gas_wei(&self) -> Result<Option<u128>> {
+        match self.get_fee_str() {
+            Some(fee_str) => Ok(Some(convert_gwei_to_wei(fee_str)?)),
+            None => Ok(None),
+        }
     }
 }
 
