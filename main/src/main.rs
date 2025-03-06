@@ -79,6 +79,9 @@ enum Apis {
         /// Write a JSON ABI instead using solc. Requires solc.
         #[arg(long)]
         json: bool,
+        /// Rust crate's features list. Required to include feature specific abi.
+        #[arg(long)]
+        rust_features: Option<Vec<String>>,
     },
     /// Activate an already deployed contract.
     #[command(visible_alias = "a")]
@@ -603,8 +606,15 @@ async fn main_impl(args: Opts) -> Result<()> {
         Apis::Init { minimal } => {
             run!(new::init(minimal), "failed to initialize project");
         }
-        Apis::ExportAbi { json, output } => {
-            run!(export_abi::export_abi(output, json), "failed to export abi");
+        Apis::ExportAbi {
+            json,
+            output,
+            rust_features,
+        } => {
+            run!(
+                export_abi::export_abi(output, json, rust_features),
+                "failed to export abi"
+            );
         }
         Apis::Activate(config) => {
             run!(
