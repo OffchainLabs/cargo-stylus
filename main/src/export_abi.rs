@@ -46,6 +46,18 @@ pub fn export_abi(
     Ok(())
 }
 
+/// Print the constructor signature
+pub fn print_constructor(file: Option<PathBuf>, rust_features: Option<Vec<String>>) -> Result<()> {
+    let features = rust_features.map(|feature_list| feature_list.join(","));
+    let output = run_export("constructor", features)?;
+    if !std::str::from_utf8(&output)?.starts_with("constructor") {
+        return Ok(());
+    }
+    let mut file = sys::file_or_stdout(file)?;
+    file.write_all(&output)?;
+    Ok(())
+}
+
 /// Gets the constructor signature of the Stylus contract using the export binary.
 /// If the contract doesn't have a constructor, returns None.
 pub fn get_constructor_signature() -> Result<Option<Constructor>> {

@@ -83,6 +83,15 @@ enum Apis {
         #[arg(long)]
         rust_features: Option<Vec<String>>,
     },
+    /// Print the signature of the constructor.
+    Constructor {
+        /// The output file (defaults to stdout).
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Rust crate's features list. Required to include feature specific abi.
+        #[arg(long)]
+        rust_features: Option<Vec<String>>,
+    },
     /// Activate an already deployed contract.
     #[command(visible_alias = "a")]
     Activate(ActivateConfig),
@@ -614,6 +623,15 @@ async fn main_impl(args: Opts) -> Result<()> {
             run!(
                 export_abi::export_abi(output, json, rust_features),
                 "failed to export abi"
+            );
+        }
+        Apis::Constructor {
+            output,
+            rust_features,
+        } => {
+            run!(
+                export_abi::print_constructor(output, rust_features),
+                "failed to print constructor"
             );
         }
         Apis::Activate(config) => {
