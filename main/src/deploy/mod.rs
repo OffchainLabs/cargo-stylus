@@ -46,8 +46,13 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         .await
         .expect("cargo stylus check failed");
     let verbose = cfg.check_config.common_cfg.verbose;
+    let use_wasm_file = cfg.check_config.wasm_file.is_some();
 
-    let constructor = export_abi::get_constructor_signature()?;
+    let constructor = if use_wasm_file {
+        None
+    } else {
+        export_abi::get_constructor_signature()?
+    };
     let deployer_args = constructor
         .map(|constructor| deployer::parse_constructor_args(&cfg, &constructor, &contract))
         .transpose()?;
