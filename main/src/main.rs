@@ -92,6 +92,8 @@ enum Apis {
     /// Check a contract.
     #[command(visible_alias = "c")]
     Check(CheckConfig),
+    #[command(visible_alias = "e")]
+    GetInitcode(CheckConfig),
     /// Deploy a contract.
     #[command(visible_alias = "d")]
     Deploy(DeployConfig),
@@ -652,6 +654,9 @@ async fn main_impl(args: Opts) -> Result<()> {
         },
         Apis::Check(config) => {
             run!(check::check(&config).await, "stylus checks failed");
+        }
+        Apis::GetInitcode(config) => {
+            run!(check::get_initcode(&config).await, "get initcode failed");
         }
         Apis::Deploy(config) => {
             if config.no_verify {

@@ -2,15 +2,10 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use crate::{
-    check::ArbWasm::ArbWasmErrors,
-    constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME},
-    macros::*,
-    project::{self, extract_toolchain_channel, BuildConfig},
-    util::{
+    check::ArbWasm::ArbWasmErrors, constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME}, deploy::contract_deployment_calldata, macros::*, project::{self, extract_toolchain_channel, BuildConfig}, util::{
         color::{Color, GREY, LAVENDER},
         sys, text,
-    },
-    CheckConfig, DataFeeOpts,
+    }, CheckConfig, DataFeeOpts
 };
 use alloy_primitives::{Address, B256, U256};
 use alloy_sol_macro::sol;
@@ -24,7 +19,7 @@ use ethers::{
 };
 use eyre::{bail, eyre, ErrReport, Result, WrapErr};
 use serde_json::Value;
-use std::path::PathBuf;
+use std::{fs::File, io::Write, path::PathBuf};
 
 sol! {
     interface ArbWasm {
@@ -86,6 +81,21 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
     let address = cfg.contract_address.unwrap_or(H160::random());
     let fee = check_activate(code.clone().into(), address, &cfg.data_fee, &provider).await?;
     Ok(ContractCheck::Ready { code, fee })
+}
+
+pub async fn get_initcode(cfg: &CheckConfig) -> Result<()> {
+    let (wasm, project_hash) = cfg.build_wasm().wrap_err("failed to build wasm")?;
+
+    let (_, code) =
+        project::compress_wasm(&wasm, project_hash).wrap_err("failed to compress WASM")?;
+
+    let initcode = contract_deployment_calldata(&code);
+    let hex_initcode = hex::encode(initcode);
+
+    let mut file = File::create("initcode").wrap_err("failed to create output file")?;
+    file.write_all(hex_initcode.as_bytes())?;
+
+    Ok(())
 }
 
 /// Whether a contract is active, or needs activation.
