@@ -12,9 +12,11 @@ use crate::{
     },
     CheckConfig, DataFeeOpts,
 };
-use alloy_primitives::{Address, B256, U256};
-use alloy_sol_macro::sol;
-use alloy_sol_types::{SolCall, SolInterface};
+use alloy::{
+    primitives::{Address, B256, U256},
+    sol,
+    sol_types::{SolCall, SolInterface},
+};
 use bytesize::ByteSize;
 use ethers::{
     core::types::spoof,
@@ -77,7 +79,7 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
 
     // Check if the contract already exists.
     let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
-    let codehash = alloy_primitives::keccak256(&code);
+    let codehash = alloy::primitives::keccak256(&code);
 
     if contract_exists(codehash, &provider).await? {
         return Ok(ContractCheck::Active { code });

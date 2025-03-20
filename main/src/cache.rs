@@ -2,10 +2,12 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/stylus/licenses/COPYRIGHT.md
 
 use crate::util::color::{Color, DebugColor};
-use alloy_contract::Error;
-use alloy_primitives::{keccak256, Address, U256};
-use alloy_provider::{Provider, ProviderBuilder};
-use alloy_sol_macro::sol;
+use alloy::{
+    contract::Error,
+    primitives::{keccak256, Address, U256},
+    providers::{Provider, ProviderBuilder},
+    sol,
+};
 use bytesize::ByteSize;
 use eyre::{bail, Result};
 use CacheManager::CacheManagerErrors;
@@ -40,10 +42,7 @@ sol! {
 /// Recommends a minimum bid to the user for caching a Stylus program by address. If the program
 /// has not yet been activated, the user will be informed.
 pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
-    let provider = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .on_builtin(&cfg.endpoint)
-        .await?;
+    let provider = ProviderBuilder::new().on_builtin(&cfg.endpoint).await?;
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
     match cache_manager
@@ -78,10 +77,7 @@ pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
 /// for different contract sizes as reference points. It also checks if a specified Stylus contract address
 /// is currently cached.
 pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
-    let provider = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .on_builtin(&cfg.endpoint)
-        .await?;
+    let provider = ProviderBuilder::new().on_builtin(&cfg.endpoint).await?;
     let arb_wasm_cache = ArbWasmCache::new(ARB_WASM_CACHE_ADDRESS, provider.clone());
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
@@ -161,15 +157,11 @@ pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
 /// It will handle the different cache manager errors that can be encountered along the way and
 /// print friendlier errors if failed.
 pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
-    let provider = ProviderBuilder::new()
-        .with_recommended_fillers()
-        .on_builtin(&cfg.endpoint)
-        .await?;
+    let provider = ProviderBuilder::new().on_builtin(&cfg.endpoint).await?;
     let chain_id = provider.get_chain_id().await?;
     let wallet = cfg.auth.alloy_wallet(chain_id)?;
     let from_address = wallet.default_signer().address();
     let provider = ProviderBuilder::new()
-        .with_recommended_fillers()
         .wallet(wallet)
         .on_builtin(&cfg.endpoint)
         .await?;
@@ -201,7 +193,7 @@ pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
     let pending_tx = place_bid_call.send().await?;
     let receipt = pending_tx.get_receipt().await?;
     if cfg.verbose {
-        let gas = format_gas(receipt.gas_used);
+        let gas = format_gas(receipt.gas_used.into());
         greyln!(
             "Successfully cached contract at address: {addr} {} {gas} gas used",
             "with".grey()

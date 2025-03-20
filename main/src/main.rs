@@ -4,7 +4,7 @@
 // Enable unstable test feature for benchmarks when nightly is available
 #![cfg_attr(feature = "nightly", feature(test))]
 
-use alloy_primitives::{TxHash, B256};
+use alloy::primitives::{TxHash, B256};
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
 use ethers::abi::Bytes;

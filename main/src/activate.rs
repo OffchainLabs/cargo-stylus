@@ -7,9 +7,7 @@ use crate::macros::greyln;
 use crate::util::color::{Color, DebugColor};
 use crate::util::sys;
 use crate::ActivateConfig;
-use alloy_primitives::Address;
-use alloy_sol_macro::sol;
-use alloy_sol_types::SolCall;
+use alloy::{primitives::Address, sol, sol_types::SolCall};
 use ethers::middleware::{Middleware, SignerMiddleware};
 use ethers::signers::Signer;
 use ethers::types::transaction::eip2718::TypedTransaction;
@@ -46,7 +44,7 @@ pub async fn activate_contract(cfg: &ActivateConfig) -> Result<()> {
     let tx = Eip1559TransactionRequest::new()
         .from(client.address())
         .to(*ARB_WASM_H160)
-        .value(alloy_ethers_typecast::alloy_u256_to_ethers(data_fee))
+        .value(data_fee)
         .data(data);
     let tx = TypedTransaction::Eip1559(tx);
     if cfg.estimate_gas {

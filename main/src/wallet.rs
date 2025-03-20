@@ -3,10 +3,8 @@
 
 use crate::util::text::{self, decode0x};
 use crate::AuthOpts;
-use alloy_primitives::FixedBytes;
-use alloy_provider::network::EthereumWallet;
-use alloy_signer::Signer;
-use alloy_signer_local::PrivateKeySigner;
+use alloy::signers::local::{LocalSigner, PrivateKeySigner};
+use alloy::{primitives::FixedBytes, providers::network::EthereumWallet, signers::Signer};
 use ethers::signers::LocalWallet;
 use eyre::{eyre, Context, Result};
 use std::fs;
@@ -70,7 +68,7 @@ impl AuthOpts {
             .unwrap_or(Ok("".into()))?;
 
         let signer =
-            PrivateKeySigner::decrypt_keystore(keystore, password)?.with_chain_id(Some(chain_id));
+            LocalSigner::decrypt_keystore(keystore, password)?.with_chain_id(Some(chain_id));
         Ok(EthereumWallet::new(signer))
     }
 }

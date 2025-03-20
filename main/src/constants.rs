@@ -1,7 +1,7 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use alloy_primitives::{address, Address};
+use alloy::primitives::{address, Address};
 use ethers::types::{H160, U256};
 use lazy_static::lazy_static;
 

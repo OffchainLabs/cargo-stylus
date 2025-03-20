@@ -5,7 +5,7 @@
 
 use crate::util::color::{Color, DebugColor};
 use crate::SimulateArgs;
-use alloy_primitives::{Address, TxHash, B256, U256};
+use alloy::primitives::{Address, TxHash, B256, U256};
 use ethers::{
     providers::{JsonRpcClient, Middleware, Provider},
     types::{
@@ -788,7 +788,7 @@ impl FrameReader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{address, fixed_bytes};
+    use alloy::primitives::{address, fixed_bytes};
 
     #[test]
     fn parse_simple() {
