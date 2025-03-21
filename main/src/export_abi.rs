@@ -3,7 +3,7 @@
 
 use crate::macros::*;
 use crate::util::{color::Color, sys};
-use alloy_json_abi::Constructor;
+use alloy::json_abi::Constructor;
 use eyre::{bail, Result, WrapErr};
 use std::{
     io::Write,
@@ -106,7 +106,7 @@ fn parse_constructor(signature: &str) -> Result<Option<Constructor>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_json_abi::Param;
+    use alloy::json_abi::Param;
 
     #[test]
     fn parse_constructors() {
@@ -115,7 +115,7 @@ mod tests {
                 "constructor()",
                 Some(Constructor {
                     inputs: vec![],
-                    state_mutability: alloy_json_abi::StateMutability::NonPayable,
+                    state_mutability: alloy::json_abi::StateMutability::NonPayable,
                 }),
             ),
             (
@@ -127,7 +127,7 @@ mod tests {
                         components: vec![],
                         internal_type: None,
                     }],
-                    state_mutability: alloy_json_abi::StateMutability::NonPayable,
+                    state_mutability: alloy::json_abi::StateMutability::NonPayable,
                 }),
             ),
             (
@@ -160,7 +160,7 @@ mod tests {
                             internal_type: None,
                         },
                     ],
-                    state_mutability: alloy_json_abi::StateMutability::Payable,
+                    state_mutability: alloy::json_abi::StateMutability::Payable,
                 }),
             ),
             ("", None),

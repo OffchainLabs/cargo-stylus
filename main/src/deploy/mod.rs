@@ -4,7 +4,6 @@
 #![allow(clippy::println_empty_string)]
 use crate::{
     check::{self, ContractCheck},
-    constants::ARB_WASM_H160,
     export_abi,
     macros::*,
     util::{

@@ -9,21 +9,15 @@ use crate::{
     util::color::{Color, DebugColor, GREY},
     DeployConfig,
 };
-use alloy_dyn_abi::{DynSolValue, JsonAbiExt, Specifier};
-use alloy_json_abi::{Constructor, StateMutability};
-use alloy_primitives::U256;
-use alloy_sol_macro::sol;
-use alloy_sol_types::{SolCall, SolEvent};
-use ethers::{
-    providers::Middleware,
-    types::{
-        transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt, H160,
-    },
-    utils::format_ether,
-};
+// use alloy_dyn_abi::{DynSolValue, JsonAbiExt, Specifier};
+// use alloy_json_abi::{Constructor, StateMutability};
+// use alloy_primitives::U256;
+// use alloy_sol_macro::sol;
+// use alloy_sol_types::{SolCall, SolEvent};
 use eyre::{bail, eyre, Context, Result};
 
 sol! {
+    #[sol(rpc)]
     interface StylusDeployer {
         event ContractDeployed(address deployedContract);
 
