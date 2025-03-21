@@ -45,11 +45,7 @@ pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
     let provider = ProviderBuilder::new().on_builtin(&cfg.endpoint).await?;
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
-    match cache_manager
-        .getMinBid_0(cfg.address.to_fixed_bytes().into())
-        .call()
-        .await
-    {
+    match cache_manager.getMinBid_0(cfg.address).call().await {
         Ok(CacheManager::getMinBid_0Return { min: min_bid }) => {
             greyln!(
                 "Minimum bid for contract {}: {} wei",
@@ -134,9 +130,7 @@ pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
         greyln!("Cache is at capacity, bids must be >= 0 to be accepted");
     }
     if let Some(address) = cfg.address {
-        let code = provider
-            .get_code_at(address.to_fixed_bytes().into())
-            .await?;
+        let code = provider.get_code_at(address).await?;
         let codehash = keccak256(code);
         let ArbWasmCache::codehashIsCachedReturn { _0: is_cached } =
             arb_wasm_cache.codehashIsCached(codehash).call().await?;
@@ -167,8 +161,9 @@ pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
         .await?;
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
-    let addr = cfg.address.to_fixed_bytes().into();
-    let mut place_bid_call = cache_manager.placeBid(addr).value(U256::from(cfg.bid));
+    let mut place_bid_call = cache_manager
+        .placeBid(cfg.address)
+        .value(U256::from(cfg.bid));
     if let Some(max_fee) = cfg.get_max_fee_per_gas_wei()? {
         place_bid_call = place_bid_call.max_fee_per_gas(max_fee);
         place_bid_call = place_bid_call.max_priority_fee_per_gas(0);
@@ -190,6 +185,7 @@ pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
         handle_cache_manager_error(errs)?;
     }
     greyln!("Sending cache bid tx...");
+    let addr = cfg.address;
     let pending_tx = place_bid_call.send().await?;
     let receipt = pending_tx.get_receipt().await?;
     if cfg.verbose {

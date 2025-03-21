@@ -6,7 +6,7 @@ use crate::constants::ARB_WASM_ADDRESS;
 use crate::macros::greyln;
 use crate::util::color::{Color, DebugColor};
 use crate::ActivateConfig;
-use alloy::primitives::U256;
+use alloy::primitives::utils::format_units;
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy::sol;
 use eyre::Result;
@@ -35,8 +35,7 @@ pub async fn activate_contract(cfg: &ActivateConfig) -> Result<()> {
         .await?;
 
     let code = provider.get_code_at(cfg.address).await?;
-    // let data_fee = check_activate(code, cfg.address, &cfg.data_fee, &provider).await?;
-    let data_fee = U256::ZERO;
+    let data_fee = check_activate(code, cfg.address, &cfg.data_fee, &provider).await?;
 
     let arbwasm = ArbWasm::new(ARB_WASM_ADDRESS, &provider);
     let activate_call = arbwasm
