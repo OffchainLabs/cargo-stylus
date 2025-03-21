@@ -3,32 +3,25 @@
 
 use crate::{
     check::ArbWasm::ArbWasmErrors,
-    constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME},
+    constants::{ARB_WASM_ADDRESS, TOOLCHAIN_FILE_NAME},
     macros::*,
     project::{self, extract_toolchain_channel, BuildConfig},
-    util::{
-        color::{Color, GREY, LAVENDER, MINT, PINK, YELLOW},
-        sys, text,
-    },
+    util::color::{Color, GREY, LAVENDER, MINT, PINK, YELLOW},
     CheckConfig, DataFeeOpts,
 };
 use alloy::{
-    primitives::{Address, B256, U256},
+    contract::Error,
+    primitives::{utils::parse_ether, Address, Bytes, B256, U256},
+    providers::{Provider, ProviderBuilder},
+    rpc::types::state::{AccountOverride, StateOverride},
     sol,
-    sol_types::{SolCall, SolInterface},
 };
 use bytesize::ByteSize;
-use ethers::{
-    core::types::spoof,
-    prelude::*,
-    providers::RawCall,
-    types::{spoof::State, transaction::eip2718::TypedTransaction, Eip1559TransactionRequest},
-};
 use eyre::{bail, eyre, ErrReport, Result, WrapErr};
-use serde_json::Value;
 use std::path::PathBuf;
 
 sol! {
+    #[sol(rpc)]
     interface ArbWasm {
         function activateProgram(address program)
             external
@@ -78,14 +71,16 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
     }
 
     // Check if the contract already exists.
-    let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
+    let provider = ProviderBuilder::new()
+        .on_builtin(&cfg.common_cfg.endpoint)
+        .await?;
     let codehash = alloy::primitives::keccak256(&code);
 
     if contract_exists(codehash, &provider).await? {
         return Ok(ContractCheck::Active { code });
     }
 
-    let address = cfg.contract_address.unwrap_or(H160::random());
+    let address = cfg.contract_address.unwrap_or(Address::random());
     let fee = check_activate(code.clone().into(), address, &cfg.data_fee, &provider).await?;
     Ok(ContractCheck::Ready { code, fee })
 }
@@ -174,101 +169,83 @@ impl From<EthCallError> for ErrReport {
 }
 
 /// A funded eth_call.
-pub async fn eth_call(
-    tx: Eip1559TransactionRequest,
-    mut state: State,
-    provider: &Provider<Http>,
-) -> Result<Result<Vec<u8>, EthCallError>> {
-    let tx = TypedTransaction::Eip1559(tx);
-    state.account(Default::default()).balance = Some(ethers::types::U256::MAX); // infinite balance
+// pub async fn eth_call(
+//     tx: TransactionReques,
+//     mut state: State,
+//     provider: &impl Provider,
+// ) -> Result<Result<Vec<u8>, EthCallError>> {
+//     let tx = TypedTransaction::Eip1559(tx);
+//     state.account(Default::default()).balance = Some(ethers::types::U256::MAX); // infinite balance
 
-    match provider.call_raw(&tx).state(&state).await {
-        Ok(bytes) => Ok(Ok(bytes.to_vec())),
-        Err(ProviderError::JsonRpcClientError(error)) => {
-            let error = error
-                .as_error_response()
-                .ok_or_else(|| eyre!("json RPC failure: {error}"))?;
+//     match provider.call_raw(&tx).state(&state).await {
+//         Ok(bytes) => Ok(Ok(bytes.to_vec())),
+//         Err(ProviderError::JsonRpcClientError(error)) => {
+//             let error = error
+//                 .as_error_response()
+//                 .ok_or_else(|| eyre!("json RPC failure: {error}"))?;
 
-            let msg = error.message.clone();
-            let data = match &error.data {
-                Some(Value::String(data)) => text::decode0x(data)?.to_vec(),
-                Some(value) => bail!("failed to decode RPC failure: {value}"),
-                None => vec![],
-            };
-            Ok(Err(EthCallError { data, msg }))
-        }
-        Err(error) => Err(error.into()),
-    }
-}
+//             let msg = error.message.clone();
+//             let data = match &error.data {
+//                 Some(Value::String(data)) => text::decode0x(data)?.to_vec(),
+//                 Some(value) => bail!("failed to decode RPC failure: {value}"),
+//                 None => vec![],
+//             };
+//             Ok(Err(EthCallError { data, msg }))
+//         }
+//         Err(error) => Err(error.into()),
+//     }
+// }
 
 /// Checks whether a contract has already been activated with the most recent version of Stylus.
-async fn contract_exists(codehash: B256, provider: &Provider<Http>) -> Result<bool> {
-    let data = ArbWasm::codehashVersionCall { codehash }.abi_encode();
-    let tx = Eip1559TransactionRequest::new()
-        .to(*ARB_WASM_H160)
-        .data(data);
-    let outs = eth_call(tx, State::default(), provider).await?;
-
-    let program_version = match outs {
-        Ok(outs) => {
-            if outs.is_empty() {
-                bail!(
-                    r#"No data returned from the ArbWasm precompile when checking if your Stylus contract exists.
-Perhaps the Arbitrum node for the endpoint you are connecting to has not yet upgraded to Stylus"#
-                );
-            }
-            let ArbWasm::codehashVersionReturn { version } =
-                ArbWasm::codehashVersionCall::abi_decode_returns(&outs, true)?;
-            version
-        }
-        Err(EthCallError { data, msg }) => {
-            let Ok(error) = ArbWasmErrors::abi_decode(&data, true) else {
-                bail!("unknown ArbWasm error: {msg}");
+async fn contract_exists(codehash: B256, provider: &impl Provider) -> Result<bool> {
+    let arbwasm = ArbWasm::new(ARB_WASM_ADDRESS, provider.clone());
+    match arbwasm.codehashVersion(codehash).call().await {
+        Ok(_) => return Ok(true),
+        Err(e) => {
+            let Error::TransportError(tperr) = e else {
+                bail!("failed to send cache bid tx: {:?}", e)
+            };
+            let Some(err_resp) = tperr.as_error_resp() else {
+                bail!("no error payload received in response: {:?}", tperr)
+            };
+            let Some(errs) = err_resp.as_decoded_error::<ArbWasmErrors>(true) else {
+                bail!("failed to decode CacheManager error: {:?}", err_resp)
             };
             use ArbWasmErrors as A;
-            match error {
-                A::ProgramNotWasm(_) => bail!("not a Stylus contract"),
+            match errs {
                 A::ProgramNotActivated(_) | A::ProgramNeedsUpgrade(_) | A::ProgramExpired(_) => {
                     return Ok(false);
                 }
-                _ => bail!("unexpected ArbWasm error: {msg}"),
+                _ => bail!("unexpected ArbWasm error"),
             }
         }
-    };
-
-    let data = ArbWasm::stylusVersionCall {}.abi_encode();
-    let tx = Eip1559TransactionRequest::new()
-        .to(*ARB_WASM_H160)
-        .data(data);
-    let outs = eth_call(tx, State::default(), provider).await??;
-    let ArbWasm::stylusVersionReturn { version } =
-        ArbWasm::stylusVersionCall::abi_decode_returns(&outs, true)?;
-
-    Ok(program_version == version)
+    }
 }
 
 /// Checks contract activation, returning the data fee.
 pub async fn check_activate(
     code: Bytes,
-    address: H160,
+    address: Address,
     opts: &DataFeeOpts,
-    provider: &Provider<Http>,
+    provider: &impl Provider,
 ) -> Result<U256> {
-    let contract = Address::from(address.to_fixed_bytes());
-    let data = ArbWasm::activateProgramCall { program: contract }.abi_encode();
-    let tx = Eip1559TransactionRequest::new()
-        .to(*ARB_WASM_H160)
-        .data(data)
-        .value(ONE_ETH);
-    let state = spoof::code(address, code);
-    let eth_call_result = eth_call(tx, state, provider).await?;
-    let outs = match eth_call_result {
-        Ok(outs) => outs,
+    let arbwasm = ArbWasm::new(ARB_WASM_ADDRESS, provider.clone());
+    let spoofed_code = AccountOverride::default().with_code(code.clone());
+    let mut state_override = StateOverride::default();
+    state_override.insert(address, spoofed_code);
+    let active_call = arbwasm
+        .activateProgram(address)
+        .state(state_override)
+        .value(parse_ether("1").unwrap());
+
+    let result = match active_call.call().await {
+        Ok(result) => result,
         Err(e) => {
-            if e.msg.contains("pay_for_memory_grow") {
-                let msg = "Contract could not be activated as it is missing an entrypoint. \
-                Please ensure that your contract has an #[entrypoint] defined on your main struct";
-                bail!(msg);
+            if e.to_string().contains("pay_for_memory_grow") {
+                bail!(
+                    "Contract could not be activated as it is missing an entrypoint. \
+                Please ensure that your contract has an #[entrypoint] defined on your main struct"
+                );
             } else {
                 return Err(e.into());
             }
@@ -276,7 +253,7 @@ pub async fn check_activate(
     };
     let ArbWasm::activateProgramReturn {
         dataFee: data_fee, ..
-    } = ArbWasm::activateProgramCall::abi_decode_returns(&outs, true)?;
+    } = result;
 
     let bump = opts.data_fee_bump_percent;
     let adjusted_data_fee = data_fee * U256::from(100 + bump) / U256::from(100);

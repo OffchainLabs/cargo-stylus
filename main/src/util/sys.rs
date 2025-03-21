@@ -1,7 +1,6 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use ethers::{prelude::*, providers::Provider};
 use eyre::{Context, Result};
 use std::{
     ffi::OsStr,
@@ -11,12 +10,6 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
-
-pub fn new_provider(url: &str) -> Result<Provider<Http>> {
-    let mut provider = Provider::<Http>::try_from(url).wrap_err("failed to init http provider")?;
-    provider.set_interval(Duration::from_millis(250));
-    Ok(provider)
-}
 
 pub fn new_command<S: AsRef<OsStr>>(program: S) -> Command {
     let mut command = Command::new(program);

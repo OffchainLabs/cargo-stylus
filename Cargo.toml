@@ -12,7 +12,7 @@ repository = "https://github.com/OffchainLabs/cargo-stylus"
 readme = "README.md"
 
 [workspace.dependencies]
-alloy = { version = "0.11", features = ["essentials", "signer-keystore"] }
+alloy = { version = "0.11", features = ["essentials", "signer-keystore", "getrandom"] }
 clap = { version = "4.5.4", features = [ "derive", "color" ] }
 ethers = "2.0.10"
 eyre = "0.6.8"

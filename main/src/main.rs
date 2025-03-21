@@ -4,11 +4,9 @@
 // Enable unstable test feature for benchmarks when nightly is available
 #![cfg_attr(feature = "nightly", feature(test))]
 
-use alloy::primitives::{TxHash, B256};
+use alloy::primitives::{Address, Bytes, TxHash, B256, U256};
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
-use ethers::abi::Bytes;
-use ethers::types::{H160, U256};
 use eyre::{bail, eyre, Context, Result};
 use std::{
     fmt,
@@ -206,7 +204,7 @@ pub struct ActivateConfig {
     auth: AuthOpts,
     /// Deployed Stylus contract address to activate.
     #[arg(long)]
-    address: H160,
+    address: Address,
     /// Whether or not to just estimate gas without sending a tx.
     #[arg(long)]
     estimate_gas: bool,
@@ -223,7 +221,7 @@ pub struct CheckConfig {
     wasm_file: Option<PathBuf>,
     /// Where to deploy and activate the contract (defaults to a random address).
     #[arg(long)]
-    contract_address: Option<H160>,
+    contract_address: Option<Address>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -865,8 +863,4 @@ pub fn find_shared_library(project: &Path, extension: &str) -> Result<PathBuf> {
         bail!("failed to find .so");
     };
     Ok(file)
-}
-
-fn parse_ether(s: &str) -> Result<U256> {
-    Ok(ethers::utils::parse_ether(s)?)
 }
