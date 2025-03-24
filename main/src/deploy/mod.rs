@@ -4,31 +4,25 @@
 #![allow(clippy::println_empty_string)]
 use crate::{
     check::{self, ContractCheck},
+    constants::ARB_WASM_ADDRESS,
     export_abi,
     macros::*,
-    util::{
-        color::{Color, DebugColor},
-        sys,
-    },
+    util::color::{Color, DebugColor},
     DeployConfig, GasFeeConfig,
 };
-use alloy_primitives::{Address, U256 as AU256};
-use alloy_sol_macro::sol;
-use alloy_sol_types::SolCall;
-use ethers::core::utils::format_units;
-use ethers::{
-    core::k256::ecdsa::SigningKey,
-    middleware::SignerMiddleware,
-    prelude::*,
-    providers::{Middleware, Provider},
-    signers::Signer,
-    types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, H160, U256, U64},
+use alloy::{
+    primitives::{utils::format_units, Address, U256},
+    providers::{Provider, ProviderBuilder},
+    rpc::types::{TransactionInput, TransactionReceipt, TransactionRequest},
+    sol,
+    sol_types::SolCall,
 };
 use eyre::{bail, eyre, Result, WrapErr};
 
 mod deployer;
 
 sol! {
+    #[sol(rpc)]
     interface ArbWasm {
         function activateProgram(address program)
             external
@@ -36,8 +30,6 @@ sol! {
             returns (uint16 version, uint256 dataFee);
     }
 }
-
-pub type SignerClient = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
 /// Deploys a stylus contract, activating if needed.
 pub async fn deploy(cfg: DeployConfig) -> Result<()> {
@@ -52,39 +44,45 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     } else {
         export_abi::get_constructor_signature()?
     };
-    let deployer_args = constructor
-        .map(|constructor| deployer::parse_constructor_args(&cfg, &constructor, &contract))
-        .transpose()?;
 
-    let client = sys::new_provider(&cfg.check_config.common_cfg.endpoint)?;
-    let chain_id = client.get_chainid().await.expect("failed to get chain id");
+    let deployer_args = match constructor {
+        Some(constructor) => {
+            let args = deployer::parse_constructor_args(&cfg, &constructor, &contract).await?;
+            Some(args)
+        }
+        None => None,
+    };
 
-    let wallet = cfg.auth.wallet().wrap_err("failed to load wallet")?;
-    let wallet = wallet.with_chain_id(chain_id.as_u64());
-    let sender = wallet.address();
-    let client = SignerMiddleware::new(client, wallet);
+    let provider = ProviderBuilder::new()
+        .on_builtin(&cfg.check_config.common_cfg.endpoint)
+        .await?;
+    let chain_id = provider.get_chain_id().await?;
+    let wallet = cfg.auth.alloy_wallet(chain_id)?;
+    let from_address = wallet.default_signer().address();
+    let provider = ProviderBuilder::new()
+        .wallet(wallet)
+        .on_builtin(&cfg.check_config.common_cfg.endpoint)
+        .await?;
 
     if verbose {
-        greyln!("sender address: {}", sender.debug_lavender());
+        greyln!("sender address: {}", from_address.debug_lavender());
     }
 
-    let data_fee = contract.suggest_fee()
-        + alloy_ethers_typecast::ethers_u256_to_alloy(cfg.experimental_constructor_value);
+    let data_fee = contract.suggest_fee() + cfg.experimental_constructor_value;
 
     if let ContractCheck::Ready { .. } = &contract {
         // check balance early
-        let balance = client
-            .get_balance(sender, None)
+        let balance = provider
+            .get_balance(from_address)
             .await
             .expect("failed to get balance");
-        let balance = alloy_ethers_typecast::ethers_u256_to_alloy(balance);
 
         if balance < data_fee && !cfg.estimate_gas {
             bail!(
                 "not enough funds in account {} to pay for data fee\n\
                  balance {} < {}\n\
                  please see the Quickstart guide for funding new accounts:\n{}",
-                sender.red(),
+                from_address.red(),
                 balance.red(),
                 format!("{data_fee} wei").red(),
                 "https://docs.arbitrum.io/stylus/stylus-quickstart".yellow(),
@@ -93,11 +91,11 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     }
 
     if let Some(deployer_args) = deployer_args {
-        return deployer::deploy(&cfg, deployer_args, sender, &client).await;
+        return deployer::deploy(&cfg, deployer_args, from_address, &provider).await;
     }
 
     let contract_addr = cfg
-        .deploy_contract(contract.code(), sender, &client)
+        .deploy_contract(contract.code(), from_address, &provider)
         .await?;
 
     if cfg.estimate_gas {
@@ -113,7 +111,7 @@ cargo stylus activate --address {}"#,
                     hex::encode(contract_addr)
                 );
             } else {
-                cfg.activate(sender, contract_addr, data_fee, &client)
+                cfg.activate(from_address, contract_addr, data_fee, &provider)
                     .await?
             }
         }
@@ -127,28 +125,26 @@ impl DeployConfig {
     async fn deploy_contract(
         &self,
         code: &[u8],
-        sender: H160,
-        client: &SignerClient,
-    ) -> Result<H160> {
+        sender: Address,
+        provider: &impl Provider,
+    ) -> Result<Address> {
         let init_code = contract_deployment_calldata(code);
 
-        let tx = Eip1559TransactionRequest::new()
+        let tx = TransactionRequest::default()
             .from(sender)
-            .data(init_code);
+            .input(TransactionInput::new(init_code.into()));
 
         let verbose = self.check_config.common_cfg.verbose;
-        let gas = client
-            .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
-            .await?;
+        let gas = provider.estimate_gas(&tx).await?;
 
-        let gas_price = client.get_gas_price().await?;
+        let gas_price = provider.get_gas_price().await?;
 
         if self.check_config.common_cfg.verbose || self.estimate_gas {
             print_gas_estimate("deployment", gas, gas_price).await?;
         }
         if self.estimate_gas {
-            let nonce = client.get_transaction_count(sender, None).await?;
-            return Ok(ethers::utils::get_contract_address(sender, nonce));
+            let nonce = provider.get_transaction_count(sender).await?;
+            return Ok(sender.create(nonce));
         }
 
         let fee_per_gas = calculate_fee_per_gas(&self.check_config.common_cfg, gas_price)?;
@@ -158,7 +154,7 @@ impl DeployConfig {
             tx,
             Some(gas),
             fee_per_gas,
-            client,
+            provider,
             self.check_config.common_cfg.verbose,
         )
         .await?;
@@ -166,7 +162,7 @@ impl DeployConfig {
         let address = contract.debug_lavender();
 
         if verbose {
-            let gas = format_gas(receipt.gas_used.unwrap_or_default());
+            let gas = format_gas(receipt.gas_used);
             greyln!(
                 "deployed code at address: {address} {} {gas}",
                 "with".grey()
@@ -181,28 +177,26 @@ impl DeployConfig {
 
     async fn activate(
         &self,
-        sender: H160,
-        contract: H160,
-        data_fee: AU256,
-        client: &SignerClient,
+        sender: Address,
+        contract_addr: Address,
+        data_fee: U256,
+        client: &impl Provider,
     ) -> Result<()> {
         let verbose = self.check_config.common_cfg.verbose;
-        let data_fee = alloy_ethers_typecast::alloy_u256_to_ethers(data_fee);
-        let contract_addr: Address = contract.to_fixed_bytes().into();
 
         let data = ArbWasm::activateProgramCall {
             program: contract_addr,
         }
         .abi_encode();
 
-        let tx = Eip1559TransactionRequest::new()
+        let tx = TransactionRequest::default()
             .from(sender)
-            .to(*ARB_WASM_H160)
-            .data(data)
+            .to(ARB_WASM_ADDRESS)
+            .input(TransactionInput::new(data.into()))
             .value(data_fee);
 
         let gas = client
-            .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
+            .estimate_gas(&tx)
             .await
             .map_err(|e| eyre!("did not estimate correctly: {e}"))?;
 
@@ -225,7 +219,7 @@ impl DeployConfig {
         .await?;
 
         if verbose {
-            let gas = format_gas(receipt.gas_used.unwrap_or_default());
+            let gas = format_gas(receipt.gas_used);
             greyln!("activated with {gas}");
         }
         greyln!(
@@ -236,14 +230,14 @@ impl DeployConfig {
     }
 }
 
-pub async fn print_gas_estimate(name: &str, gas: U256, gas_price: U256) -> Result<()> {
+pub async fn print_gas_estimate(name: &str, gas: u64, gas_price: u128) -> Result<()> {
     greyln!("estimates");
     greyln!("{} tx gas: {}", name, gas.debug_lavender());
     greyln!(
         "gas price: {} gwei",
         format_units(gas_price, "gwei")?.debug_lavender()
     );
-    let total_cost = gas_price.checked_mul(gas).unwrap_or_default();
+    let total_cost = gas_price.checked_mul(gas.into()).unwrap_or_default();
     let eth_estimate = format_units(total_cost, "ether")?;
     greyln!(
         "{} tx total cost: {} ETH",
@@ -253,7 +247,7 @@ pub async fn print_gas_estimate(name: &str, gas: U256, gas_price: U256) -> Resul
     Ok(())
 }
 
-pub fn print_cache_notice(contract_addr: H160) {
+pub fn print_cache_notice(contract_addr: Address) {
     let contract_addr = hex::encode(contract_addr);
     println!("");
     mintln!(
@@ -265,10 +259,10 @@ https://docs.arbitrum.io/stylus/how-tos/caching-contracts"#
 
 pub async fn run_tx(
     name: &str,
-    tx: Eip1559TransactionRequest,
-    gas: Option<U256>,
+    tx: TransactionRequest,
+    gas: Option<u64>,
     max_fee_per_gas_wei: u128,
-    client: &SignerClient,
+    provider: &impl Provider,
     verbose: bool,
 ) -> Result<TransactionReceipt> {
     let mut tx = tx;
@@ -276,19 +270,16 @@ pub async fn run_tx(
         tx.gas = Some(gas);
     }
 
-    tx.max_fee_per_gas = Some(U256::from(max_fee_per_gas_wei));
-    tx.max_priority_fee_per_gas = Some(U256::from(0));
+    tx.max_fee_per_gas = Some(max_fee_per_gas_wei);
+    tx.max_priority_fee_per_gas = Some(0);
 
-    let tx = TypedTransaction::Eip1559(tx);
-    let tx = client.send_transaction(tx, None).await?;
-    let tx_hash = tx.tx_hash();
+    let tx = provider.send_transaction(tx).await?;
+    let tx_hash = *tx.tx_hash();
     if verbose {
         greyln!("sent {name} tx: {}", tx_hash.debug_lavender());
     }
-    let Some(receipt) = tx.await.wrap_err("tx failed to complete")? else {
-        bail!("failed to get receipt for tx {}", tx_hash.lavender());
-    };
-    if receipt.status != Some(U64::from(1)) {
+    let receipt = tx.get_receipt().await.wrap_err("tx failed to complete")?;
+    if !receipt.status() {
         bail!("{name} tx reverted {}", tx_hash.debug_red());
     }
     Ok(receipt)
@@ -296,8 +287,7 @@ pub async fn run_tx(
 
 /// Prepares an EVM bytecode prelude for contract creation.
 pub fn contract_deployment_calldata(code: &[u8]) -> Vec<u8> {
-    let mut code_len = [0u8; 32];
-    U256::from(code.len()).to_big_endian(&mut code_len);
+    let code_len: [u8; 32] = U256::from(code.len()).to_be_bytes();
     let mut deploy: Vec<u8> = vec![];
     deploy.push(0x7f); // PUSH32
     deploy.extend(code_len);
@@ -329,8 +319,7 @@ pub fn extract_compressed_wasm(calldata: &[u8]) -> Vec<u8> {
     calldata[metadata_length..].to_vec()
 }
 
-pub fn format_gas(gas: U256) -> String {
-    let gas: u64 = gas.try_into().unwrap_or(u64::MAX);
+pub fn format_gas(gas: u64) -> String {
     let text = format!("{gas} gas");
     if gas <= 3_000_000 {
         text.mint()
@@ -341,10 +330,10 @@ pub fn format_gas(gas: U256) -> String {
     }
 }
 
-pub fn calculate_fee_per_gas<T: GasFeeConfig>(config: &T, gas_price: U256) -> Result<u128> {
+pub fn calculate_fee_per_gas<T: GasFeeConfig>(config: &T, gas_price: u128) -> Result<u128> {
     let fee_per_gas = match config.get_max_fee_per_gas_wei()? {
         Some(wei) => wei,
-        None => gas_price.try_into().unwrap(),
+        None => gas_price,
     };
     Ok(fee_per_gas)
 }

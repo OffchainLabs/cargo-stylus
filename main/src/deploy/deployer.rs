@@ -1,7 +1,6 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use super::SignerClient;
 use crate::{
     check::ContractCheck,
     deploy::calculate_fee_per_gas,
@@ -9,11 +8,15 @@ use crate::{
     util::color::{Color, DebugColor, GREY},
     DeployConfig,
 };
-// use alloy_dyn_abi::{DynSolValue, JsonAbiExt, Specifier};
-// use alloy_json_abi::{Constructor, StateMutability};
-// use alloy_primitives::U256;
-// use alloy_sol_macro::sol;
-// use alloy_sol_types::{SolCall, SolEvent};
+use alloy::{
+    dyn_abi::{DynSolValue, JsonAbiExt, Specifier},
+    json_abi::{Constructor, StateMutability},
+    primitives::{utils::format_ether, Address, U256},
+    providers::{Provider, ProviderBuilder},
+    rpc::types::{TransactionInput, TransactionReceipt, TransactionRequest},
+    sol,
+    sol_types::{SolCall, SolEvent},
+};
 use eyre::{bail, eyre, Context, Result};
 
 sol! {
@@ -34,7 +37,7 @@ sol! {
 
 pub struct DeployerArgs {
     /// Factory address
-    address: H160,
+    address: Address,
     /// Value to be sent in the tx
     tx_value: U256,
     /// Calldata to be sent in the tx
@@ -42,7 +45,7 @@ pub struct DeployerArgs {
 }
 
 /// Parses the constructor arguments and returns the data to deploy the contract using the deployer.
-pub fn parse_constructor_args(
+pub async fn parse_constructor_args(
     cfg: &DeployConfig,
     constructor: &Constructor,
     contract: &ContractCheck,
@@ -57,8 +60,7 @@ pub fn parse_constructor_args(
             format_ether(cfg.experimental_constructor_value).debug_lavender()
         );
     }
-    let constructor_value =
-        alloy_ethers_typecast::ethers_u256_to_alloy(cfg.experimental_constructor_value);
+    let constructor_value = cfg.experimental_constructor_value;
     if constructor.state_mutability != StateMutability::Payable && !constructor_value.is_zero() {
         bail!("attempting to send Ether to non-payable constructor");
     }
@@ -90,14 +92,18 @@ pub fn parse_constructor_args(
     constructor_calldata.extend(calldata_args);
 
     let bytecode = super::contract_deployment_calldata(contract.code());
-    let tx_calldata = StylusDeployer::deployCall {
-        bytecode: bytecode.into(),
-        initData: constructor_calldata.into(),
-        initValue: constructor_value,
-        salt: cfg.experimental_deployer_salt,
-    }
-    .abi_encode();
+    let provider = ProviderBuilder::new()
+        .on_builtin(&cfg.check_config.common_cfg.endpoint)
+        .await?;
+    let deployer = StylusDeployer::new(Address::ZERO, provider);
+    let deploy_call = deployer.deploy(
+        bytecode.into(),
+        constructor_calldata.into(),
+        constructor_value,
+        cfg.experimental_deployer_salt,
+    );
 
+    let tx_calldata = deploy_call.calldata().to_vec();
     Ok(DeployerArgs {
         address,
         tx_value,
@@ -109,8 +115,8 @@ pub fn parse_constructor_args(
 pub async fn deploy(
     cfg: &DeployConfig,
     deployer: DeployerArgs,
-    sender: H160,
-    client: &SignerClient,
+    sender: Address,
+    provider: &impl Provider,
 ) -> Result<()> {
     if cfg.check_config.common_cfg.verbose {
         greyln!(
@@ -118,21 +124,18 @@ pub async fn deploy(
             deployer.address.debug_lavender()
         );
     }
-
-    let tx = Eip1559TransactionRequest::new()
+    let tx = TransactionRequest::default()
         .to(deployer.address)
         .from(sender)
-        .value(alloy_ethers_typecast::alloy_u256_to_ethers(
-            deployer.tx_value,
-        ))
-        .data(deployer.tx_calldata);
+        .value(deployer.tx_value)
+        .input(TransactionInput::new(deployer.tx_calldata.into()));
 
-    let gas = client
-        .estimate_gas(&TypedTransaction::Eip1559(tx.clone()), None)
+    let gas = provider
+        .estimate_gas(&tx)
         .await
         .wrap_err("deployment failed during gas estimation")?;
 
-    let gas_price = client.get_gas_price().await?;
+    let gas_price = provider.get_gas_price().await?;
 
     if cfg.check_config.common_cfg.verbose || cfg.estimate_gas {
         super::print_gas_estimate("deployer deploy, activate, and init", gas, gas_price).await?;
@@ -148,7 +151,7 @@ pub async fn deploy(
         tx,
         Some(gas),
         fee_per_gas,
-        client,
+        provider,
         cfg.check_config.common_cfg.verbose,
     )
     .await?;
@@ -156,7 +159,7 @@ pub async fn deploy(
     let address = contract.debug_lavender();
 
     if cfg.check_config.common_cfg.verbose {
-        let gas = super::format_gas(receipt.gas_used.unwrap_or_default());
+        let gas = super::format_gas(receipt.gas_used);
         greyln!(
             "deployed code at address: {address} {} {gas}",
             "with".grey()
@@ -171,14 +174,15 @@ pub async fn deploy(
 }
 
 /// Gets the Stylus-contract address that was deployed using the deployer.
-fn get_address_from_receipt(receipt: &TransactionReceipt) -> Result<H160> {
-    for log in receipt.logs.iter() {
-        if let Some(topic) = log.topics.first() {
+fn get_address_from_receipt(receipt: &TransactionReceipt) -> Result<Address> {
+    let receipt = receipt.clone().into_inner();
+    for log in receipt.logs().iter() {
+        if let Some(topic) = log.topics().first() {
             if topic.0 == StylusDeployer::ContractDeployed::SIGNATURE_HASH {
-                if log.data.len() != 32 {
+                if log.data().data.len() != 32 {
                     bail!("address missing from ContractDeployed log");
                 }
-                return Ok(ethers::types::Address::from_slice(&log.data[12..32]));
+                return Ok(Address::from_slice(&log.data().data[12..32]));
             }
         }
     }

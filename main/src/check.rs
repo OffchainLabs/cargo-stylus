@@ -168,39 +168,11 @@ impl From<EthCallError> for ErrReport {
     }
 }
 
-/// A funded eth_call.
-// pub async fn eth_call(
-//     tx: TransactionReques,
-//     mut state: State,
-//     provider: &impl Provider,
-// ) -> Result<Result<Vec<u8>, EthCallError>> {
-//     let tx = TypedTransaction::Eip1559(tx);
-//     state.account(Default::default()).balance = Some(ethers::types::U256::MAX); // infinite balance
-
-//     match provider.call_raw(&tx).state(&state).await {
-//         Ok(bytes) => Ok(Ok(bytes.to_vec())),
-//         Err(ProviderError::JsonRpcClientError(error)) => {
-//             let error = error
-//                 .as_error_response()
-//                 .ok_or_else(|| eyre!("json RPC failure: {error}"))?;
-
-//             let msg = error.message.clone();
-//             let data = match &error.data {
-//                 Some(Value::String(data)) => text::decode0x(data)?.to_vec(),
-//                 Some(value) => bail!("failed to decode RPC failure: {value}"),
-//                 None => vec![],
-//             };
-//             Ok(Err(EthCallError { data, msg }))
-//         }
-//         Err(error) => Err(error.into()),
-//     }
-// }
-
 /// Checks whether a contract has already been activated with the most recent version of Stylus.
 async fn contract_exists(codehash: B256, provider: &impl Provider) -> Result<bool> {
-    let arbwasm = ArbWasm::new(ARB_WASM_ADDRESS, provider.clone());
+    let arbwasm = ArbWasm::new(ARB_WASM_ADDRESS, provider);
     match arbwasm.codehashVersion(codehash).call().await {
-        Ok(_) => return Ok(true),
+        Ok(_) => Ok(true),
         Err(e) => {
             let Error::TransportError(tperr) = e else {
                 bail!("failed to send cache bid tx: {:?}", e)
@@ -214,7 +186,7 @@ async fn contract_exists(codehash: B256, provider: &impl Provider) -> Result<boo
             use ArbWasmErrors as A;
             match errs {
                 A::ProgramNotActivated(_) | A::ProgramNeedsUpgrade(_) | A::ProgramExpired(_) => {
-                    return Ok(false);
+                    Ok(false)
                 }
                 _ => bail!("unexpected ArbWasm error"),
             }
@@ -229,7 +201,7 @@ pub async fn check_activate(
     opts: &DataFeeOpts,
     provider: &impl Provider,
 ) -> Result<U256> {
-    let arbwasm = ArbWasm::new(ARB_WASM_ADDRESS, provider.clone());
+    let arbwasm = ArbWasm::new(ARB_WASM_ADDRESS, provider);
     let spoofed_code = AccountOverride::default().with_code(code.clone());
     let mut state_override = StateOverride::default();
     state_override.insert(address, spoofed_code);

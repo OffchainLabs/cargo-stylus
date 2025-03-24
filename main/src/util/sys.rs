@@ -8,7 +8,6 @@ use std::{
     io::{self, Write},
     path::PathBuf,
     process::{Command, Stdio},
-    time::Duration,
 };
 
 pub fn new_command<S: AsRef<OsStr>>(program: S) -> Command {

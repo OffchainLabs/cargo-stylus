@@ -92,7 +92,7 @@ impl Trace {
             tx_request = tx_request.gas_limit(gas);
         }
         if let Some(gas_price) = args.gas_price {
-            tx_request = tx_request.max_fee_per_gas(gas_price.into());
+            tx_request = tx_request.max_fee_per_gas(gas_price);
         }
         if let Some(value) = args.value {
             tx_request = tx_request.value(value);

@@ -1,7 +1,7 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use alloy::primitives::{address, Address, U256};
+use alloy::primitives::{address, Address};
 
 /// EOF prefix used in Stylus compressed WASMs on-chain
 pub const EOF_PREFIX_NO_DICT: &str = "EFF00000";
