@@ -2,10 +2,15 @@
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
 use crate::{
-    check::ArbWasm::ArbWasmErrors, constants::{ARB_WASM_H160, ONE_ETH, TOOLCHAIN_FILE_NAME}, deploy::contract_deployment_calldata, macros::*, project::{self, extract_toolchain_channel, BuildConfig}, util::{
+    check::ArbWasm::ArbWasmErrors,
+    constants::{ARB_WASM_H160, ONE_ETH},
+    macros::*,
+    project,
+    util::{
         color::{Color, GREY, LAVENDER},
         sys, text,
-    }, CheckConfig, DataFeeOpts
+    },
+    CheckConfig, DataFeeOpts
 };
 use alloy_primitives::{Address, B256, U256};
 use alloy_sol_macro::sol;
@@ -19,7 +24,7 @@ use ethers::{
 };
 use eyre::{bail, eyre, ErrReport, Result, WrapErr};
 use serde_json::Value;
-use std::{fs::File, io::Write, path::PathBuf};
+use std::path::PathBuf;
 
 sol! {
     interface ArbWasm {
@@ -83,21 +88,6 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
     Ok(ContractCheck::Ready { code, fee })
 }
 
-pub async fn get_initcode(cfg: &CheckConfig) -> Result<()> {
-    let (wasm, project_hash) = cfg.build_wasm().wrap_err("failed to build wasm")?;
-
-    let (_, code) =
-        project::compress_wasm(&wasm, project_hash).wrap_err("failed to compress WASM")?;
-
-    let initcode = contract_deployment_calldata(&code);
-    let hex_initcode = hex::encode(initcode);
-
-    let mut file = File::create("initcode").wrap_err("failed to create output file")?;
-    file.write_all(hex_initcode.as_bytes())?;
-
-    Ok(())
-}
-
 /// Whether a contract is active, or needs activation.
 #[derive(PartialEq)]
 pub enum ContractCheck {
@@ -127,15 +117,10 @@ impl CheckConfig {
         if let Some(wasm) = self.wasm_file.clone() {
             return Ok((wasm, [0u8; 32]));
         }
-        let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
-        let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
-        let rust_stable = !toolchain_channel.contains("nightly");
-        let mut cfg = BuildConfig::new(rust_stable);
-        cfg.features = self.common_cfg.features.clone();
-        let wasm = project::build_dylib(cfg.clone())?;
-        let project_hash =
-            project::hash_project(self.common_cfg.source_files_for_project_hash.clone(), cfg)?;
-        Ok((wasm, project_hash))
+        project::build_wasm_from_features(
+            self.common_cfg.features.clone(),
+            self.common_cfg.source_files_for_project_hash.clone(),
+        )
     }
 }
 

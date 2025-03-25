@@ -42,6 +42,7 @@ mod trace;
 mod util;
 mod verify;
 mod wallet;
+mod get_initcode;
 
 #[derive(Parser, Debug)]
 #[command(name = "stylus")]
@@ -93,7 +94,7 @@ enum Apis {
     #[command(visible_alias = "c")]
     Check(CheckConfig),
     #[command(visible_alias = "e")]
-    GetInitcode(CheckConfig),
+    GetInitcode(GetInitcodeConfig),
     /// Deploy a contract.
     #[command(visible_alias = "d")]
     Deploy(DeployConfig),
@@ -217,6 +218,23 @@ pub struct CheckConfig {
     /// Where to deploy and activate the contract (defaults to a random address).
     #[arg(long)]
     contract_address: Option<H160>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct GetInitcodeConfig {
+     /// The path to source files to include in the project hash, which
+     /// is included in the contract deployment init code transaction
+     /// to be used for verification of deployment integrity.
+     /// If not provided, all .rs files and Cargo.toml and Cargo.lock files
+     /// in project's directory tree are included.
+     #[arg(long)]
+     source_files_for_project_hash: Vec<String>,
+     /// Specifies the features to use when building the Stylus binary.
+     #[arg(long)]
+     features: Option<String>,
+     /// The output file (defaults to stdout).
+     #[arg(long)]
+     output: Option<PathBuf>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -656,7 +674,7 @@ async fn main_impl(args: Opts) -> Result<()> {
             run!(check::check(&config).await, "stylus checks failed");
         }
         Apis::GetInitcode(config) => {
-            run!(check::get_initcode(&config).await, "get initcode failed");
+            run!(get_initcode::get_initcode(&config), "get initcode failed");
         }
         Apis::Deploy(config) => {
             if config.no_verify {
