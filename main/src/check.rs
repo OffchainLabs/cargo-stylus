@@ -7,7 +7,7 @@ use crate::{
     macros::*,
     project,
     util::{
-        color::{Color, GREY, LAVENDER},
+        color::{Color, GREY, LAVENDER, MINT, PINK, YELLOW},
         sys, text,
     },
     CheckConfig, DataFeeOpts
@@ -129,13 +129,14 @@ pub fn format_file_size(len: usize, mid: u64, max: u64) -> String {
     let len = ByteSize::b(len as u64);
     let mid = ByteSize::kib(mid);
     let max = ByteSize::kib(max);
-    if len <= mid {
-        len.mint()
+    let color = if len <= mid {
+        MINT
     } else if len <= max {
-        len.yellow()
+        YELLOW
     } else {
-        len.pink()
-    }
+        PINK
+    };
+    format!("{color}{}{GREY} ({} bytes)", len, len.as_u64())
 }
 
 /// Pretty-prints a data fee.
