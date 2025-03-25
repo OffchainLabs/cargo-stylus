@@ -6,11 +6,12 @@
 use crate::util::color::{Color, DebugColor};
 use crate::SimulateArgs;
 use alloy::eips::BlockId;
+use alloy::network::TransactionBuilder;
 use alloy::primitives::{Address, TxHash, B256, U256};
 use alloy::providers::{ext::DebugApi, Provider};
 use alloy::rpc::types::trace::geth::{GethDebugTracerType, GethDebugTracingOptions};
 use alloy::rpc::types::trace::geth::{GethDebugTracingCallOptions, GethTrace};
-use alloy::rpc::types::{TransactionInput, TransactionRequest};
+use alloy::rpc::types::TransactionRequest;
 use eyre::{bail, OptionExt, Result, WrapErr};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, Value};
@@ -83,25 +84,22 @@ impl Trace {
         let mut tx_request = TransactionRequest::default();
 
         if let Some(from) = args.from {
-            tx_request = tx_request.from(from);
+            tx_request = tx_request.with_from(from);
         }
         if let Some(to) = args.to {
-            tx_request = tx_request.to(to);
+            tx_request = tx_request.with_to(to);
         }
         if let Some(gas) = args.gas {
-            tx_request = tx_request.gas_limit(gas);
+            tx_request = tx_request.with_gas_limit(gas);
         }
         if let Some(gas_price) = args.gas_price {
-            tx_request = tx_request.max_fee_per_gas(gas_price);
+            tx_request = tx_request.with_max_fee_per_gas(gas_price);
         }
         if let Some(value) = args.value {
-            tx_request = tx_request.value(value);
+            tx_request = tx_request.with_value(value);
         }
         if let Some(data) = &args.data {
-            tx_request = tx_request.input(TransactionInput {
-                input: None,
-                data: Some(data.clone()),
-            })
+            tx_request = tx_request.with_input(data.clone());
         }
 
         // Use the same tracer as in Trace::new

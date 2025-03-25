@@ -11,9 +11,10 @@ use crate::{
     DeployConfig, GasFeeConfig,
 };
 use alloy::{
+    network::TransactionBuilder,
     primitives::{utils::format_units, Address, U256},
     providers::{Provider, ProviderBuilder},
-    rpc::types::{TransactionInput, TransactionReceipt, TransactionRequest},
+    rpc::types::{TransactionReceipt, TransactionRequest},
     sol,
     sol_types::SolCall,
 };
@@ -141,8 +142,8 @@ impl DeployConfig {
         let init_code = contract_deployment_calldata(code);
 
         let tx = TransactionRequest::default()
-            .from(sender)
-            .input(TransactionInput::new(init_code.into()));
+            .with_from(sender)
+            .with_deploy_code(init_code);
 
         let verbose = self.check_config.common_cfg.verbose;
         let gas = provider.estimate_gas(&tx).await?;
@@ -200,10 +201,10 @@ impl DeployConfig {
         .abi_encode();
 
         let tx = TransactionRequest::default()
-            .from(sender)
-            .to(ARB_WASM_ADDRESS)
-            .input(TransactionInput::new(data.into()))
-            .value(data_fee);
+            .with_from(sender)
+            .with_to(ARB_WASM_ADDRESS)
+            .with_value(data_fee)
+            .with_input(data);
 
         let gas = client
             .estimate_gas(&tx)

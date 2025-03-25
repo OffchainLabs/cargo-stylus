@@ -11,9 +11,10 @@ use crate::{
 use alloy::{
     dyn_abi::{DynSolValue, JsonAbiExt, Specifier},
     json_abi::{Constructor, StateMutability},
+    network::TransactionBuilder,
     primitives::{utils::format_ether, Address, U256},
     providers::{Provider, ProviderBuilder},
-    rpc::types::{TransactionInput, TransactionReceipt, TransactionRequest},
+    rpc::types::{TransactionReceipt, TransactionRequest},
     sol,
     sol_types::{SolCall, SolEvent},
 };
@@ -125,10 +126,10 @@ pub async fn deploy(
         );
     }
     let tx = TransactionRequest::default()
-        .to(deployer.address)
-        .from(sender)
-        .value(deployer.tx_value)
-        .input(TransactionInput::new(deployer.tx_calldata.into()));
+        .with_to(deployer.address)
+        .with_from(sender)
+        .with_value(deployer.tx_value)
+        .with_input(deployer.tx_calldata);
 
     let gas = provider
         .estimate_gas(&tx)
