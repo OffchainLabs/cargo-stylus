@@ -10,7 +10,7 @@ use crate::{
         color::{Color, GREY, LAVENDER, MINT, PINK, YELLOW},
         sys, text,
     },
-    CheckConfig, DataFeeOpts
+    CheckConfig, DataFeeOpts,
 };
 use alloy_primitives::{Address, B256, U256};
 use alloy_sol_macro::sol;
