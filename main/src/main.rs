@@ -102,6 +102,7 @@ enum Apis {
     /// Check a contract.
     #[command(visible_alias = "c")]
     Check(CheckConfig),
+    /// Generate and print initcode for the contract
     #[command(visible_alias = "e")]
     GetInitcode(GetInitcodeConfig),
     /// Deploy a contract.
@@ -241,7 +242,8 @@ pub struct GetInitcodeConfig {
      /// Specifies the features to use when building the Stylus binary.
      #[arg(long)]
      features: Option<String>,
-     /// The output file (defaults to stdout).
+     /// The output file - text file to store generated hex code.
+     /// (defaults to stdout)
      #[arg(long)]
      output: Option<PathBuf>,
 }
