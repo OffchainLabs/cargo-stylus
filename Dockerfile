@@ -1,5 +1,5 @@
 ARG BUILD_PLATFORM=linux/amd64
-ARG RUST_VERSION=1.80
+ARG RUST_VERSION=1.83
 FROM --platform=${BUILD_PLATFORM} rust:${RUST_VERSION} AS builder
 
 RUN rustup target add x86_64-unknown-linux-gnu
