@@ -11,5 +11,5 @@ WORKDIR /cargo-stylus
 # Build the project using the workspace member
 RUN cargo build --release --manifest-path main/Cargo.toml
 
-FROM --platform=${BUILD_PLATFORM} rust:${RUST_VERSION} AS cargo-stylus-base
+FROM --platform=${BUILD_PLATFORM} offchainlabs/cargo-stylus-base:0.5.8 AS cargo-stylus-base
 COPY --from=builder /cargo-stylus/target/release/cargo-stylus /usr/local/bin/cargo-stylus
