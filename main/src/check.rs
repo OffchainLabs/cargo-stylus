@@ -202,12 +202,16 @@ pub async fn check_activate(
     provider: &impl Provider,
 ) -> Result<U256> {
     let arbwasm = ArbWasm::new(ARB_WASM_ADDRESS, provider);
+    let random_sender_addr = Address::random();
+    let spoofed_sender_account = AccountOverride::default().with_balance(U256::MAX);
     let spoofed_code = AccountOverride::default().with_code(code.clone());
     let mut state_override = StateOverride::default();
     state_override.insert(address, spoofed_code);
+    state_override.insert(random_sender_addr, spoofed_sender_account);
     let active_call = arbwasm
         .activateProgram(address)
         .state(state_override)
+        .from(random_sender_addr)
         .value(parse_ether("1").unwrap());
 
     let result = match active_call.call().await {
