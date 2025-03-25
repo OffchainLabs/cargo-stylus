@@ -1,3 +1,6 @@
+// Copyright 2025, Offchain Labs, Inc.
+// For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+
 use std::{fs::File, io::Write};
 use eyre::{Result, WrapErr};
 use crate::{deploy::contract_deployment_calldata, project, GetInitcodeConfig};
