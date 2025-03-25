@@ -1,5 +1,5 @@
 // Copyright 2025, Offchain Labs, Inc.
-// For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
+// For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/main/licenses/COPYRIGHT.md
 
 use std::{fs::File, io::Write};
 use eyre::{Result, WrapErr};
