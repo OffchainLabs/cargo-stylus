@@ -1080,7 +1080,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus"
-version = "0.5.9"
+version = "0.5.11"
 dependencies = [
  "alloy",
  "brotli2",
@@ -1113,7 +1113,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-stylus-example"
-version = "0.5.9"
+version = "0.5.11"
 dependencies = [
  "clap",
 ]
