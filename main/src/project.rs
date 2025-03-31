@@ -350,6 +350,20 @@ fn expand_glob_patterns(patterns: Vec<String>) -> Result<Vec<PathBuf>> {
     Ok(files_to_include)
 }
 
+pub fn build_wasm_from_features(
+    features: Option<String>,
+    source_files: Vec<String>,
+) -> Result<(PathBuf, [u8; 32])> {
+    let toolchain_file_path = PathBuf::from(".").join(TOOLCHAIN_FILE_NAME);
+    let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
+    let rust_stable = !toolchain_channel.contains("nightly");
+    let mut cfg = BuildConfig::new(rust_stable);
+    cfg.features = features;
+    let wasm = build_dylib(cfg.clone())?;
+    let project_hash = hash_project(source_files, cfg)?;
+    Ok((wasm, project_hash))
+}
+
 /// Reads a WASM file at a specified path and returns its brotli compressed bytes.
 pub fn compress_wasm(wasm: &PathBuf, project_hash: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>)> {
     let wasm =

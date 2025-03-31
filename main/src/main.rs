@@ -35,6 +35,7 @@ mod deploy;
 mod docker;
 mod export_abi;
 mod gen;
+mod get_initcode;
 mod hostio;
 mod macros;
 mod new;
@@ -102,6 +103,9 @@ enum Apis {
     /// Check a contract.
     #[command(visible_alias = "c")]
     Check(CheckConfig),
+    /// Generate and print initcode for the contract
+    #[command(visible_alias = "e")]
+    GetInitcode(GetInitcodeConfig),
     /// Deploy a contract.
     #[command(visible_alias = "d")]
     Deploy(DeployConfig),
@@ -225,6 +229,24 @@ pub struct CheckConfig {
     /// Where to deploy and activate the contract (defaults to a random address).
     #[arg(long)]
     contract_address: Option<Address>,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct GetInitcodeConfig {
+    /// The path to source files to include in the project hash, which
+    /// is included in the contract deployment init code transaction
+    /// to be used for verification of deployment integrity.
+    /// If not provided, all .rs files and Cargo.toml and Cargo.lock files
+    /// in project's directory tree are included.
+    #[arg(long)]
+    source_files_for_project_hash: Vec<String>,
+    /// Specifies the features to use when building the Stylus binary.
+    #[arg(long)]
+    features: Option<String>,
+    /// The output file - text file to store generated hex code.
+    /// (defaults to stdout)
+    #[arg(long)]
+    output: Option<PathBuf>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -671,6 +693,9 @@ async fn main_impl(args: Opts) -> Result<()> {
         },
         Apis::Check(config) => {
             run!(check::check(&config).await, "stylus checks failed");
+        }
+        Apis::GetInitcode(config) => {
+            run!(get_initcode::get_initcode(&config), "get initcode failed");
         }
         Apis::Deploy(config) => {
             if config.no_verify {

@@ -3,9 +3,9 @@
 
 use crate::{
     check::ArbWasm::ArbWasmErrors,
-    constants::{ARB_WASM_ADDRESS, TOOLCHAIN_FILE_NAME},
+    constants::ARB_WASM_ADDRESS,
     macros::*,
-    project::{self, extract_toolchain_channel, BuildConfig},
+    project,
     util::color::{Color, GREY, LAVENDER, MINT, PINK, YELLOW},
     CheckConfig, DataFeeOpts,
 };
@@ -114,15 +114,10 @@ impl CheckConfig {
         if let Some(wasm) = self.wasm_file.clone() {
             return Ok((wasm, [0u8; 32]));
         }
-        let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
-        let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
-        let rust_stable = !toolchain_channel.contains("nightly");
-        let mut cfg = BuildConfig::new(rust_stable);
-        cfg.features = self.common_cfg.features.clone();
-        let wasm = project::build_dylib(cfg.clone())?;
-        let project_hash =
-            project::hash_project(self.common_cfg.source_files_for_project_hash.clone(), cfg)?;
-        Ok((wasm, project_hash))
+        project::build_wasm_from_features(
+            self.common_cfg.features.clone(),
+            self.common_cfg.source_files_for_project_hash.clone(),
+        )
     }
 }
 
