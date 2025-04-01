@@ -5,10 +5,10 @@
 
 use std::path::PathBuf;
 
+use alloy::consensus::Transaction;
+use alloy::primitives::TxHash;
+use alloy::providers::{Provider, ProviderBuilder};
 use eyre::{bail, eyre};
-
-use ethers::middleware::Middleware;
-use ethers::types::H256;
 
 use serde::{Deserialize, Serialize};
 
@@ -27,16 +27,20 @@ struct RpcResult {
 }
 
 pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
-    let provider = sys::new_provider(&cfg.common_cfg.endpoint)?;
+    let provider = ProviderBuilder::new()
+        .on_builtin(&cfg.common_cfg.endpoint)
+        .await?;
+
     let hash = crate::util::text::decode0x(cfg.deployment_tx)?;
     if hash.len() != 32 {
         bail!("Invalid hash");
     }
+    let hash = TxHash::from_slice(&hash);
     let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
     let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
     let rust_stable = !toolchain_channel.contains("nightly");
     let Some(result) = provider
-        .get_transaction(H256::from_slice(&hash))
+        .get_transaction_by_hash(hash)
         .await
         .map_err(|e| eyre!("RPC failed: {e}"))?
     else {
@@ -72,10 +76,10 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
         project::hash_project(cfg.common_cfg.source_files_for_project_hash, build_cfg)?;
     let (_, init_code) = project::compress_wasm(&wasm_file, project_hash)?;
     let deployment_data = deploy::contract_deployment_calldata(&init_code);
-    if deployment_data == *result.input {
+    if deployment_data == *result.input() {
         println!("Verified - contract matches local project's file hashes");
     } else {
-        let tx_prelude = extract_contract_evm_deployment_prelude(&result.input);
+        let tx_prelude = extract_contract_evm_deployment_prelude(result.input());
         let reconstructed_prelude = extract_contract_evm_deployment_prelude(&deployment_data);
         println!(
             "{} - contract deployment did not verify against local project's file hashes",
@@ -97,7 +101,7 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
         );
         println!(
             "Compressed code length of deployment tx {}",
-            extract_compressed_wasm(&result.input).len()
+            extract_compressed_wasm(result.input()).len()
         );
     }
     Ok(())

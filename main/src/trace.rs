@@ -5,30 +5,29 @@
 
 use crate::util::color::{Color, DebugColor};
 use crate::SimulateArgs;
-use alloy_primitives::{Address, TxHash, B256, U256};
-use ethers::{
-    providers::{JsonRpcClient, Middleware, Provider},
-    types::{
-        BlockId, GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions,
-        GethTrace, Transaction, TransactionRequest,
-    },
-    utils::__serde_json::{from_value, Value},
-};
+use alloy::eips::BlockId;
+use alloy::network::TransactionBuilder;
+use alloy::primitives::{Address, TxHash, B256, U256};
+use alloy::providers::{ext::DebugApi, Provider};
+use alloy::rpc::types::trace::geth::{GethDebugTracerType, GethDebugTracingOptions};
+use alloy::rpc::types::trace::geth::{GethDebugTracingCallOptions, GethTrace};
+use alloy::rpc::types::TransactionRequest;
 use eyre::{bail, OptionExt, Result, WrapErr};
 use serde::{Deserialize, Serialize};
+use serde_json::{from_value, Value};
 use sneks::SimpleSnakeNames;
 use std::{collections::VecDeque, mem};
 
 #[derive(Debug)]
 pub struct Trace {
     pub top_frame: TraceFrame,
-    pub tx: Transaction,
+    pub tx: TransactionRequest,
     pub json: Value,
 }
 
 impl Trace {
-    pub async fn new<T: JsonRpcClient>(
-        provider: Provider<T>,
+    pub async fn new(
+        provider: &impl Provider,
         tx: TxHash,
         use_native_tracer: bool,
     ) -> Result<Self> {
@@ -37,7 +36,7 @@ impl Trace {
         let Some(receipt) = provider.get_transaction_receipt(hash).await? else {
             bail!("failed to get receipt for tx: {}", hash)
         };
-        let Some(tx) = provider.get_transaction(hash).await? else {
+        let Some(tx) = provider.get_transaction_by_hash(hash).await? else {
             bail!("failed to get tx data: {}", hash)
         };
 
@@ -50,10 +49,9 @@ impl Trace {
             tracer: Some(GethDebugTracerType::JsTracer(query.to_owned())),
             ..GethDebugTracingOptions::default()
         };
-        let GethTrace::Unknown(json) = provider.debug_trace_transaction(hash, tracer).await? else {
+        let GethTrace::JS(json) = provider.debug_trace_transaction(hash, tracer).await? else {
             bail!("malformed tracing result")
         };
-
         if let Value::Array(arr) = json.clone() {
             if arr.is_empty() {
                 bail!("No trace frames found, perhaps you are attempting to trace the contract deployment transaction");
@@ -65,12 +63,12 @@ impl Trace {
             bail!("Your tx was a contract activation transaction. It has no trace frames");
         }
 
-        let to = receipt.to.map(|x| Address::from(x.0));
+        let to: Option<Address> = receipt.to.map(|x| Address::from(x.0));
         let top_frame = TraceFrame::parse_frame(to, json.clone())?;
 
         Ok(Self {
             top_frame,
-            tx,
+            tx: tx.into_request(),
             json,
         })
     }
@@ -81,30 +79,27 @@ impl Trace {
             frame: self.top_frame,
         }
     }
-    pub async fn simulate<T: JsonRpcClient>(
-        provider: Provider<T>,
-        args: &SimulateArgs,
-    ) -> Result<Self> {
+    pub async fn simulate(provider: &impl Provider, args: &SimulateArgs) -> Result<Self> {
         // Build the transaction request
-        let mut tx_request = TransactionRequest::new();
+        let mut tx_request = TransactionRequest::default();
 
         if let Some(from) = args.from {
-            tx_request = tx_request.from(from);
+            tx_request = tx_request.with_from(from);
         }
         if let Some(to) = args.to {
-            tx_request = tx_request.to(to);
+            tx_request = tx_request.with_to(to);
         }
         if let Some(gas) = args.gas {
-            tx_request = tx_request.gas(gas);
+            tx_request = tx_request.with_gas_limit(gas);
         }
         if let Some(gas_price) = args.gas_price {
-            tx_request = tx_request.gas_price(gas_price);
+            tx_request = tx_request.with_max_fee_per_gas(gas_price);
         }
         if let Some(value) = args.value {
-            tx_request = tx_request.value(value);
+            tx_request = tx_request.with_value(value);
         }
         if let Some(data) = &args.data {
-            tx_request = tx_request.data(data.clone());
+            tx_request = tx_request.with_input(data.clone());
         }
 
         // Use the same tracer as in Trace::new
@@ -124,10 +119,10 @@ impl Trace {
         };
 
         // Use the latest block; alternatively, this can be made configurable
-        let block_id = None::<BlockId>;
+        let block_id = BlockId::latest();
 
-        let GethTrace::Unknown(json) = provider
-            .debug_trace_call(tx_request, block_id, tracer_options)
+        let GethTrace::JS(json) = provider
+            .debug_trace_call(tx_request.clone(), block_id, tracer_options)
             .await?
         else {
             bail!("Malformed tracing result");
@@ -138,31 +133,12 @@ impl Trace {
                 bail!("No trace frames found.");
             }
         }
-        // Since this is a simulated transaction, we create a dummy Transaction object
-        let tx = Transaction {
-            from: args.from.unwrap_or_default(),
-            to: args.to,
-            gas: args
-                .gas
-                .map(|gas| {
-                    let bytes = [0u8; 32]; // U256 in both libraries is 32 bytes
-                    gas.to_be_bytes().copy_from_slice(&bytes[..8]); // Convert alloy_primitives::U256 to bytes
-                    ethers::types::U256::from_big_endian(&bytes) // Convert bytes to ethers::types::U256
-                })
-                .unwrap_or_else(ethers::types::U256::zero), // Default to 0 if no gas is provided
-            gas_price: args.gas_price,
-            value: args.value.unwrap_or_else(ethers::types::U256::zero),
-            input: args.data.clone().unwrap_or_default().into(),
-            // Default values for other fields
-            ..Default::default()
-        };
-
         // Parse the trace frames
         let top_frame = TraceFrame::parse_frame(None, json.clone())?;
 
         Ok(Self {
             top_frame,
-            tx,
+            tx: tx_request,
             json,
         })
     }
@@ -788,7 +764,7 @@ impl FrameReader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{address, fixed_bytes};
+    use alloy::primitives::{address, fixed_bytes};
 
     #[test]
     fn parse_simple() {

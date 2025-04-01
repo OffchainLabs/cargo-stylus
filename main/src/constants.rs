@@ -1,22 +1,13 @@
 // Copyright 2023-2024, Offchain Labs, Inc.
 // For licensing, see https://github.com/OffchainLabs/cargo-stylus/blob/main/licenses/COPYRIGHT.md
 
-use alloy_primitives::{address, Address};
-use ethers::types::{H160, U256};
-use lazy_static::lazy_static;
+use alloy::primitives::{address, Address};
 
 /// EOF prefix used in Stylus compressed WASMs on-chain
 pub const EOF_PREFIX_NO_DICT: &str = "EFF00000";
 
 /// Maximum brotli compression level used for Stylus contracts.
 pub const BROTLI_COMPRESSION_LEVEL: u32 = 11;
-
-lazy_static! {
-    /// Address of the ArbWasm precompile.
-    pub static ref ARB_WASM_H160: H160 = H160(*ARB_WASM_ADDRESS.0);
-    /// Address of the ArbWasmCache precompile.
-    pub static ref ARB_WASM_CACHE_H160: H160 = H160(*ARB_WASM_CACHE_ADDRESS.0);
-}
 
 /// Address of the ArbWasm precompile.
 pub const ARB_WASM_ADDRESS: Address = address!("0000000000000000000000000000000000000071");
@@ -33,9 +24,6 @@ pub const GITHUB_TEMPLATE_REPO: &str = "https://github.com/OffchainLabs/stylus-h
 /// The minimal entrypoint repo
 pub const GITHUB_TEMPLATE_REPO_MINIMAL: &str =
     "https://github.com/OffchainLabs/stylus-hello-world-minimal";
-
-/// One ether in wei.
-pub const ONE_ETH: U256 = U256([1000000000000000000, 0, 0, 0]);
 
 /// Name of the custom wasm section that is added to contracts deployed with cargo stylus
 /// to include a hash of the Rust project's source files for reproducible verification of builds.

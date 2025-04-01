@@ -15,18 +15,12 @@ docker-test = []
 nightly = []
 
 [dependencies]
-alloy-primitives.workspace = true
-alloy-dyn-abi.workspace = true
-alloy-json-abi.workspace = true
-alloy-sol-macro.workspace = true
-alloy-sol-types.workspace = true
-alloy-ethers-typecast.workspace = true
+alloy.workspace = true
 function_name.workspace = true
 clap.workspace = true
 eyre.workspace = true
 hex.workspace = true
 lazy_static.workspace = true
-ethers.workspace = true
 tokio.workspace = true
 rustc-host.workspace = true
 libloading.workspace = true
@@ -47,9 +41,4 @@ wasm-encoder = "0.213.0"
 wasm-gen = "0.1.4"
 toml = "0.8.14"
 sys-info = "0.9.1"
-alloy-contract = "0.2.1"
-alloy-provider = "0.2.1"
-alloy-signer-local = { version = "0.2.1", features = ["keystore"] }
-alloy-signer = "0.2.1"
-alloy-transport = "0.2.1"
 wasmprinter = "0.221.2"

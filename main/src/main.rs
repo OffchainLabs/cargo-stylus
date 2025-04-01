@@ -4,11 +4,12 @@
 // Enable unstable test feature for benchmarks when nightly is available
 #![cfg_attr(feature = "nightly", feature(test))]
 
-use alloy_primitives::{TxHash, B256};
+use alloy::{
+    primitives::{utils::parse_ether, Address, Bytes, TxHash, B256, U256},
+    providers::ProviderBuilder,
+};
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
-use ethers::abi::Bytes;
-use ethers::types::{H160, U256};
 use eyre::{bail, eyre, Context, Result};
 use std::{
     fmt,
@@ -172,7 +173,7 @@ pub struct CacheBidConfig {
     #[command(flatten)]
     auth: AuthOpts,
     /// Deployed and activated contract address to cache.
-    address: H160,
+    address: Address,
     /// Bid, in wei, to place on the desired contract to cache. A value of 0 is a valid bid.
     bid: u64,
     #[arg(long)]
@@ -187,7 +188,7 @@ pub struct CacheStatusConfig {
     endpoint: String,
     /// Stylus contract address to check status in the cache manager.
     #[arg(long)]
-    address: Option<H160>,
+    address: Option<Address>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -196,7 +197,7 @@ pub struct CacheSuggestionsConfig {
     #[arg(short, long, default_value = DEFAULT_ENDPOINT)]
     endpoint: String,
     /// Stylus contract address to suggest a minimum bid for in the cache manager.
-    address: H160,
+    address: Address,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -210,7 +211,7 @@ pub struct ActivateConfig {
     auth: AuthOpts,
     /// Deployed Stylus contract address to activate.
     #[arg(long)]
-    address: H160,
+    address: Address,
     /// Whether or not to just estimate gas without sending a tx.
     #[arg(long)]
     estimate_gas: bool,
@@ -227,7 +228,7 @@ pub struct CheckConfig {
     wasm_file: Option<PathBuf>,
     /// Where to deploy and activate the contract (defaults to a random address).
     #[arg(long)]
-    contract_address: Option<H160>,
+    contract_address: Option<Address>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -271,7 +272,7 @@ struct DeployConfig {
     no_activate: bool,
     /// The address of the deployer contract that deploys, activates, and initializes the stylus constructor.
     #[arg(long, value_name = "DEPLOYER_ADDRESS")]
-    experimental_deployer_address: Option<H160>,
+    experimental_deployer_address: Option<Address>,
     /// The salt passed to the stylus deployer.
     #[arg(long, default_value_t = B256::ZERO)]
     experimental_deployer_salt: B256,
@@ -350,11 +351,11 @@ pub struct SimulateArgs {
 
     /// From address.
     #[arg(short, long)]
-    from: Option<H160>,
+    from: Option<Address>,
 
     /// To address.
     #[arg(short, long)]
-    to: Option<H160>,
+    to: Option<Address>,
 
     /// Gas limit.
     #[arg(long)]
@@ -362,7 +363,7 @@ pub struct SimulateArgs {
 
     /// Gas price.
     #[arg(long)]
-    gas_price: Option<U256>,
+    gas_price: Option<u128>,
 
     /// Value to send with the transaction.
     #[arg(short, long)]
@@ -749,15 +750,15 @@ async fn main_impl(args: Opts) -> Result<()> {
 }
 
 async fn trace(args: TraceArgs) -> Result<()> {
-    let provider = sys::new_provider(&args.endpoint)?;
-    let trace = Trace::new(provider, args.tx, args.use_native_tracer).await?;
+    let provider = ProviderBuilder::new().on_builtin(&args.endpoint).await?;
+    let trace = Trace::new(&provider, args.tx, args.use_native_tracer).await?;
     println!("{}", trace.json);
     Ok(())
 }
 
 async fn simulate(args: SimulateArgs) -> Result<()> {
-    let provider = sys::new_provider(&args.endpoint)?;
-    let trace = Trace::simulate(provider, &args).await?;
+    let provider = ProviderBuilder::new().on_builtin(&args.endpoint).await?;
+    let trace = Trace::simulate(&provider, &args).await?;
     println!("{}", trace.json);
     Ok(())
 }
@@ -814,15 +815,20 @@ async fn replay(args: ReplayArgs) -> Result<()> {
         bail!("failed to exec {cmd_name} {:?}", err);
     }
 
-    let provider = sys::new_provider(&args.trace.endpoint)?;
-    let trace = Trace::new(provider, args.trace.tx, args.trace.use_native_tracer).await?;
+    let provider = ProviderBuilder::new()
+        .on_builtin(&args.trace.endpoint)
+        .await?;
+    let trace = Trace::new(&provider, args.trace.tx, args.trace.use_native_tracer).await?;
 
     build_shared_library(&args.trace.project, args.package, args.features)?;
     let library_extension = if macos { ".dylib" } else { ".so" };
     let shared_library = find_shared_library(&args.trace.project, library_extension)?;
 
     // TODO: don't assume the contract is top-level
-    let args_len = trace.tx.input.len();
+    let args_len = match &trace.tx.input.data {
+        Some(data) => data.len(),
+        None => 0,
+    };
 
     unsafe {
         *hostio::FRAME.lock() = Some(trace.reader());
@@ -893,8 +899,4 @@ pub fn find_shared_library(project: &Path, extension: &str) -> Result<PathBuf> {
         bail!("failed to find .so");
     };
     Ok(file)
-}
-
-fn parse_ether(s: &str) -> Result<U256> {
-    Ok(ethers::utils::parse_ether(s)?)
 }
