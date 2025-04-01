@@ -13,6 +13,7 @@ use crate::{
     },
     DeployConfig, GasFeeConfig,
 };
+use alloy_json_abi::Constructor;
 use alloy_primitives::{Address, U256 as AU256};
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
@@ -49,8 +50,15 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     let use_wasm_file = cfg.check_config.wasm_file.is_some();
 
     let constructor = if use_wasm_file {
-        None
+        if let Some(signature) = &cfg.experimental_constructor_signature {
+            Some(Constructor::parse(signature)?)
+        } else {
+            None
+        }
     } else {
+        if cfg.experimental_constructor_signature.is_some() {
+            bail!("cannot set constructor signature without --wasm-file");
+        }
         export_abi::get_constructor_signature()?
     };
     let deployer_args = constructor

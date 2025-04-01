@@ -286,6 +286,9 @@ struct DeployConfig {
     /// The amount of Ether sent to the contract through the constructor.
     #[arg(long, value_parser = parse_ether, default_value = "0")]
     experimental_constructor_value: U256,
+    /// The constructor signature when using the --wasm-file flag.
+    #[arg(long)]
+    experimental_constructor_signature: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
