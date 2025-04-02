@@ -164,7 +164,7 @@ fn all_paths(root_dir: &Path, source_file_patterns: Vec<String>) -> Result<Vec<P
                 }
                 directories.push(path);
             } else if path.file_name().is_some_and(|f| {
-                // If the user has has specified a list of source file patterns, check if the file
+                // If the user has specified a list of source file patterns, check if the file
                 // matches the pattern.
                 if !glob_paths.is_empty() {
                     for glob_path in glob_paths.iter() {

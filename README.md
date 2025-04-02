@@ -157,7 +157,7 @@ Confirmed tx 0x0bdb…3307, gas used 14204908
 
 **cargo stylus check**
 
-Instruments a Rust project using Stylus. This command runs compiled WASM code through Stylus instrumentation checks and reports any failures. It **verifies the contract can compile onchain** by making an eth_call to a Arbitrum chain RPC endpoint.
+Instruments a Rust project using Stylus. This command runs compiled WASM code through Stylus instrumentation checks and reports any failures. It **verifies the contract can compile onchain** by making an eth_call to an Arbitrum chain RPC endpoint.
 
 ```
 Usage: cargo stylus check [OPTIONS]
