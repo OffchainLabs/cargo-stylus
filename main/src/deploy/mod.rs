@@ -23,6 +23,8 @@ use eyre::{bail, eyre, Result, WrapErr};
 
 mod deployer;
 
+pub use deployer::STYLUS_DEPLOYER_ADDRESS;
+
 sol! {
     #[sol(rpc)]
     interface ArbWasm {
@@ -63,13 +65,8 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     };
 
     // Check constructor flags for contracts without constructor
-    if deployer_args.is_none() {
-        if cfg.experimental_deployer_address.is_some() {
-            bail!("deployer address set but constructor was not found");
-        }
-        if !cfg.experimental_constructor_args.is_empty() {
-            bail!("constructor arguments set but constructor was not found");
-        }
+    if deployer_args.is_none() && !cfg.experimental_constructor_args.is_empty() {
+        bail!("constructor arguments set but constructor was not found");
     }
 
     let provider = ProviderBuilder::new()
