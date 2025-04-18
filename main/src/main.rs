@@ -10,6 +10,7 @@ use alloy::{
 };
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand};
 use constants::DEFAULT_ENDPOINT;
+use deploy::STYLUS_DEPLOYER_ADDRESS;
 use eyre::{bail, eyre, Context, Result};
 use std::{
     fmt,
@@ -271,8 +272,8 @@ struct DeployConfig {
     #[arg(long)]
     no_activate: bool,
     /// The address of the deployer contract that deploys, activates, and initializes the stylus constructor.
-    #[arg(long, value_name = "DEPLOYER_ADDRESS")]
-    experimental_deployer_address: Option<Address>,
+    #[arg(long, value_name = "DEPLOYER_ADDRESS", default_value_t = STYLUS_DEPLOYER_ADDRESS)]
+    experimental_deployer_address: Address,
     /// The salt passed to the stylus deployer.
     #[arg(long, default_value_t = B256::ZERO)]
     experimental_deployer_salt: B256,

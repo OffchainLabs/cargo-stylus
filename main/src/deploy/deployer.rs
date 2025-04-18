@@ -12,13 +12,15 @@ use alloy::{
     dyn_abi::{DynSolValue, JsonAbiExt, Specifier},
     json_abi::{Constructor, StateMutability},
     network::TransactionBuilder,
-    primitives::{utils::format_ether, Address, U256},
+    primitives::{address, utils::format_ether, Address, U256},
     providers::{Provider, ProviderBuilder},
     rpc::types::{TransactionReceipt, TransactionRequest},
     sol,
     sol_types::{SolCall, SolEvent},
 };
 use eyre::{bail, eyre, Context, Result};
+
+pub const STYLUS_DEPLOYER_ADDRESS: Address = address!("6ac4839Bfe169CadBBFbDE3f29bd8459037Bf64e");
 
 sol! {
     #[sol(rpc)]
@@ -51,10 +53,6 @@ pub async fn parse_constructor_args(
     constructor: &Constructor,
     contract: &ContractCheck,
 ) -> Result<DeployerArgs> {
-    let Some(address) = cfg.experimental_deployer_address else {
-        bail!("this contract has a constructor so it requires the deployer address for deployment");
-    };
-
     if !cfg.experimental_constructor_value.is_zero() {
         greyln!(
             "value sent to the constructor: {} {GREY}Ether",
@@ -106,7 +104,7 @@ pub async fn parse_constructor_args(
 
     let tx_calldata = deploy_call.calldata().to_vec();
     Ok(DeployerArgs {
-        address,
+        address: cfg.experimental_deployer_address,
         tx_value,
         tx_calldata,
     })
