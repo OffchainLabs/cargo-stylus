@@ -81,7 +81,7 @@ fn run_export(command: &str, features: Option<String>) -> Result<Vec<u8>> {
         .output()?;
     if !output.status.success() {
         let out = String::from_utf8_lossy(&output.stdout);
-        let out = (out != "")
+        let out = (!out.is_empty())
             .then_some(format!(": {out}"))
             .unwrap_or_default();
         egreyln!("failed to run contract {out}");
