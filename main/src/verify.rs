@@ -11,15 +11,12 @@ use alloy::{
 };
 use eyre::{bail, eyre, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 use crate::{
     check,
-    constants::TOOLCHAIN_FILE_NAME,
     deploy::{self, deployer, extract_compressed_wasm, extract_contract_evm_deployment_prelude},
     export_abi,
     macros::greyln,
-    project::{self, extract_toolchain_channel},
     util::{
         color::{Color, GREY, MINT},
         sys,
@@ -42,9 +39,6 @@ pub async fn verify(cfg: VerifyConfig) -> Result<()> {
         bail!("Invalid hash");
     }
     let hash = TxHash::from_slice(&hash);
-    let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
-    let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
-    let rust_stable = !toolchain_channel.contains("nightly");
     let Some(tx) = provider
         .get_transaction_by_hash(hash)
         .await
@@ -67,20 +61,10 @@ pub async fn verify(cfg: VerifyConfig) -> Result<()> {
         wasm_file: None,
         contract_address: None,
     };
-    let _ = check::check(&check_cfg)
+    let contract_check = check::check(&check_cfg)
         .await
         .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
-    let build_cfg = project::BuildConfig {
-        opt_level: project::OptLevel::default(),
-        stable: rust_stable,
-        features: cfg.common_cfg.features.clone(),
-    };
-    let wasm_file: PathBuf = project::build_dylib(build_cfg.clone())
-        .map_err(|e| eyre!("could not build project to WASM: {e}"))?;
-    let project_hash =
-        project::hash_project(cfg.common_cfg.source_files_for_project_hash, build_cfg)?;
-    let (_, init_code) = project::compress_wasm(&wasm_file, project_hash)?;
-    let deployment_data = deploy::contract_deployment_calldata(&init_code);
+    let deployment_data = deploy::contract_deployment_calldata(&contract_check.code());
     let calldata = tx.input();
     if let Some(deployer_address) = tx.to() {
         verify_constructor_deployment(deployer_address, calldata, &deployment_data)
