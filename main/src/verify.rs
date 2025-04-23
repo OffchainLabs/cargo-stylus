@@ -3,21 +3,27 @@
 
 #![allow(clippy::println_empty_string)]
 
+use alloy::{
+    consensus::Transaction,
+    dyn_abi::JsonAbiExt,
+    primitives::{Address, TxHash},
+    providers::{Provider, ProviderBuilder},
+};
+use eyre::{bail, eyre, Result};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use alloy::consensus::Transaction;
-use alloy::primitives::TxHash;
-use alloy::providers::{Provider, ProviderBuilder};
-use eyre::{bail, eyre};
-
-use serde::{Deserialize, Serialize};
-
-use crate::util::{color::Color, sys};
 use crate::{
     check,
     constants::TOOLCHAIN_FILE_NAME,
-    deploy::{self, extract_compressed_wasm, extract_contract_evm_deployment_prelude},
+    deploy::{self, deployer, extract_compressed_wasm, extract_contract_evm_deployment_prelude},
+    export_abi,
+    macros::greyln,
     project::{self, extract_toolchain_channel},
+    util::{
+        color::{Color, GREY, MINT},
+        sys,
+    },
     CheckConfig, DataFeeOpts, VerifyConfig,
 };
 
@@ -26,7 +32,7 @@ struct RpcResult {
     input: String,
 }
 
-pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
+pub async fn verify(cfg: VerifyConfig) -> Result<()> {
     let provider = ProviderBuilder::new()
         .on_builtin(&cfg.common_cfg.endpoint)
         .await?;
@@ -39,14 +45,13 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
     let toolchain_file_path = PathBuf::from(".").as_path().join(TOOLCHAIN_FILE_NAME);
     let toolchain_channel = extract_toolchain_channel(&toolchain_file_path)?;
     let rust_stable = !toolchain_channel.contains("nightly");
-    let Some(result) = provider
+    let Some(tx) = provider
         .get_transaction_by_hash(hash)
         .await
         .map_err(|e| eyre!("RPC failed: {e}"))?
     else {
         bail!("No code at address");
     };
-
     let output = sys::new_command("cargo")
         .arg("clean")
         .output()
@@ -76,11 +81,47 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
         project::hash_project(cfg.common_cfg.source_files_for_project_hash, build_cfg)?;
     let (_, init_code) = project::compress_wasm(&wasm_file, project_hash)?;
     let deployment_data = deploy::contract_deployment_calldata(&init_code);
-    if deployment_data == *result.input() {
-        println!("Verified - contract matches local project's file hashes");
+    let calldata = tx.input();
+    if let Some(deployer_address) = tx.to() {
+        verify_constructor_deployment(deployer_address, calldata, &deployment_data)
     } else {
-        let tx_prelude = extract_contract_evm_deployment_prelude(result.input());
-        let reconstructed_prelude = extract_contract_evm_deployment_prelude(&deployment_data);
+        verify_create_deployment(calldata, &deployment_data)
+    }
+}
+
+fn verify_constructor_deployment(
+    deployer_address: Address,
+    calldata: &[u8],
+    deployment_data: &[u8],
+) -> Result<()> {
+    let Some(constructor) = export_abi::get_constructor_signature()? else {
+        bail!("Deployment transaction uses constructor but the local project doesn't have one");
+    };
+    let call = deployer::decode_deploy_call(calldata)?;
+    if &call.bytecode != deployment_data {
+        bail!("Mismatch between deployed bytecode and local project's bytecode");
+    }
+    if call.initData.len() < 4 {
+        bail!("Invalid init data length");
+    }
+    let constructor_args = constructor.abi_decode_input(&call.initData[4..], true)?;
+    greyln!("{MINT}VERIFIED{GREY} - contract with constructor matches local project's file hashes");
+    greyln!("Deployer address: {}", deployer_address);
+    greyln!("Value: {}", call.initValue);
+    greyln!("Salt: {}", call.salt);
+    greyln!("Constructor params:");
+    for (param, value) in constructor.inputs.iter().zip(constructor_args) {
+        greyln!(" * {}: {:?}", param, value);
+    }
+    Ok(())
+}
+
+fn verify_create_deployment(calldata: &[u8], deployment_data: &[u8]) -> Result<()> {
+    if deployment_data == calldata {
+        greyln!("{MINT}VERIFIED{GREY} - contract matches local project's file hashes");
+    } else {
+        let tx_prelude = extract_contract_evm_deployment_prelude(calldata);
+        let reconstructed_prelude = extract_contract_evm_deployment_prelude(deployment_data);
         println!(
             "{} - contract deployment did not verify against local project's file hashes",
             "FAILED".red()
@@ -97,11 +138,11 @@ pub async fn verify(cfg: VerifyConfig) -> eyre::Result<()> {
         }
         println!(
             "Compressed code length of locally reconstructed {}",
-            init_code.len()
+            extract_compressed_wasm(deployment_data).len()
         );
         println!(
             "Compressed code length of deployment tx {}",
-            extract_compressed_wasm(result.input()).len()
+            extract_compressed_wasm(calldata).len()
         );
     }
     Ok(())
