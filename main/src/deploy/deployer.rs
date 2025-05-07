@@ -187,3 +187,7 @@ fn get_address_from_receipt(receipt: &TransactionReceipt) -> Result<Address> {
     }
     Err(eyre!("contract address not found in receipt"))
 }
+
+pub fn decode_deploy_call(calldata: &[u8]) -> Result<StylusDeployer::deployCall> {
+    StylusDeployer::deployCall::abi_decode(calldata, true).map_err(|e| e.into())
+}

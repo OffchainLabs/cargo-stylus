@@ -61,6 +61,7 @@ pub fn print_constructor(file: Option<PathBuf>, rust_features: Option<Vec<String
 /// Gets the constructor signature of the Stylus contract using the export binary.
 /// If the contract doesn't have a constructor, returns None.
 pub fn get_constructor_signature() -> Result<Option<Constructor>> {
+    greyln!("checking whether the contract has a constructor...");
     let output = run_export("constructor", None)?;
     let output = String::from_utf8(output)?;
     parse_constructor(&output)

@@ -21,7 +21,7 @@ use alloy::{
 };
 use eyre::{bail, eyre, Result, WrapErr};
 
-mod deployer;
+pub mod deployer;
 
 pub use deployer::STYLUS_DEPLOYER_ADDRESS;
 
