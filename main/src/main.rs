@@ -826,10 +826,10 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     let shared_library = find_shared_library(&args.trace.project, library_extension)?;
 
     // TODO: don't assume the contract is top-level
-    let args_len = match &trace.tx.input.data {
-        Some(data) => data.len(),
-        None => 0,
+    let Some(args) = trace.tx.input.input() else {
+        bail!("missing transaction input");
     };
+    let args_len = args.len();
 
     unsafe {
         *hostio::FRAME.lock() = Some(trace.reader());
