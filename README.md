@@ -7,10 +7,45 @@ A cargo subcommand for building, verifying, and deploying Arbitrum Stylus WASM c
 > [!NOTE]  
 > Stylus contract verification will only be supported on Arbiscan for contracts deployed using cargo stylus `v0.5.0` or higher. We highly recommend deploying on Arbitrum Sepolia and verify your contracts on Sepolia Arbiscan first before going to mainnet.
 
+## Table of Contents 
+
+- [Quick Start](#quick-start)
+  - [Installing With Cargo](#installing-with-cargo)
+  - [Building the Project Locally](#building-the-project-locally)
+  - [Overview](#overview)
+  - [Testnet Information](#testnet-information)
+  - [Developing With Stylus](#developing-with-stylus)
+- [Compiling and Checking Stylus Contracts](#compiling-and-checking-stylus-contracts)
+- [Deploying Stylus Contracts](#deploying-stylus-contracts)
+- [Verifying Stylus Contracts](#verifying-stylus-contracts)
+- [Deploying Non-Rust WASM Projects](#deploying-non-rust-wasm-projects)
+- [Exporting Solidity ABIs](#exporting-solidity-abis)
+- [Optimizing Binary Sizes](#optimizing-binary-sizes)
+- [License](#license)
+
 ## Quick Start
 
 ![Image](./header.png)
 
+### Quick Usage
+
+```bash
+# Install cargo-stylus
+cargo install cargo-stylus
+rustup target add wasm32-unknown-unknown 
+
+# Create a new project 
+cargo stylus new my-contract 
+                                                                                                                                                                                               
+# Check if contract can be deployed 
+cargo stylus check
+
+# Deploy to testnet (Arbitrum Sepolia) 
+cargo stylus deploy --private-key-path=/path/to/key.txt --endpoint="https://sepolia-rollup.arbitrum.io/rpc" 
+
+# Export contract ABI
+cargo stylus export-abi --output=./abi.json --json 
+```
 ### Installing With Cargo
 
 Install [Rust](https://www.rust-lang.org/tools/install), and then install the plugin using the Cargo tool:
@@ -220,6 +255,172 @@ Brotli-compressed, Stylus contract WASM binaries must fit within the **24Kb** [c
 We recommend optimizing your Stylus contract's sizes to smaller sizes, but keep in mind the safety tradeoffs of using some of the more advanced optimizations. However, some small contracts when compiled to much smaller sizes can suffer performance penalties.
 
 For a deep-dive into the different options for optimizing binary sizes using cargo stylus, see [OPTIMIZING_BINARIES.md](./main/OPTIMIZING_BINARIES.md).
+
+## Command Reference
+Below are the major commands with their syntax, common options, and examples:
+### cargo stylus new
+
+Creates a new Stylus project from a template.
+
+**Syntax:**
+  
+``` shell
+cargo stylus new [OPTIONS]
+```
+
+**Common Options:**
+
+- `--minimal`: Create a minimal project structure rather than the full example
+
+**Examples:**
+
+```shell
+# Create a full-featured Counter example project
+cargo stylus new my-token-contract
+
+# Create a minimal project with just the essentials
+cargo stylus new --minimal minimal-contract
+```
+
+### cargo stylus check
+
+Validates that a contract can be deployed and activated on Arbitrum Stylus.
+
+**Syntax:**
+
+```shell
+cargo stylus check [OPTIONS]
+```
+
+**Common Options:**
+
+- `--endpoint=<URL>:` Arbitrum RPC endpoint (default: Arbitrum Sepolia)
+- `--wasm-file=<PATH>`: Path to WASM file (if not using current project)
+- `--contract-address=<ADDRESS>`: Target contract address (default: random address)
+
+**Examples:**
+
+```shell
+# Check the current project against default testnet
+cargo stylus check
+
+# Check against a specific network
+cargo stylus check --endpoint="https://arb1.arbitrum.io/rpc"
+
+# Check a specific WASM file
+cargo stylus check --wasm-file=./path/to/contract.wasm
+```
+
+### cargo stylus deploy
+
+Deploys a Stylus contract to an Arbitrum chain and activates it.
+
+**Syntax:**
+
+```shell
+cargo stylus deploy [OPTIONS]
+```
+
+**Common Options:**
+
+  - `--endpoint=<URL>`: Arbitrum RPC endpoint (default: Arbitrum Sepolia)
+  - `--private-key-path=<PATH>`: Path to file containing private key
+  - `--estimate-gas`: Only estimate the gas needed for deployment
+  - `--no-verify`: Skip using Docker for reproducible builds
+  - `--no-activate`: Deploy without activating the contract
+
+**Examples:**
+
+```shell
+# Deploy to default testnet and estimate gas
+cargo stylus deploy --private-key-path=./key.txt --estimate-gas
+
+# Deploy to mainnet without Docker verification
+cargo stylus deploy --endpoint="https://arb1.arbitrum.io/rpc" \
+  --private-key-path=./key.txt --no-verify
+
+# Deploy without activation (for advanced use cases)
+cargo stylus deploy --private-key-path=./key.txt --no-activate
+```
+
+### cargo stylus verify
+
+Verifies a previously deployed contract.
+
+**Syntax:**
+
+```shell
+cargo stylus verify [OPTIONS]
+```
+Common Options:
+- `--endpoint=<URL>`: Arbitrum RPC endpoint (default: Arbitrum Sepolia)
+- `--deployment-tx=<TX_HASH>`: Hash of the deployment transaction
+- `--no-verify`: Skip using Docker for reproducible builds
+
+**Examples:**
+
+```shell
+# Verify a contract on Arbitrum Sepolia
+  cargo stylus verify --deployment-tx=0x1234abcd...
+
+# Verify a contract on mainnet
+cargo stylus verify --endpoint="https://arb1.arbitrum.io/rpc" \
+    --deployment-tx=0x5678efgh...
+```
+
+### cargo stylus export-abi
+
+Exports a Solidity ABI for the current project.
+  
+**Syntax:**
+
+```shell
+cargo stylus export-abi [OPTIONS]
+```
+
+Common Options:
+- `--output=<PATH>`: Output file path (default: stdout)
+- `--json`: Generate JSON format ABI (requires solc)
+- `--rust-features`=<FEATURES>: Rust features to include
+
+**Examples:**
+
+```shell
+# Export ABI to stdout
+
+cargo stylus export-abi
+
+# Export JSON ABI to file
+cargo stylus export-abi --output=./abi.json --json
+  # Export with specific Rust features
+cargo stylus export-abi --rust-features=feature1,feature2
+```
+
+## Troubleshooting 
+### Common Issues and Solutions 
+#### Size Limit Errors
+**Error**: Contract exceeds 24KB after compression
+**Solution**:
+- Check [OPTIMIZING_BINARIES.md](./main/OPTIMIZING_BINARIES.md) for optimization techniques
+- Use `#[no_std]` to avoid the Rust standard library
+- Remove unused dependencies from your `Cargo.toml`
+- Use the `opt-level = "z"` optimization in your release profile
+#### WASM Validation Errors
+**Error**: Contract fails with "binary exports reserved symbol" or other validation errors
+**Solution**:
+- Ensure you're using a supported version of the stylus-sdk
+- Check [VALID_WASM.md](./main/VALID_WASM.md) for limitations on WASM features
+- Make sure your contract properly exports the required entrypoint functions
+#### Activation Failures
+**Error**: Contract deployment succeeds but activation fails
+**Solution**: 
+- Verify that your WASM contract is valid with `cargo stylus check`
+- Ensure you have sufficient funds for both deployment and activation
+- Check that your contract doesn't exceed size or feature limitations
+### Getting Additional Help
+If you encounter issues not covered here:
+- File an issue in the [GitHub repository](https://github.com/OffchainLabs/cargo-stylus/issues)
+- Join the [Arbitrum Discord](https://discord.gg/arbitrum) for community support
 
 ## License
 
