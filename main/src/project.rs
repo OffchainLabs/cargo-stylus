@@ -67,7 +67,7 @@ pub fn build_dylib(cfg: BuildConfig) -> Result<PathBuf> {
     let cargo_toml_version = extract_cargo_toml_version(&cargo_toml_path)?;
     greyln!("Building project with Cargo.toml version: {cargo_toml_version}");
 
-    let project_name = extract_cargo_project_name(&cargo_toml_path)?
+    let project_name = extract_cargo_lib_or_project_name(&cargo_toml_path)?
         .replace("-", "_")
         .replace("\"", "");
 
@@ -243,12 +243,25 @@ pub fn extract_cargo_toml_version(cargo_toml_path: &PathBuf) -> Result<String> {
     Ok(version.to_string())
 }
 
-pub fn extract_cargo_project_name(cargo_toml_path: &PathBuf) -> Result<String> {
+pub fn extract_cargo_lib_or_project_name(cargo_toml_path: &PathBuf) -> Result<String> {
     let cargo_toml_contents = fs::read_to_string(cargo_toml_path)
         .context("expected to find a Cargo.toml file in project directory")?;
 
     let cargo_toml: Value =
         toml::from_str(&cargo_toml_contents).context("failed to parse Cargo.toml")?;
+
+    // First, let's try to find if the library's name is set, since this will
+    // interfere with finding the wasm file in the deps directory if it's
+    // different.
+
+    if let Some(lib) = cargo_toml.get("lib") {
+        if let Some(name) = lib.get("name") {
+            return Ok(name.to_string());
+        };
+    };
+
+    // If that doesn't work, then we can use the package name, and break
+    // normally.
 
     let Some(pkg) = cargo_toml.get("package") else {
         bail!("package section not found in Cargo.toml");
