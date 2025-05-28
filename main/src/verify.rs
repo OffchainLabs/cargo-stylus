@@ -64,7 +64,7 @@ pub async fn verify(cfg: VerifyConfig) -> Result<()> {
     let contract_check = check::check(&check_cfg)
         .await
         .map_err(|e| eyre!("Stylus checks failed: {e}"))?;
-    let deployment_data = deploy::contract_deployment_calldata(&contract_check.code());
+    let deployment_data = deploy::contract_deployment_calldata(contract_check.code());
     let calldata = tx.input();
     if let Some(deployer_address) = tx.to() {
         verify_constructor_deployment(deployer_address, calldata, &deployment_data)
