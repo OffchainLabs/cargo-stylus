@@ -72,7 +72,7 @@ pub async fn check(cfg: &CheckConfig) -> Result<ContractCheck> {
 
     // Check if the contract already exists.
     let provider = ProviderBuilder::new()
-        .on_builtin(&cfg.common_cfg.endpoint)
+        .connect(&cfg.common_cfg.endpoint)
         .await?;
     let codehash = alloy::primitives::keccak256(&code);
 
@@ -175,7 +175,7 @@ async fn contract_exists(codehash: B256, provider: &impl Provider) -> Result<boo
             let Some(err_resp) = tperr.as_error_resp() else {
                 bail!("no error payload received in response: {:?}", tperr)
             };
-            let Some(errs) = err_resp.as_decoded_error::<ArbWasmErrors>(true) else {
+            let Some(errs) = err_resp.as_decoded_interface_error::<ArbWasmErrors>() else {
                 bail!("failed to decode CacheManager error: {:?}", err_resp)
             };
             use ArbWasmErrors as A;

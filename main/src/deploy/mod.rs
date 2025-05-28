@@ -70,14 +70,14 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     }
 
     let provider = ProviderBuilder::new()
-        .on_builtin(&cfg.check_config.common_cfg.endpoint)
+        .connect(&cfg.check_config.common_cfg.endpoint)
         .await?;
     let chain_id = provider.get_chain_id().await?;
     let wallet = cfg.auth.alloy_wallet(chain_id)?;
     let from_address = wallet.default_signer().address();
     let provider = ProviderBuilder::new()
         .wallet(wallet)
-        .on_builtin(&cfg.check_config.common_cfg.endpoint)
+        .connect(&cfg.check_config.common_cfg.endpoint)
         .await?;
 
     if verbose {
@@ -151,7 +151,7 @@ impl DeployConfig {
             .with_deploy_code(init_code);
 
         let verbose = self.check_config.common_cfg.verbose;
-        let gas = provider.estimate_gas(&tx).await?;
+        let gas = provider.estimate_gas(tx.clone()).await?;
 
         let gas_price = provider.get_gas_price().await?;
 
@@ -212,7 +212,7 @@ impl DeployConfig {
             .with_input(data);
 
         let gas = client
-            .estimate_gas(&tx)
+            .estimate_gas(tx.clone())
             .await
             .map_err(|e| eyre!("did not estimate correctly: {e}"))?;
 

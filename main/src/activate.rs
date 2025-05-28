@@ -24,14 +24,14 @@ sol! {
 /// Activates an already deployed Stylus contract by address.
 pub async fn activate_contract(cfg: &ActivateConfig) -> Result<()> {
     let provider = ProviderBuilder::new()
-        .on_builtin(&cfg.common_cfg.endpoint)
+        .connect(&cfg.common_cfg.endpoint)
         .await?;
     let chain_id = provider.get_chain_id().await?;
     let wallet = cfg.auth.alloy_wallet(chain_id)?;
     let from_address = wallet.default_signer().address();
     let provider = ProviderBuilder::new()
         .wallet(wallet)
-        .on_builtin(&cfg.common_cfg.endpoint)
+        .connect(&cfg.common_cfg.endpoint)
         .await?;
 
     let code = provider.get_code_at(cfg.address).await?;
