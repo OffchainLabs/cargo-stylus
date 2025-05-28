@@ -751,14 +751,14 @@ async fn main_impl(args: Opts) -> Result<()> {
 }
 
 async fn trace(args: TraceArgs) -> Result<()> {
-    let provider = ProviderBuilder::new().on_builtin(&args.endpoint).await?;
+    let provider = ProviderBuilder::new().connect(&args.endpoint).await?;
     let trace = Trace::new(&provider, args.tx, args.use_native_tracer).await?;
     println!("{}", trace.json);
     Ok(())
 }
 
 async fn simulate(args: SimulateArgs) -> Result<()> {
-    let provider = ProviderBuilder::new().on_builtin(&args.endpoint).await?;
+    let provider = ProviderBuilder::new().connect(&args.endpoint).await?;
     let trace = Trace::simulate(&provider, &args).await?;
     println!("{}", trace.json);
     Ok(())
@@ -816,9 +816,7 @@ async fn replay(args: ReplayArgs) -> Result<()> {
         bail!("failed to exec {cmd_name} {:?}", err);
     }
 
-    let provider = ProviderBuilder::new()
-        .on_builtin(&args.trace.endpoint)
-        .await?;
+    let provider = ProviderBuilder::new().connect(&args.trace.endpoint).await?;
     let trace = Trace::new(&provider, args.trace.tx, args.trace.use_native_tracer).await?;
 
     build_shared_library(&args.trace.project, args.package, args.features)?;

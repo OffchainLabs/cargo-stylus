@@ -92,7 +92,7 @@ pub async fn parse_constructor_args(
 
     let bytecode = super::contract_deployment_calldata(contract.code());
     let provider = ProviderBuilder::new()
-        .on_builtin(&cfg.check_config.common_cfg.endpoint)
+        .connect(&cfg.check_config.common_cfg.endpoint)
         .await?;
     let deployer = StylusDeployer::new(Address::ZERO, provider);
     let deploy_call = deployer.deploy(
@@ -130,7 +130,7 @@ pub async fn deploy(
         .with_input(deployer.tx_calldata);
 
     let gas = provider
-        .estimate_gas(&tx)
+        .estimate_gas(tx.clone())
         .await
         .wrap_err("deployment failed during gas estimation")?;
 
@@ -189,5 +189,5 @@ fn get_address_from_receipt(receipt: &TransactionReceipt) -> Result<Address> {
 }
 
 pub fn decode_deploy_call(calldata: &[u8]) -> Result<StylusDeployer::deployCall> {
-    StylusDeployer::deployCall::abi_decode(calldata, true).map_err(|e| e.into())
+    StylusDeployer::deployCall::abi_decode(calldata).map_err(|e| e.into())
 }

@@ -31,7 +31,7 @@ struct RpcResult {
 
 pub async fn verify(cfg: VerifyConfig) -> Result<()> {
     let provider = ProviderBuilder::new()
-        .on_builtin(&cfg.common_cfg.endpoint)
+        .connect(&cfg.common_cfg.endpoint)
         .await?;
 
     let hash = crate::util::text::decode0x(cfg.deployment_tx)?;
@@ -88,7 +88,7 @@ fn verify_constructor_deployment(
     if call.initData.len() < 4 {
         bail!("Invalid init data length");
     }
-    let constructor_args = constructor.abi_decode_input(&call.initData[4..], true)?;
+    let constructor_args = constructor.abi_decode_input(&call.initData[4..])?;
     greyln!("{MINT}VERIFIED{GREY} - contract with constructor matches local project's file hashes");
     greyln!("Deployer address: {}", deployer_address);
     greyln!("Value: {}", call.initValue);

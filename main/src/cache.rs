@@ -42,11 +42,11 @@ sol! {
 /// Recommends a minimum bid to the user for caching a Stylus program by address. If the program
 /// has not yet been activated, the user will be informed.
 pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
-    let provider = ProviderBuilder::new().on_builtin(&cfg.endpoint).await?;
+    let provider = ProviderBuilder::new().connect(&cfg.endpoint).await?;
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
     match cache_manager.getMinBid_0(cfg.address).call().await {
-        Ok(CacheManager::getMinBid_0Return { min: min_bid }) => {
+        Ok(min_bid) => {
             greyln!(
                 "Minimum bid for contract {}: {} wei",
                 cfg.address,
@@ -61,7 +61,7 @@ pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
             let Some(err_resp) = tperr.as_error_resp() else {
                 bail!("no error payload received in response: {:?}", tperr)
             };
-            let Some(errs) = err_resp.as_decoded_error::<CacheManagerErrors>(true) else {
+            let Some(errs) = err_resp.as_decoded_interface_error::<CacheManagerErrors>() else {
                 bail!("failed to decode CacheManager error: {:?}", err_resp)
             };
             handle_cache_manager_error(errs)
@@ -73,22 +73,22 @@ pub async fn suggest_bid(cfg: &CacheSuggestionsConfig) -> Result<()> {
 /// for different contract sizes as reference points. It also checks if a specified Stylus contract address
 /// is currently cached.
 pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
-    let provider = ProviderBuilder::new().on_builtin(&cfg.endpoint).await?;
+    let provider = ProviderBuilder::new().connect(&cfg.endpoint).await?;
     let arb_wasm_cache = ArbWasmCache::new(ARB_WASM_CACHE_ADDRESS, provider.clone());
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
-    let CacheManager::isPausedReturn { _0: is_paused } = cache_manager.isPaused().call().await?;
-    let CacheManager::queueSizeReturn { _0: queue_size } = cache_manager.queueSize().call().await?;
-    let CacheManager::cacheSizeReturn { _0: cache_size } = cache_manager.cacheSize().call().await?;
-    let CacheManager::getMinBid_1Return { min: min_bid_smol } = cache_manager
+    let is_paused = cache_manager.isPaused().call().await?;
+    let queue_size = cache_manager.queueSize().call().await?;
+    let cache_size = cache_manager.cacheSize().call().await?;
+    let min_bid_smol = cache_manager
         .getMinBid_1(ByteSize::kb(8).as_u64())
         .call()
         .await?;
-    let CacheManager::getMinBid_1Return { min: min_bid_med } = cache_manager
+    let min_bid_med = cache_manager
         .getMinBid_1(ByteSize::kb(16).as_u64())
         .call()
         .await?;
-    let CacheManager::getMinBid_1Return { min: min_bid_big } = cache_manager
+    let min_bid_big = cache_manager
         .getMinBid_1(ByteSize::kb(24).as_u64())
         .call()
         .await?;
@@ -132,8 +132,7 @@ pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
     if let Some(address) = cfg.address {
         let code = provider.get_code_at(address).await?;
         let codehash = keccak256(code);
-        let ArbWasmCache::codehashIsCachedReturn { _0: is_cached } =
-            arb_wasm_cache.codehashIsCached(codehash).call().await?;
+        let is_cached = arb_wasm_cache.codehashIsCached(codehash).call().await?;
         greyln!(
             "Contract at address {} {}",
             address.debug_lavender(),
@@ -151,13 +150,13 @@ pub async fn check_status(cfg: &CacheStatusConfig) -> Result<()> {
 /// It will handle the different cache manager errors that can be encountered along the way and
 /// print friendlier errors if failed.
 pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
-    let provider = ProviderBuilder::new().on_builtin(&cfg.endpoint).await?;
+    let provider = ProviderBuilder::new().connect(&cfg.endpoint).await?;
     let chain_id = provider.get_chain_id().await?;
     let wallet = cfg.auth.alloy_wallet(chain_id)?;
     let from_address = wallet.default_signer().address();
     let provider = ProviderBuilder::new()
         .wallet(wallet)
-        .on_builtin(&cfg.endpoint)
+        .connect(&cfg.endpoint)
         .await?;
     let cache_manager_addr = get_cache_manager_address(provider.clone()).await?;
     let cache_manager = CacheManager::new(cache_manager_addr, provider.clone());
@@ -179,7 +178,7 @@ pub async fn place_bid(cfg: &CacheBidConfig) -> Result<()> {
         let Some(err_resp) = tperr.as_error_resp() else {
             bail!("no error payload received in response: {:?}", tperr)
         };
-        let Some(errs) = err_resp.as_decoded_error::<CacheManagerErrors>(true) else {
+        let Some(errs) = err_resp.as_decoded_interface_error::<CacheManagerErrors>() else {
             bail!("failed to decode CacheManager error: {:?}", err_resp)
         };
         handle_cache_manager_error(errs)?;
@@ -207,11 +206,11 @@ where
     P: Provider + Clone + Send + Sync,
 {
     let arb_wasm_cache = ArbWasmCache::new(ARB_WASM_CACHE_ADDRESS, provider.clone());
-    let result = arb_wasm_cache.allCacheManagers().call().await?;
-    if result.managers.is_empty() {
+    let managers = arb_wasm_cache.allCacheManagers().call().await?;
+    if managers.is_empty() {
         bail!("no cache managers found in ArbWasmCache, perhaps the Stylus cache is not yet enabled on this chain");
     }
-    Ok(*result.managers.last().unwrap())
+    Ok(*managers.last().unwrap())
 }
 
 fn format_gas(gas: u128) -> String {
