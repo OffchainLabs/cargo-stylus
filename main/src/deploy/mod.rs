@@ -44,13 +44,13 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     let use_wasm_file = cfg.check_config.wasm_file.is_some();
 
     let constructor = if use_wasm_file {
-        if let Some(signature) = &cfg.experimental_constructor_signature {
+        if let Some(signature) = &cfg.constructor_signature {
             Some(Constructor::parse(signature)?)
         } else {
             None
         }
     } else {
-        if cfg.experimental_constructor_signature.is_some() {
+        if cfg.constructor_signature.is_some() {
             bail!("cannot set constructor signature without --wasm-file");
         }
         export_abi::get_constructor_signature()?
@@ -65,7 +65,7 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
     };
 
     // Check constructor flags for contracts without constructor
-    if deployer_args.is_none() && !cfg.experimental_constructor_args.is_empty() {
+    if deployer_args.is_none() && !cfg.constructor_args.is_empty() {
         bail!("constructor arguments set but constructor was not found");
     }
 
@@ -84,7 +84,7 @@ pub async fn deploy(cfg: DeployConfig) -> Result<()> {
         greyln!("sender address: {}", from_address.debug_lavender());
     }
 
-    let data_fee = contract.suggest_fee() + cfg.experimental_constructor_value;
+    let data_fee = contract.suggest_fee() + cfg.constructor_value;
 
     if let ContractCheck::Ready { .. } = &contract {
         // check balance early
