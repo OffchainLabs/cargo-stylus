@@ -273,10 +273,10 @@ struct DeployConfig {
     no_activate: bool,
     /// The address of the deployer contract that deploys, activates, and initializes the stylus constructor.
     #[arg(long, value_name = "DEPLOYER_ADDRESS", default_value_t = STYLUS_DEPLOYER_ADDRESS)]
-    experimental_deployer_address: Address,
+    deployer_address: Address,
     /// The salt passed to the stylus deployer.
     #[arg(long, default_value_t = B256::ZERO)]
-    experimental_deployer_salt: B256,
+    deployer_salt: B256,
     /// The constructor arguments.
     #[arg(
         long,
@@ -284,13 +284,13 @@ struct DeployConfig {
         value_name = "ARGS",
         allow_hyphen_values = true,
     )]
-    experimental_constructor_args: Vec<String>,
+    constructor_args: Vec<String>,
     /// The amount of Ether sent to the contract through the constructor.
     #[arg(long, value_parser = parse_ether, default_value = "0")]
-    experimental_constructor_value: U256,
+    constructor_value: U256,
     /// The constructor signature when using the --wasm-file flag.
     #[arg(long)]
-    experimental_constructor_signature: Option<String>,
+    constructor_signature: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -826,10 +826,10 @@ async fn replay(args: ReplayArgs) -> Result<()> {
     let shared_library = find_shared_library(&args.trace.project, library_extension)?;
 
     // TODO: don't assume the contract is top-level
-    let args_len = match &trace.tx.input.data {
-        Some(data) => data.len(),
-        None => 0,
+    let Some(args) = trace.tx.input.input() else {
+        bail!("missing transaction input");
     };
+    let args_len = args.len();
 
     unsafe {
         *hostio::FRAME.lock() = Some(trace.reader());
