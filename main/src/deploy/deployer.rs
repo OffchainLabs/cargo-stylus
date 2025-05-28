@@ -53,19 +53,19 @@ pub async fn parse_constructor_args(
     constructor: &Constructor,
     contract: &ContractCheck,
 ) -> Result<DeployerArgs> {
-    if !cfg.experimental_constructor_value.is_zero() {
+    if !cfg.constructor_value.is_zero() {
         greyln!(
             "value sent to the constructor: {} {GREY}Ether",
-            format_ether(cfg.experimental_constructor_value).debug_lavender()
+            format_ether(cfg.constructor_value).debug_lavender()
         );
     }
-    let constructor_value = cfg.experimental_constructor_value;
+    let constructor_value = cfg.constructor_value;
     if constructor.state_mutability != StateMutability::Payable && !constructor_value.is_zero() {
         bail!("attempting to send Ether to non-payable constructor");
     }
     let tx_value = contract.suggest_fee() + constructor_value;
 
-    let args = &cfg.experimental_constructor_args;
+    let args = &cfg.constructor_args;
     let params = &constructor.inputs;
     if args.len() != params.len() {
         bail!(
@@ -99,12 +99,12 @@ pub async fn parse_constructor_args(
         bytecode.into(),
         constructor_calldata.into(),
         constructor_value,
-        cfg.experimental_deployer_salt,
+        cfg.deployer_salt,
     );
 
     let tx_calldata = deploy_call.calldata().to_vec();
     Ok(DeployerArgs {
-        address: cfg.experimental_deployer_address,
+        address: cfg.deployer_address,
         tx_value,
         tx_calldata,
     })
