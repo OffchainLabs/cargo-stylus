@@ -20,7 +20,7 @@ use alloy::{
 };
 use eyre::{bail, eyre, Context, Result};
 
-pub const STYLUS_DEPLOYER_ADDRESS: Address = address!("6ac4839Bfe169CadBBFbDE3f29bd8459037Bf64e");
+pub const STYLUS_DEPLOYER_ADDRESS: Address = address!("cEcba2F1DC234f70Dd89F2041029807F8D03A990");
 
 sol! {
     #[sol(rpc)]
