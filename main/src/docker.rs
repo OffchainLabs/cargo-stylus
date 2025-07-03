@@ -48,9 +48,12 @@ fn create_image(cargo_stylus_version: &str, toolchain_version: &str) -> Result<(
     if image_exists(&image_name)? {
         return Ok(());
     }
+
+    let (docker_platform, rust_toolchain) = get_docker_platform_and_toolchain()?;
+
     println!(
-        "Building Docker image for Rust toolchain {}",
-        toolchain_version
+        "Building Docker image for Rust toolchain {} on platform {}",
+        toolchain_version, docker_platform
     );
     let mut child = Command::new("docker")
         .arg("build")
@@ -64,19 +67,35 @@ fn create_image(cargo_stylus_version: &str, toolchain_version: &str) -> Result<(
     write!(
         child.stdin.as_mut().unwrap(),
         "\
-            ARG BUILD_PLATFORM=linux/amd64
+            ARG BUILD_PLATFORM={}
             FROM --platform=${{BUILD_PLATFORM}} offchainlabs/cargo-stylus-base:{} AS base
-            RUN rustup toolchain install {}-x86_64-unknown-linux-gnu 
-            RUN rustup default {}-x86_64-unknown-linux-gnu
+            RUN rustup toolchain install {}-{} 
+            RUN rustup default {}-{}
             RUN rustup target add wasm32-unknown-unknown
-            RUN rustup component add rust-src --toolchain {}-x86_64-unknown-linux-gnu
+            RUN rustup component add rust-src --toolchain {}-{}
         ",
+        docker_platform,
         cargo_stylus_version,
         toolchain_version,
+        rust_toolchain,
         toolchain_version,
+        rust_toolchain,
         toolchain_version,
+        rust_toolchain,
     )?;
-    child.wait().map_err(|e| eyre!("wait failed: {e}"))?;
+    let exit_status = child.wait().map_err(|e| eyre!("wait failed: {e}"))?;
+
+    if !exit_status.success() {
+        println!(
+            "{}",
+            "Docker image creation failed. This might be due to platform compatibility issues."
+                .yellow()
+        );
+        println!("Try using the --no-verify flag to skip Docker verification:");
+        println!("  cargo stylus deploy --no-verify [other options]");
+        bail!("Docker image creation failed");
+    }
+
     Ok(())
 }
 
@@ -149,6 +168,32 @@ fn verify_valid_host() -> Result<()> {
     Ok(())
 }
 
+fn get_docker_platform_and_toolchain() -> Result<(String, String)> {
+    let host_arch = crate::util::sys::host_arch()?;
+
+    match host_arch.as_str() {
+        arch if arch.contains("x86_64") => {
+            // For x86_64, we need to handle the fact that the base image doesn't support amd64
+            // We'll try ARM64 with emulation as a workaround
+            Ok((
+                "linux/arm64".to_string(),
+                "x86_64-unknown-linux-gnu".to_string(),
+            ))
+        }
+        arch if arch.contains("aarch64") || arch.contains("arm64") => Ok((
+            "linux/arm64".to_string(),
+            "aarch64-unknown-linux-gnu".to_string(),
+        )),
+        _ => {
+            // Default fallback
+            Ok((
+                "linux/arm64".to_string(),
+                "x86_64-unknown-linux-gnu".to_string(),
+            ))
+        }
+    }
+}
+
 #[cfg(all(test, feature = "docker-test"))]
 mod tests {
     use super::*;
@@ -174,5 +219,28 @@ mod tests {
         assert!(!image_exists(&image_name).unwrap());
         create_image(&cargo_stylus_version, toolchain_version).unwrap();
         assert!(image_exists(&image_name).unwrap());
+    }
+
+    #[test]
+    fn test_get_docker_platform_and_toolchain() {
+        let result = get_docker_platform_and_toolchain();
+        assert!(
+            result.is_ok(),
+            "get_docker_platform_and_toolchain should not fail"
+        );
+
+        let (platform, toolchain) = result.unwrap();
+
+        // Platform should always be linux/arm64 (due to base image limitations)
+        assert_eq!(platform, "linux/arm64");
+
+        // Toolchain should be either x86_64 or aarch64 based architecture
+        assert!(
+            toolchain == "x86_64-unknown-linux-gnu" || toolchain == "aarch64-unknown-linux-gnu",
+            "Expected x86_64-unknown-linux-gnu or aarch64-unknown-linux-gnu, got: {}",
+            toolchain
+        );
+
+        println!("Platform: {}, Toolchain: {}", platform, toolchain);
     }
 }
