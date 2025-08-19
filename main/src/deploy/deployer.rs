@@ -95,7 +95,7 @@ pub async fn parse_constructor_args(
         .connect(&cfg.check_config.common_cfg.endpoint)
         .await?;
     let deployer = StylusDeployer::new(Address::ZERO, provider);
-    let deploy_call = deployer.deploy(
+    let deploy_call = deployer.deploy_call(
         bytecode.into(),
         constructor_calldata.into(),
         constructor_value,
