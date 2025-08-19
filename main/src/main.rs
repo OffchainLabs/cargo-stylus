@@ -427,7 +427,7 @@ impl fmt::Display for CommonConfig {
             },
             source_files,
             match &self.max_fee_per_gas_gwei {
-                Some(fee) => format!("--max-fee-per-gas-gwei {}", fee),
+                Some(fee) => format!("--max-fee-per-gas-gwei {fee}"),
                 None => "".to_string(),
             }
         )
@@ -499,7 +499,7 @@ impl fmt::Display for CheckConfig {
                 None => "".to_string(),
             },
             match &self.contract_address {
-                Some(addr) => format!("--contract-address={:?}", addr),
+                Some(addr) => format!("--contract-address={addr:?}"),
                 None => "".to_string(),
             },
         )
