@@ -10,7 +10,6 @@ use alloy::{
     providers::{Provider, ProviderBuilder},
 };
 use eyre::{bail, eyre, Result};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     check,
@@ -23,11 +22,6 @@ use crate::{
     },
     CheckConfig, DataFeeOpts, VerifyConfig,
 };
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RpcResult {
-    input: String,
-}
 
 pub async fn verify(cfg: VerifyConfig) -> Result<()> {
     let provider = ProviderBuilder::new()
