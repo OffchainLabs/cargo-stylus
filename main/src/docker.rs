@@ -13,10 +13,7 @@ use crate::macros::greyln;
 use crate::project::extract_toolchain_channel;
 
 fn image_name(cargo_stylus_version: &str, toolchain_version: &str) -> String {
-    format!(
-        "cargo-stylus-base-{}-toolchain-{}",
-        cargo_stylus_version, toolchain_version
-    )
+    format!("cargo-stylus-base-{cargo_stylus_version}-toolchain-{toolchain_version}")
 }
 
 fn image_exists(image_name: &str) -> Result<bool> {
@@ -48,10 +45,7 @@ fn create_image(cargo_stylus_version: &str, toolchain_version: &str) -> Result<(
     if image_exists(&image_name)? {
         return Ok(());
     }
-    println!(
-        "Building Docker image for Rust toolchain {}",
-        toolchain_version
-    );
+    println!("Building Docker image for Rust toolchain {toolchain_version}");
     let mut child = Command::new("docker")
         .arg("build")
         .arg("-t")
@@ -65,16 +59,12 @@ fn create_image(cargo_stylus_version: &str, toolchain_version: &str) -> Result<(
         child.stdin.as_mut().unwrap(),
         "\
             ARG BUILD_PLATFORM=linux/amd64
-            FROM --platform=${{BUILD_PLATFORM}} offchainlabs/cargo-stylus-base:{} AS base
-            RUN rustup toolchain install {}-x86_64-unknown-linux-gnu 
-            RUN rustup default {}-x86_64-unknown-linux-gnu
+            FROM --platform=${{BUILD_PLATFORM}} offchainlabs/cargo-stylus-base:{cargo_stylus_version} AS base
+            RUN rustup toolchain install {toolchain_version}-x86_64-unknown-linux-gnu
+            RUN rustup default {toolchain_version}-x86_64-unknown-linux-gnu
             RUN rustup target add wasm32-unknown-unknown
-            RUN rustup component add rust-src --toolchain {}-x86_64-unknown-linux-gnu
+            RUN rustup component add rust-src --toolchain {toolchain_version}-x86_64-unknown-linux-gnu
         ",
-        cargo_stylus_version,
-        toolchain_version,
-        toolchain_version,
-        toolchain_version,
     )?;
     child.wait().map_err(|e| eyre!("wait failed: {e}"))?;
     Ok(())
