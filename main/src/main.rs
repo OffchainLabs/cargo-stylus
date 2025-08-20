@@ -407,33 +407,6 @@ struct AuthOpts {
     keystore_password_path: Option<PathBuf>,
 }
 
-impl fmt::Display for CommonConfig {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Convert the vector of source files to a comma-separated string
-        let mut source_files: String = "".to_string();
-        if !self.source_files_for_project_hash.is_empty() {
-            source_files = format!(
-                "--source-files-for-project-hash={}",
-                self.source_files_for_project_hash.join(", ")
-            );
-        }
-        write!(
-            f,
-            "--endpoint={} {} {} {}",
-            self.endpoint,
-            match self.verbose {
-                true => "--verbose",
-                false => "",
-            },
-            source_files,
-            match &self.max_fee_per_gas_gwei {
-                Some(fee) => format!("--max-fee-per-gas-gwei {fee}"),
-                None => "".to_string(),
-            }
-        )
-    }
-}
-
 pub trait GasFeeConfig {
     fn get_max_fee_per_gas_wei(&self) -> Result<Option<u128>>;
     fn get_fee_str(&self) -> &Option<String>;
@@ -488,80 +461,111 @@ impl GasFeeConfig for CacheBidConfig {
     }
 }
 
+impl fmt::Display for DataFeeOpts {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "--data-fee-bump-percent={}", self.data_fee_bump_percent)
+    }
+}
+
+impl fmt::Display for CommonConfig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut args = Vec::new();
+        args.push(format!("--endpoint={}", self.endpoint));
+        if self.verbose {
+            args.push("--verbose".to_string());
+        }
+        if !self.source_files_for_project_hash.is_empty() {
+            let files = self.source_files_for_project_hash.join(",");
+            args.push(format!("--source-files-for-project-hash={}", files));
+        }
+        if let Some(fee) = &self.max_fee_per_gas_gwei {
+            args.push(format!("--max-fee-per-gas-gwei={fee}"));
+        }
+        if let Some(features) = &self.features {
+            args.push(format!("--features={features}"));
+        }
+        write!(f, "{}", args.join(" "))
+    }
+}
+
 impl fmt::Display for CheckConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} {} {}",
-            self.common_cfg,
-            match &self.wasm_file {
-                Some(path) => format!("--wasm-file={}", path.display()),
-                None => "".to_string(),
-            },
-            match &self.contract_address {
-                Some(addr) => format!("--contract-address={addr:?}"),
-                None => "".to_string(),
-            },
-        )
+        let mut args = Vec::new();
+        args.push(format!("{}", self.common_cfg));
+        args.push(format!("{}", self.data_fee));
+        if let Some(wasm_file) = &self.wasm_file {
+            args.push(format!("--wasm-file={}", wasm_file.display()));
+        }
+        if let Some(address) = &self.contract_address {
+            args.push(format!("--contract-address={address:?}"));
+        }
+        write!(f, "{}", args.join(" "))
     }
 }
 
 impl fmt::Display for DeployConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} {} {} {}",
-            self.check_config,
-            self.auth,
-            match self.estimate_gas {
-                true => "--estimate-gas".to_string(),
-                false => "".to_string(),
-            },
-            match self.no_verify {
-                true => "--no-verify".to_string(),
-                false => "".to_string(),
-            }
-        )
+        let mut args = Vec::new();
+        args.push(format!("{}", self.check_config));
+        args.push(format!("{}", self.auth));
+        if self.estimate_gas {
+            args.push("--estimate-gas".to_string());
+        }
+        if self.no_verify {
+            args.push("--no-verify".to_string());
+        }
+        if let Some(version) = &self.cargo_stylus_version {
+            args.push(format!("--cargo-stylus-version={}", version));
+        }
+        if self.no_activate {
+            args.push("--no-activate".to_string());
+        }
+        args.push(format!("--deployer-address={:?}", self.deployer_address));
+        args.push(format!("--deployer-salt={}", self.deployer_salt));
+        args.push(format!("--constructor-value={}", self.constructor_value));
+        if let Some(signature) = &self.constructor_signature {
+            args.push(format!("--constructor-signature='{}'", signature));
+        }
+        // constructor args must be last
+        if !self.constructor_args.is_empty() {
+            args.push("--constructor-args".to_string());
+            args.extend_from_slice(&self.constructor_args);
+        }
+        write!(f, "{}", args.join(" "))
     }
 }
 
 impl fmt::Display for AuthOpts {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} {} {} {}",
-            match &self.private_key_path {
-                Some(path) => format!("--private-key-path={}", path.display()),
-                None => "".to_string(),
-            },
-            match &self.private_key {
-                Some(key) => format!("--private-key={}", key.clone()),
-                None => "".to_string(),
-            },
-            match &self.keystore_path {
-                Some(path) => format!("--keystore-path={}", path.clone()),
-                None => "".to_string(),
-            },
-            match &self.keystore_password_path {
-                Some(path) => format!("--keystore-password-path={}", path.display()),
-                None => "".to_string(),
-            }
-        )
+        let mut args = Vec::new();
+        if let Some(path) = &self.private_key_path {
+            args.push(format!("--private-key-path={}", path.display()));
+        }
+        if let Some(key) = &self.private_key {
+            args.push(format!("--private-key={}", key));
+        }
+        if let Some(path) = &self.keystore_path {
+            args.push(format!("--keystore-path={}", path));
+        }
+        if let Some(path) = &self.keystore_password_path {
+            args.push(format!("--keystore-password-path={}", path.display()));
+        }
+        write!(f, "{}", args.join(" "))
     }
 }
 
 impl fmt::Display for VerifyConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} --deployment-tx={} {}",
-            self.common_cfg,
-            self.deployment_tx,
-            match self.no_verify {
-                true => "--no-verify".to_string(),
-                false => "".to_string(),
-            }
-        )
+        let mut args = Vec::new();
+        args.push(format!("{}", self.common_cfg));
+        args.push(format!("--deployment-tx={}", self.deployment_tx));
+        if self.no_verify {
+            args.push("--no-verify".to_string());
+        }
+        if let Some(version) = &self.cargo_stylus_version {
+            args.push(format!("--cargo-stylus-version={version}"));
+        }
+        write!(f, "{}", args.join(" "))
     }
 }
 
@@ -898,4 +902,171 @@ pub fn find_shared_library(project: &Path, extension: &str) -> Result<PathBuf> {
         bail!("failed to find .so");
     };
     Ok(file)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_data_fee_opts() {
+        let opts = DataFeeOpts {
+            data_fee_bump_percent: 25,
+        };
+        let expected = "--data-fee-bump-percent=25";
+        assert_eq!(format!("{}", opts), expected);
+    }
+
+    #[test]
+    fn display_common_config() {
+        let config = CommonConfig {
+            endpoint: "http://localhost:8545".to_string(),
+            verbose: true,
+            source_files_for_project_hash: vec![
+                "src/main.rs".to_string(),
+                "Cargo.toml".to_string(),
+            ],
+            max_fee_per_gas_gwei: Some("150".to_string()),
+            features: Some("full".to_string()),
+        };
+        let expected = concat!(
+            "--endpoint=http://localhost:8545 ",
+            "--verbose ",
+            "--source-files-for-project-hash=src/main.rs,Cargo.toml ",
+            "--max-fee-per-gas-gwei=150 ",
+            "--features=full"
+        );
+        assert_eq!(format!("{}", config), expected);
+    }
+
+    #[test]
+    fn display_check_config() {
+        let config = CheckConfig {
+            common_cfg: CommonConfig {
+                endpoint: "http://test-endpoint:8545".to_string(),
+                verbose: true,
+                source_files_for_project_hash: vec!["src/lib.rs".to_string()],
+                max_fee_per_gas_gwei: Some("250".to_string()),
+                features: Some("nightly".to_string()),
+            },
+            data_fee: DataFeeOpts {
+                data_fee_bump_percent: 50,
+            },
+            wasm_file: Some(PathBuf::from("test.wasm")),
+            contract_address: Some(alloy::primitives::address!(
+                "fafafafafafafafafafafafafafafafafafafafa"
+            )),
+        };
+        let expected = concat!(
+            "--endpoint=http://test-endpoint:8545 ",
+            "--verbose ",
+            "--source-files-for-project-hash=src/lib.rs ",
+            "--max-fee-per-gas-gwei=250 ",
+            "--features=nightly ",
+            "--data-fee-bump-percent=50 ",
+            "--wasm-file=test.wasm ",
+            "--contract-address=0xfafafafafafafafafafafafafafafafafafafafa"
+        );
+        assert_eq!(format!("{}", config), expected);
+    }
+
+    #[test]
+    fn display_deploy_config() {
+        let config = DeployConfig {
+            check_config: CheckConfig {
+                common_cfg: CommonConfig {
+                    endpoint: "http://deploy.net".to_string(),
+                    verbose: true,
+                    source_files_for_project_hash: vec![],
+                    max_fee_per_gas_gwei: None,
+                    features: None,
+                },
+                data_fee: DataFeeOpts {
+                    data_fee_bump_percent: 30,
+                },
+                wasm_file: Some(PathBuf::from("deploy.wasm")),
+                contract_address: None,
+            },
+            auth: AuthOpts {
+                private_key_path: None,
+                private_key: Some("0xabc".to_string()),
+                keystore_path: None,
+                keystore_password_path: None,
+            },
+            estimate_gas: true,
+            no_verify: true,
+            cargo_stylus_version: Some("1.2.3".to_string()),
+            no_activate: true,
+            deployer_address: alloy::primitives::address!(
+                "fafafafafafafafafafafafafafafafafafafafa"
+            ),
+            deployer_salt: alloy::primitives::fixed_bytes!(
+                "bebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebe"
+            ),
+            constructor_args: vec!["arg1".to_string(), "123".to_string()],
+            constructor_value: U256::from(1000),
+            constructor_signature: Some("initialize(uint256)".to_string()),
+        };
+        let expected = concat!(
+            "--endpoint=http://deploy.net ",
+            "--verbose ",
+            "--data-fee-bump-percent=30 ",
+            "--wasm-file=deploy.wasm ",
+            "--private-key=0xabc ",
+            "--estimate-gas ",
+            "--no-verify ",
+            "--cargo-stylus-version=1.2.3 ",
+            "--no-activate ",
+            "--deployer-address=0xfafafafafafafafafafafafafafafafafafafafa ",
+            "--deployer-salt=0xbebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebe ",
+            "--constructor-value=1000 ",
+            "--constructor-signature='initialize(uint256)' ",
+            "--constructor-args arg1 123"
+        );
+        assert_eq!(format!("{}", config), expected);
+    }
+
+    #[test]
+    fn display_auth_opts() {
+        let auth = AuthOpts {
+            private_key_path: Some(PathBuf::from("/path/to/key")),
+            private_key: Some("0xdef".to_string()),
+            keystore_path: Some("/path/to/keystore".to_string()),
+            keystore_password_path: Some(PathBuf::from("/path/to/password")),
+        };
+        let expected = concat!(
+            "--private-key-path=/path/to/key ",
+            "--private-key=0xdef ",
+            "--keystore-path=/path/to/keystore ",
+            "--keystore-password-path=/path/to/password"
+        );
+        assert_eq!(format!("{}", auth), expected);
+    }
+
+    #[test]
+    fn display_verify_config() {
+        let config = VerifyConfig {
+            common_cfg: CommonConfig {
+                endpoint: "http://verify.net".to_string(),
+                verbose: true,
+                source_files_for_project_hash: vec!["src/verify.rs".to_string()],
+                max_fee_per_gas_gwei: Some("300".to_string()),
+                features: Some("verify-feature".to_string()),
+            },
+            deployment_tx: "0x123abc".to_string(),
+            no_verify: true,
+            cargo_stylus_version: Some("1.0.0".to_string()),
+        };
+        let expected = concat!(
+            "--endpoint=http://verify.net ",
+            "--verbose ",
+            "--source-files-for-project-hash=src/verify.rs ",
+            "--max-fee-per-gas-gwei=300 ",
+            "--features=verify-feature ",
+            "--deployment-tx=0x123abc ",
+            "--no-verify ",
+            "--cargo-stylus-version=1.0.0"
+        );
+        assert_eq!(format!("{}", config), expected);
+    }
 }
